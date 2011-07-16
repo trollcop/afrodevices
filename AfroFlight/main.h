@@ -11,6 +11,22 @@
 #include "timing.h"
 #include "uart.h"
 
+#ifdef _MSC_VER
+#include <stdint.h>
+typedef uint8_t u8;
+typedef volatile uint8_t vu8;
+typedef uint16_t u16;
+typedef volatile uint16_t vu16;
+typedef uint32_t u32;
+typedef volatile uint32_t vu32;
+typedef int8_t s8;
+typedef volatile int8_t vs8;
+typedef int16_t s16;
+typedef volatile int16_t vs16;
+typedef int32_t s32;
+typedef volatile int32_t vs32;
+#endif /* _MSC_VER */
+
 #define ADC_GYRO_ROLL	(0)
 #define ADC_GYRO_PITCH	(1)
 #define ADC_GYRO_YAW	(2)

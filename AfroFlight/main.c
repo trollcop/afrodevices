@@ -6,7 +6,7 @@ _Config Config;                                                      // Main set
 s16 Motors[MAX_MOTORS] = { 0, };                                     // Global motors struct for mixer.c
 
 /* local static vars */
-static u8 Armed = FALSE;                                           // Motors armed or not :)
+static u8 Armed = FALSE;                                             // Motors armed or not :)
 static u16 Loop = 0;                                                 // Loop counter used for slow timing
 static vu16 Rtc2ms = 0;                                              // Semi-accurate 1sec resolution timer used for flight hours and running tasks that shouldn't have to happen too often.
 static u16 Rtc1sec = 0;                                              // 1 second RTC
@@ -43,9 +43,6 @@ static const _Config DefaultConfig = {
     25,                         // Yaw P
     9                           // Yaw I
 };
-
-/* Index into the ADCValues[] array inside sensors.c */
-static const u8 SensorIndex[] = { ADC_GYRO_ROLL, ADC_GYRO_PITCH, ADC_GYRO_YAW };
 
 /* Fixed lookup table for TIM1/2 Pulse Width registers */
 static const struct {

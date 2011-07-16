@@ -6,7 +6,3 @@ Keyword=ST7Workspace-V0.7
 [Project0]
 Filename=afrost.stp
 Dependencies=
-[Options]
-ActiveProject=afrost
-ActiveConfig=Debug
-AddSortedElements=1
