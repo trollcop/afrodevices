@@ -113,7 +113,7 @@ static void ADXL_GetAccelValues(void)
     
     Analog IRQ handler - end of conversion
 */
-@near @interrupt void ADC1_IRQHandler(void)
+__near __interrupt void ADC1_IRQHandler(void)
 {
     u8 i = 0;
 

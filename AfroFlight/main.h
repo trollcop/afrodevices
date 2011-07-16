@@ -25,7 +25,14 @@ typedef int16_t s16;
 typedef volatile int16_t vs16;
 typedef int32_t s32;
 typedef volatile int32_t vs32;
-#endif /* _MSC_VER */
+#define __inline inline
+#define __near 
+#define __interrupt
+#else /* _MSC_VER */
+#define __inline @inline
+#define __near @near
+#define __interrupt @interrupt
+#endif
 
 #define ADC_GYRO_ROLL	(0)
 #define ADC_GYRO_PITCH	(1)

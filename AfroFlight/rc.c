@@ -13,11 +13,11 @@ static s16 PrevCaptureValue[PPM_NUM_INPUTS];
 #define DIFF_CHANNEL(Index)   (PrevCaptureValue[Config.ChannelMapping[Index]])
 
 /* RC Commands */
-#define COMMAND_TIMER           (1500)
+#define COMMAND_TIMER           (400)		    // 0.8 seconds @ 500Hz
 static u8 LastRCCommand = RC_COMMAND_NONE;
 static u16 CommandTimer = 0;
 
-@near @interrupt void TIM3_CAP_COM_IRQHandler(void)
+__near __interrupt void TIM3_CAP_COM_IRQHandler(void)
 {
     if (TIM3_GetITStatus(TIM3_IT_CC1) == SET) {
         PreviousValue = CurrentValue;

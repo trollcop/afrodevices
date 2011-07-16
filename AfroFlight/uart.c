@@ -18,7 +18,7 @@ static const _UARTVersion UARTVersion = {
     0x01,       // Protocol
 };
 
-@near @interrupt void UART2_TX_IRQHandler(void)
+__near __interrupt void UART2_TX_IRQHandler(void)
 {
     static u8 buffer_ptr = 0;
 
@@ -39,7 +39,7 @@ static const _UARTVersion UARTVersion = {
     }
 }
 
-@near @interrupt void UART2_RX_IRQHandler(void)
+__near __interrupt void UART2_RX_IRQHandler(void)
 {
     static u8 buffer_ptr = 0;
     u8 ch;

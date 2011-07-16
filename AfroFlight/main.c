@@ -58,7 +58,7 @@ static const struct {
 };
 
 /* Sets PWM pulse width for a given Motor */
-@inline void PWM_SetPulseWidth(u8 Motor, u16 Pulse)
+__inline void PWM_SetPulseWidth(u8 Motor, u16 Pulse)
 {
     /* Set the Pulse value */
     *TimerAddress[Motor].addressH = (u8)(Pulse >> 8);
@@ -66,7 +66,7 @@ static const struct {
 }
 
 /* Limit and output contents of Motors[] array to hardware */
-@inline void PWM_WriteMotors(void)
+__inline void PWM_WriteMotors(void)
 {
     u8 i;
 
@@ -80,7 +80,7 @@ static const struct {
 }
 
 /* 2ms RTC timer, to make 1s counter */
-@near @interrupt void TIM4_UPD_OVF_IRQHandler(void)
+__near __interrupt void TIM4_UPD_OVF_IRQHandler(void)
 {
     Rtc2ms++;
     // TIM4_ClearITPendingBit(TIM4_IT_UPDATE);
@@ -353,11 +353,11 @@ void main(void)
         }
 
         // artificial delay
-        LED_OFF
+        // LED_OFF
         // update + average sensors
         Sensors_Read();
-        while (rtcOld == Rtc2ms);
-        LED_ON
+        while (rtcOld == Rtc2ms); // idle until loop reaches 500Hz
+        // LED_ON
     }
 }
 
