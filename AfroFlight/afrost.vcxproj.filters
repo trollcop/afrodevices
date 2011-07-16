@@ -1,0 +1,234 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="inc">
+      <UniqueIdentifier>{93995380-89BD-4b04-88EB-625FBE52EBFB}</UniqueIdentifier>
+      <Extensions>h;hpp;hxx;hm;inl;inc;xsd</Extensions>
+    </Filter>
+    <Filter Include="src">
+      <UniqueIdentifier>{4FC737F1-C7A5-4376-A066-2A32D752A2FF}</UniqueIdentifier>
+      <Extensions>cpp;c;cc;cxx;def;odl;idl;hpj;bat;asm;asmx</Extensions>
+    </Filter>
+    <Filter Include="STM8S_StdPeriph_Driver">
+      <UniqueIdentifier>{380a046a-4cdc-4e90-a31e-94584e7c3a25}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="STM8S_StdPeriph_Driver\inc">
+      <UniqueIdentifier>{8d6c06dd-5d89-4378-9c8d-dc224f193b7c}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="STM8S_StdPeriph_Driver\src">
+      <UniqueIdentifier>{af8c3a85-6818-4a14-b603-e3d01d05b87c}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="imu.h">
+      <Filter>inc</Filter>
+    </ClInclude>
+    <ClInclude Include="main.h">
+      <Filter>inc</Filter>
+    </ClInclude>
+    <ClInclude Include="mixer.h">
+      <Filter>inc</Filter>
+    </ClInclude>
+    <ClInclude Include="rc.h">
+      <Filter>inc</Filter>
+    </ClInclude>
+    <ClInclude Include="sensors.h">
+      <Filter>inc</Filter>
+    </ClInclude>
+    <ClInclude Include="stm8s_conf.h">
+      <Filter>inc</Filter>
+    </ClInclude>
+    <ClInclude Include="stm8s_it.h">
+      <Filter>inc</Filter>
+    </ClInclude>
+    <ClInclude Include="timing.h">
+      <Filter>inc</Filter>
+    </ClInclude>
+    <ClInclude Include="uart.h">
+      <Filter>inc</Filter>
+    </ClInclude>
+    <ClInclude Include="stm8s_stdperiph_driver\inc\stm8s.h">
+      <Filter>STM8S_StdPeriph_Driver\inc</Filter>
+    </ClInclude>
+    <ClInclude Include="stm8s_stdperiph_driver\inc\stm8s_adc1.h">
+      <Filter>STM8S_StdPeriph_Driver\inc</Filter>
+    </ClInclude>
+    <ClInclude Include="stm8s_stdperiph_driver\inc\stm8s_adc2.h">
+      <Filter>STM8S_StdPeriph_Driver\inc</Filter>
+    </ClInclude>
+    <ClInclude Include="stm8s_stdperiph_driver\inc\stm8s_awu.h">
+      <Filter>STM8S_StdPeriph_Driver\inc</Filter>
+    </ClInclude>
+    <ClInclude Include="stm8s_stdperiph_driver\inc\stm8s_beep.h">
+      <Filter>STM8S_StdPeriph_Driver\inc</Filter>
+    </ClInclude>
+    <ClInclude Include="stm8s_stdperiph_driver\inc\stm8s_can.h">
+      <Filter>STM8S_StdPeriph_Driver\inc</Filter>
+    </ClInclude>
+    <ClInclude Include="stm8s_stdperiph_driver\inc\stm8s_clk.h">
+      <Filter>STM8S_StdPeriph_Driver\inc</Filter>
+    </ClInclude>
+    <ClInclude Include="stm8s_stdperiph_driver\inc\stm8s_exti.h">
+      <Filter>STM8S_StdPeriph_Driver\inc</Filter>
+    </ClInclude>
+    <ClInclude Include="stm8s_stdperiph_driver\inc\stm8s_flash.h">
+      <Filter>STM8S_StdPeriph_Driver\inc</Filter>
+    </ClInclude>
+    <ClInclude Include="stm8s_stdperiph_driver\inc\stm8s_gpio.h">
+      <Filter>STM8S_StdPeriph_Driver\inc</Filter>
+    </ClInclude>
+    <ClInclude Include="stm8s_stdperiph_driver\inc\stm8s_i2c.h">
+      <Filter>STM8S_StdPeriph_Driver\inc</Filter>
+    </ClInclude>
+    <ClInclude Include="stm8s_stdperiph_driver\inc\stm8s_itc.h">
+      <Filter>STM8S_StdPeriph_Driver\inc</Filter>
+    </ClInclude>
+    <ClInclude Include="stm8s_stdperiph_driver\inc\stm8s_iwdg.h">
+      <Filter>STM8S_StdPeriph_Driver\inc</Filter>
+    </ClInclude>
+    <ClInclude Include="stm8s_stdperiph_driver\inc\stm8s_rst.h">
+      <Filter>STM8S_StdPeriph_Driver\inc</Filter>
+    </ClInclude>
+    <ClInclude Include="stm8s_stdperiph_driver\inc\stm8s_spi.h">
+      <Filter>STM8S_StdPeriph_Driver\inc</Filter>
+    </ClInclude>
+    <ClInclude Include="stm8s_stdperiph_driver\inc\stm8s_tim1.h">
+      <Filter>STM8S_StdPeriph_Driver\inc</Filter>
+    </ClInclude>
+    <ClInclude Include="stm8s_stdperiph_driver\inc\stm8s_tim2.h">
+      <Filter>STM8S_StdPeriph_Driver\inc</Filter>
+    </ClInclude>
+    <ClInclude Include="stm8s_stdperiph_driver\inc\stm8s_tim3.h">
+      <Filter>STM8S_StdPeriph_Driver\inc</Filter>
+    </ClInclude>
+    <ClInclude Include="stm8s_stdperiph_driver\inc\stm8s_tim4.h">
+      <Filter>STM8S_StdPeriph_Driver\inc</Filter>
+    </ClInclude>
+    <ClInclude Include="stm8s_stdperiph_driver\inc\stm8s_tim5.h">
+      <Filter>STM8S_StdPeriph_Driver\inc</Filter>
+    </ClInclude>
+    <ClInclude Include="stm8s_stdperiph_driver\inc\stm8s_tim6.h">
+      <Filter>STM8S_StdPeriph_Driver\inc</Filter>
+    </ClInclude>
+    <ClInclude Include="stm8s_stdperiph_driver\inc\stm8s_type.h">
+      <Filter>STM8S_StdPeriph_Driver\inc</Filter>
+    </ClInclude>
+    <ClInclude Include="stm8s_stdperiph_driver\inc\stm8s_uart1.h">
+      <Filter>STM8S_StdPeriph_Driver\inc</Filter>
+    </ClInclude>
+    <ClInclude Include="stm8s_stdperiph_driver\inc\stm8s_uart2.h">
+      <Filter>STM8S_StdPeriph_Driver\inc</Filter>
+    </ClInclude>
+    <ClInclude Include="stm8s_stdperiph_driver\inc\stm8s_uart3.h">
+      <Filter>STM8S_StdPeriph_Driver\inc</Filter>
+    </ClInclude>
+    <ClInclude Include="stm8s_stdperiph_driver\inc\stm8s_wwdg.h">
+      <Filter>STM8S_StdPeriph_Driver\inc</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="imu.c">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="main.c">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="mixer.c">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="rc.c">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="sensors.c">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="stm8_interrupt_vector.c">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="timing.c">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="uart.c">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="STM8S_StdPeriph_Driver\src\stm8s_adc1.c">
+      <Filter>STM8S_StdPeriph_Driver\src</Filter>
+    </ClCompile>
+    <ClCompile Include="STM8S_StdPeriph_Driver\src\stm8s_adc2.c">
+      <Filter>STM8S_StdPeriph_Driver\src</Filter>
+    </ClCompile>
+    <ClCompile Include="STM8S_StdPeriph_Driver\src\stm8s_awu.c">
+      <Filter>STM8S_StdPeriph_Driver\src</Filter>
+    </ClCompile>
+    <ClCompile Include="STM8S_StdPeriph_Driver\src\stm8s_beep.c">
+      <Filter>STM8S_StdPeriph_Driver\src</Filter>
+    </ClCompile>
+    <ClCompile Include="STM8S_StdPeriph_Driver\src\stm8s_can.c">
+      <Filter>STM8S_StdPeriph_Driver\src</Filter>
+    </ClCompile>
+    <ClCompile Include="STM8S_StdPeriph_Driver\src\stm8s_clk.c">
+      <Filter>STM8S_StdPeriph_Driver\src</Filter>
+    </ClCompile>
+    <ClCompile Include="STM8S_StdPeriph_Driver\src\stm8s_exti.c">
+      <Filter>STM8S_StdPeriph_Driver\src</Filter>
+    </ClCompile>
+    <ClCompile Include="STM8S_StdPeriph_Driver\src\stm8s_flash.c">
+      <Filter>STM8S_StdPeriph_Driver\src</Filter>
+    </ClCompile>
+    <ClCompile Include="STM8S_StdPeriph_Driver\src\stm8s_gpio.c">
+      <Filter>STM8S_StdPeriph_Driver\src</Filter>
+    </ClCompile>
+    <ClCompile Include="STM8S_StdPeriph_Driver\src\stm8s_i2c.c">
+      <Filter>STM8S_StdPeriph_Driver\src</Filter>
+    </ClCompile>
+    <ClCompile Include="STM8S_StdPeriph_Driver\src\stm8s_itc.c">
+      <Filter>STM8S_StdPeriph_Driver\src</Filter>
+    </ClCompile>
+    <ClCompile Include="STM8S_StdPeriph_Driver\src\stm8s_iwdg.c">
+      <Filter>STM8S_StdPeriph_Driver\src</Filter>
+    </ClCompile>
+    <ClCompile Include="STM8S_StdPeriph_Driver\src\stm8s_rst.c">
+      <Filter>STM8S_StdPeriph_Driver\src</Filter>
+    </ClCompile>
+    <ClCompile Include="STM8S_StdPeriph_Driver\src\stm8s_spi.c">
+      <Filter>STM8S_StdPeriph_Driver\src</Filter>
+    </ClCompile>
+    <ClCompile Include="STM8S_StdPeriph_Driver\src\stm8s_tim1.c">
+      <Filter>STM8S_StdPeriph_Driver\src</Filter>
+    </ClCompile>
+    <ClCompile Include="STM8S_StdPeriph_Driver\src\stm8s_tim2.c">
+      <Filter>STM8S_StdPeriph_Driver\src</Filter>
+    </ClCompile>
+    <ClCompile Include="STM8S_StdPeriph_Driver\src\stm8s_tim3.c">
+      <Filter>STM8S_StdPeriph_Driver\src</Filter>
+    </ClCompile>
+    <ClCompile Include="STM8S_StdPeriph_Driver\src\stm8s_tim4.c">
+      <Filter>STM8S_StdPeriph_Driver\src</Filter>
+    </ClCompile>
+    <ClCompile Include="STM8S_StdPeriph_Driver\src\stm8s_tim5.c">
+      <Filter>STM8S_StdPeriph_Driver\src</Filter>
+    </ClCompile>
+    <ClCompile Include="STM8S_StdPeriph_Driver\src\stm8s_tim6.c">
+      <Filter>STM8S_StdPeriph_Driver\src</Filter>
+    </ClCompile>
+    <ClCompile Include="STM8S_StdPeriph_Driver\src\stm8s_uart1.c">
+      <Filter>STM8S_StdPeriph_Driver\src</Filter>
+    </ClCompile>
+    <ClCompile Include="STM8S_StdPeriph_Driver\src\stm8s_uart2.c">
+      <Filter>STM8S_StdPeriph_Driver\src</Filter>
+    </ClCompile>
+    <ClCompile Include="STM8S_StdPeriph_Driver\src\stm8s_uart3.c">
+      <Filter>STM8S_StdPeriph_Driver\src</Filter>
+    </ClCompile>
+    <ClCompile Include="STM8S_StdPeriph_Driver\src\stm8s_wwdg.c">
+      <Filter>STM8S_StdPeriph_Driver\src</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="afrost.dep" />
+    <None Include="afrost.stp" />
+    <None Include="afrost.stw" />
+    <None Include="afrost.wdb" />
+    <None Include="afrost.wed" />
+  </ItemGroup>
+</Project>

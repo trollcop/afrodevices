@@ -1,0 +1,143 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Debug|Win32">
+      <Configuration>Debug</Configuration>
+      <Platform>Win32</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|Win32">
+      <Configuration>Release</Configuration>
+      <Platform>Win32</Platform>
+    </ProjectConfiguration>
+  </ItemGroup>
+  <PropertyGroup Label="Globals">
+    <ProjectGuid>{14300255-1D5F-4F84-B89A-6C92ADC2A91B}</ProjectGuid>
+    <RootNamespace>afrost</RootNamespace>
+    <Keyword>MakeFileProj</Keyword>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'" Label="Configuration">
+    <ConfigurationType>Makefile</ConfigurationType>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
+    <ConfigurationType>Makefile</ConfigurationType>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <ImportGroup Label="ExtensionSettings">
+  </ImportGroup>
+  <ImportGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'" Label="PropertySheets">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <ImportGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="PropertySheets">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <PropertyGroup Label="UserMacros" />
+  <PropertyGroup>
+    <_ProjectFileVersion>10.0.30319.1</_ProjectFileVersion>
+    <OutDir Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Debug\</OutDir>
+    <IntDir Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Debug\</IntDir>
+    <NMakeBuildCommandLine Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" />
+    <NMakeReBuildCommandLine Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" />
+    <NMakeCleanCommandLine Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" />
+    <NMakeOutput Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" />
+    <NMakePreprocessorDefinitions Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">WIN32;_DEBUG;$(NMakePreprocessorDefinitions)</NMakePreprocessorDefinitions>
+    <NMakeIncludeSearchPath Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">$(NMakeIncludeSearchPath)</NMakeIncludeSearchPath>
+    <NMakeForcedIncludes Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">$(NMakeForcedIncludes)</NMakeForcedIncludes>
+    <NMakeAssemblySearchPath Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">$(NMakeAssemblySearchPath)</NMakeAssemblySearchPath>
+    <NMakeForcedUsingAssemblies Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">$(NMakeForcedUsingAssemblies)</NMakeForcedUsingAssemblies>
+    <OutDir Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">Release\</OutDir>
+    <IntDir Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">Release\</IntDir>
+    <NMakeBuildCommandLine Condition="'$(Configuration)|$(Platform)'=='Release|Win32'" />
+    <NMakeReBuildCommandLine Condition="'$(Configuration)|$(Platform)'=='Release|Win32'" />
+    <NMakeCleanCommandLine Condition="'$(Configuration)|$(Platform)'=='Release|Win32'" />
+    <NMakeOutput Condition="'$(Configuration)|$(Platform)'=='Release|Win32'" />
+    <NMakePreprocessorDefinitions Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">WIN32;NDEBUG;$(NMakePreprocessorDefinitions)</NMakePreprocessorDefinitions>
+    <NMakeIncludeSearchPath Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">$(NMakeIncludeSearchPath)</NMakeIncludeSearchPath>
+    <NMakeForcedIncludes Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">$(NMakeForcedIncludes)</NMakeForcedIncludes>
+    <NMakeAssemblySearchPath Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">$(NMakeAssemblySearchPath)</NMakeAssemblySearchPath>
+    <NMakeForcedUsingAssemblies Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">$(NMakeForcedUsingAssemblies)</NMakeForcedUsingAssemblies>
+  </PropertyGroup>
+  <ItemDefinitionGroup>
+  </ItemDefinitionGroup>
+  <ItemGroup>
+    <ClInclude Include="imu.h" />
+    <ClInclude Include="main.h" />
+    <ClInclude Include="mixer.h" />
+    <ClInclude Include="rc.h" />
+    <ClInclude Include="sensors.h" />
+    <ClInclude Include="stm8s_conf.h" />
+    <ClInclude Include="stm8s_it.h" />
+    <ClInclude Include="timing.h" />
+    <ClInclude Include="uart.h" />
+    <ClInclude Include="stm8s_stdperiph_driver\inc\stm8s.h" />
+    <ClInclude Include="stm8s_stdperiph_driver\inc\stm8s_adc1.h" />
+    <ClInclude Include="stm8s_stdperiph_driver\inc\stm8s_adc2.h" />
+    <ClInclude Include="stm8s_stdperiph_driver\inc\stm8s_awu.h" />
+    <ClInclude Include="stm8s_stdperiph_driver\inc\stm8s_beep.h" />
+    <ClInclude Include="stm8s_stdperiph_driver\inc\stm8s_can.h" />
+    <ClInclude Include="stm8s_stdperiph_driver\inc\stm8s_clk.h" />
+    <ClInclude Include="stm8s_stdperiph_driver\inc\stm8s_exti.h" />
+    <ClInclude Include="stm8s_stdperiph_driver\inc\stm8s_flash.h" />
+    <ClInclude Include="stm8s_stdperiph_driver\inc\stm8s_gpio.h" />
+    <ClInclude Include="stm8s_stdperiph_driver\inc\stm8s_i2c.h" />
+    <ClInclude Include="stm8s_stdperiph_driver\inc\stm8s_itc.h" />
+    <ClInclude Include="stm8s_stdperiph_driver\inc\stm8s_iwdg.h" />
+    <ClInclude Include="stm8s_stdperiph_driver\inc\stm8s_rst.h" />
+    <ClInclude Include="stm8s_stdperiph_driver\inc\stm8s_spi.h" />
+    <ClInclude Include="stm8s_stdperiph_driver\inc\stm8s_tim1.h" />
+    <ClInclude Include="stm8s_stdperiph_driver\inc\stm8s_tim2.h" />
+    <ClInclude Include="stm8s_stdperiph_driver\inc\stm8s_tim3.h" />
+    <ClInclude Include="stm8s_stdperiph_driver\inc\stm8s_tim4.h" />
+    <ClInclude Include="stm8s_stdperiph_driver\inc\stm8s_tim5.h" />
+    <ClInclude Include="stm8s_stdperiph_driver\inc\stm8s_tim6.h" />
+    <ClInclude Include="stm8s_stdperiph_driver\inc\stm8s_type.h" />
+    <ClInclude Include="stm8s_stdperiph_driver\inc\stm8s_uart1.h" />
+    <ClInclude Include="stm8s_stdperiph_driver\inc\stm8s_uart2.h" />
+    <ClInclude Include="stm8s_stdperiph_driver\inc\stm8s_uart3.h" />
+    <ClInclude Include="stm8s_stdperiph_driver\inc\stm8s_wwdg.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="imu.c" />
+    <ClCompile Include="main.c" />
+    <ClCompile Include="mixer.c" />
+    <ClCompile Include="rc.c" />
+    <ClCompile Include="sensors.c" />
+    <ClCompile Include="stm8_interrupt_vector.c" />
+    <ClCompile Include="timing.c" />
+    <ClCompile Include="uart.c" />
+    <ClCompile Include="STM8S_StdPeriph_Driver\src\stm8s_adc1.c" />
+    <ClCompile Include="STM8S_StdPeriph_Driver\src\stm8s_adc2.c" />
+    <ClCompile Include="STM8S_StdPeriph_Driver\src\stm8s_awu.c" />
+    <ClCompile Include="STM8S_StdPeriph_Driver\src\stm8s_beep.c" />
+    <ClCompile Include="STM8S_StdPeriph_Driver\src\stm8s_can.c" />
+    <ClCompile Include="STM8S_StdPeriph_Driver\src\stm8s_clk.c" />
+    <ClCompile Include="STM8S_StdPeriph_Driver\src\stm8s_exti.c" />
+    <ClCompile Include="STM8S_StdPeriph_Driver\src\stm8s_flash.c" />
+    <ClCompile Include="STM8S_StdPeriph_Driver\src\stm8s_gpio.c" />
+    <ClCompile Include="STM8S_StdPeriph_Driver\src\stm8s_i2c.c" />
+    <ClCompile Include="STM8S_StdPeriph_Driver\src\stm8s_itc.c" />
+    <ClCompile Include="STM8S_StdPeriph_Driver\src\stm8s_iwdg.c" />
+    <ClCompile Include="STM8S_StdPeriph_Driver\src\stm8s_rst.c" />
+    <ClCompile Include="STM8S_StdPeriph_Driver\src\stm8s_spi.c" />
+    <ClCompile Include="STM8S_StdPeriph_Driver\src\stm8s_tim1.c" />
+    <ClCompile Include="STM8S_StdPeriph_Driver\src\stm8s_tim2.c" />
+    <ClCompile Include="STM8S_StdPeriph_Driver\src\stm8s_tim3.c" />
+    <ClCompile Include="STM8S_StdPeriph_Driver\src\stm8s_tim4.c" />
+    <ClCompile Include="STM8S_StdPeriph_Driver\src\stm8s_tim5.c" />
+    <ClCompile Include="STM8S_StdPeriph_Driver\src\stm8s_tim6.c" />
+    <ClCompile Include="STM8S_StdPeriph_Driver\src\stm8s_uart1.c" />
+    <ClCompile Include="STM8S_StdPeriph_Driver\src\stm8s_uart2.c" />
+    <ClCompile Include="STM8S_StdPeriph_Driver\src\stm8s_uart3.c" />
+    <ClCompile Include="STM8S_StdPeriph_Driver\src\stm8s_wwdg.c" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="afrost.dep" />
+    <None Include="afrost.stp" />
+    <None Include="afrost.stw" />
+    <None Include="afrost.wdb" />
+    <None Include="afrost.wed" />
+  </ItemGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+  <ImportGroup Label="ExtensionTargets">
+  </ImportGroup>
+</Project>
