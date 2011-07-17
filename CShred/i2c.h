@@ -9,4 +9,4 @@
 void i2c_init(void);
 int i2c_write(uint8_t address, uint8_t data);
 
-#endif /* I2C_H_ */
+#endif	/* I2C_H_ */

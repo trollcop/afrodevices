@@ -1,4 +1,3 @@
-// #define T580
 // #define SPEKTRUM
 
 #include <math.h>
@@ -68,12 +67,13 @@ enum {
 #define LED2_TOGGLE      PORTC ^=  (_BV(PORTC3));
 
 #define CLAMP(x, low, high)  (((x) > (high)) ? (high) : (((x) < (low)) ? (low) : (x)))
+// #define LIMIT_MIN_MAX(value, min, max) { if (value <= min) value = min; else if (value >= max) value = max; }
 
 FILE uart_str = FDEV_SETUP_STREAM(uart_putchar, uart_getchar, _FDEV_SETUP_RW);
 
 static float Lf;		// stick sensitivity
 static float Lfdynamic_roll;	// dynamic stick sensitvity (used for flying loopings)
-static float Lfdynamic_nick;	// dynamic stick sensitvity (used for flying loopings)
+static float Lfdynamic_pitch;	// dynamic stick sensitvity (used for flying loopings)
 static u8 Motors_on = 0;	// self explanatory, right...?!
 static u8 State = 0;		// Contains selected control loop state: 0 = Motors off, 1 = Acrobatic mode, 2 = Hover mode
 static u8 Old_state;		// Contains the state of the last cycle
@@ -89,8 +89,8 @@ static const u8 DefaultSettings[] = {
     130,			// [6] P_sens_acro = 130
     30,				// [7] I_sens_acro = 30
 
-    130,			        // [8] P_sens_hover = 
-    190,			        // [9] I_sens_hover = 
+    130,			// [8] P_sens_hover = 
+    190,			// [9] I_sens_hover = 
     80,				// [10] D_sens_hover = 
 
     100,			// [11] Yaw_p_sens_eep = 
@@ -153,26 +153,9 @@ extern unsigned char SpektrumTimer;
 58   54
 */
 
-#ifdef T580
-static const u8 Mot_RearRightAddr = 0xD2;	// rear right motor
-static const u8 Mot_FrontLeftAddr = 0xD4;	// front left motor
-static const u8 Mot_FrontRightAddr = 0xD6;	// front right motor
-static const u8 Mot_RearLeftAddr = 0xD0;	// rear left motor
-#else
-static const u8 Mot_RearRightAddr = 0x54;	// rear right motor
-static const u8 Mot_RearLeftAddr = 0x58;	// rear left motor
-static const u8 Mot_FrontRightAddr = 0x56;	// front right motor
-static const u8 Mot_FrontLeftAddr = 0x52;	// front left motor
-#endif
-
-static s16 Mot_RearRightValue_i;	// contains motor nominal value as integer
-static s16 Mot_FrontRightValue_i;	// contains motor nominal value as integer
-static s16 Mot_RearLeftValue_i;	// contains motor nominal value as integer
-static s16 Mot_FrontLeftValue_i;	// contains motor nominal value as integer
-static u16 Mot_RearRightValue;	// converts motor nominal value
-static u16 Mot_RearLeftValue;	// converts motor nominal value
-static u16 Mot_FrontRightValue;	// converts motor nominal value
-static u16 Mot_FrontLeftValue;	// converts motor nominal value
+#define MOTOR_START_ADDR        (0x52)
+enum MotorIndex { MOTOR1 = 0, MOTOR2, MOTOR3, MOTOR4, MOTOR5, MOTOR6, MOTOR7, MOTOR8 };
+static s16 Motors[8] = { 0, };                  // motor values from mixer, for output to i2c. really only need u8 though, might fix 
 
 // --Gyros--
 static u16 Roll_init;		// gyro offset
@@ -218,13 +201,13 @@ static u8 Gyro_i_enable = 0;	// As Bit                                    '0 or 
 
 static float Error_pitch_d[3];	// As Single
 static float Error_roll_d[3];	// As Single
-static float Error_pitch_old[3];// As Single
+static float Error_pitch_old[3];	// As Single
 static float Error_roll_old[3];	// As Single
 static u8 Looper;		// As Byte
 static float D_sens_acro;	// As Single
 
 static float Dd_sens;		// As Single
-static float Dd_set_nick;	// As Single
+static float Dd_set_pitch;	// As Single
 static float Dd_set_roll;	// As Single
 static s16 Dd_set_pitch_int;	// As Integer
 static s16 Dd_set_roll_int;	// As Integer
@@ -253,7 +236,7 @@ static u16 Blinker;		// As Word                                         'used fo
 static u8 Settings[33];		// As Byte
 static u8 Motorsenable;		// As Byte
 static u8 Roll_gyro_dir;	// As Byte
-static u8 Nick_gyro_dir;	// As Byte
+static u8 Pitch_gyro_dir;	// As Byte
 static u8 Yaw_gyro_dir;		// As Byte
 static u8 Xacc_dir;		// As Byte
 static u8 Yacc_dir;		// As Byte
@@ -276,7 +259,7 @@ static u16 Idle_up;		// As Word
 static s16 Xacc_offset;		// As Integer
 static s16 Yacc_offset;		// As Integer
 static u8 Throttlechannel;	// As Byte
-static u8 Nickchannel;		// As Byte
+static u8 Pitchchannel;		// As Byte
 static u8 Rollchannel;		// As Byte
 static u8 Yawchannel;		// As Byte
 static u8 Switchchannel = 5;	// 
@@ -431,7 +414,7 @@ static void gyro_calibration(void)
     int i;
 
     u16 Roll_check[5];		// As Word                                   'gyro offset
-    u16 Nick_check[5];		// As Word                                   'gyro offset
+    u16 Pitch_check[5];		// As Word                                   'gyro offset
     u16 Yaw_check[5];		// As Word                                    'gyro offset
     s16 Checkdiff = 10;		// As Integer
 
@@ -459,7 +442,7 @@ static void gyro_calibration(void)
 	    Roll_init = Roll_init + Getadc(ADC_GYRO_ROLL);
 	    Roll_check[i] = Getadc(ADC_GYRO_ROLL);
 	    Pitch_init = Pitch_init + Getadc(ADC_GYRO_PITCH);
-	    Nick_check[i] = Getadc(ADC_GYRO_PITCH);
+	    Pitch_check[i] = Getadc(ADC_GYRO_PITCH);
 	    Yaw_init = Yaw_init + Getadc(ADC_GYRO_YAW);
 	    Yaw_check[i] = Getadc(ADC_GYRO_YAW);
 	    _delay_ms(100);
@@ -477,7 +460,7 @@ static void gyro_calibration(void)
 	    Checkdiff = abs(Checkdiff);	//
 	    if (Checkdiff > 2)
 		continue;	// if individual values differ from mean, then the copter was moved. Redo offset measurement.
-	    Checkdiff = Pitch_init - Nick_check[i];	//                     'compare mean value vs individual values
+	    Checkdiff = Pitch_init - Pitch_check[i];	//                     'compare mean value vs individual values
 	    Checkdiff = abs(Checkdiff);	//
 	    if (Checkdiff > 2)
 		continue;	// if individual values differ from mean, then the copter was moved. Redo offset measurement.
@@ -667,14 +650,10 @@ int main(void)
     _delay_ms(100);
     sei();			// Enable Interrupts
 
-    Mot_RearRightValue = 0;
-    i2c_write(Mot_RearRightAddr, Mot_RearRightValue);
-    Mot_FrontLeftValue = 0;
-    i2c_write(Mot_FrontLeftValue, Mot_FrontLeftAddr);
-    Mot_FrontRightValue = 0;
-    i2c_write(Mot_FrontRightAddr, Mot_FrontRightValue);
-    Mot_RearLeftValue = 0;
-    i2c_write(Mot_RearLeftValue, Mot_RearLeftAddr);
+    for (i = 0; i < 4; i++) {
+        Motors[i] = 0;
+        i2c_write(MOTOR_START_ADDR + (i * 2), 0);
+    }
 
     //Reset Led_1                                                 'turn off led's
     //Reset Led_2
@@ -754,16 +733,6 @@ u16 Getadc(u8 channel)
 
 static const float DynamicBoost[] = { 5.8f, 6.1f, 6.3f, 6.5f, 6.8f, 7.2f, 7.6f, 8.1f, 8.7f, 9.4f, 10.2f, 11.0f, 12.0f, 13.6f };
 
-#define MAX_MOTORS (4)
-signed char MixerTable[MAX_MOTORS][4] = {
-    { 64, 64, 0, 64 },
-    { 64, -64, 0, 64 },
-    { 64, 0, -64, -64 },
-    { 64, 0, 64, -64 },
-};                
-unsigned char Motor[MAX_MOTORS] = { 0, };
-signed int MotorSmoothing[MAX_MOTORS];
-#define LIMIT_MIN_MAX(value, min, max) { if (value <= min) value = min; else if (value >= max) value = max; }
 
 void Mixer(void)
 {
@@ -772,11 +741,9 @@ void Mixer(void)
 
     s16 throttle_stick = ((PPM_in[Throttlechannel] + 127) * (228.0f / 255.0f)) + 3;	// (3-228)
     s16 yaw_stick = PPM_in[Yawchannel] / 4;
-    s16 pitch_stick = PPM_in[Nickchannel] / 4;
+    s16 pitch_stick = PPM_in[Pitchchannel] / 4;
     s16 roll_stick = PPM_in[Rollchannel] / 4;
     s16 switch_channel = PPM_in[Switchchannel];
-    
-    s16 pitch, roll, yaw, gas;
 
 #if 0
     printf("Throttle: %d, State: %d Motors: %d\r\n", throttle, State, Motorsenable);
@@ -813,17 +780,17 @@ void Mixer(void)
     }
     // 'Dynamic LF: Makes the copter react non-linearly to nick. I use this for flying loopings. The more I pull, the faster(exponential) the copter will nick
     if (Lf_boost == 1) {
-	s16 Lookup_pos_nick;
+	s16 Lookup_pos_pitch;
 	s16 Lookup_pos_roll;
 
 	if (State == 1) {	// only when in acro mode
-	    Lookup_pos_nick = abs(pitch_stick);	// make a variable that grows when stick is out of centre
-	    Lookup_pos_nick = Lookup_pos_nick - 25;
-	    Lookup_pos_nick = CLAMP(Lookup_pos_nick, 0, 13);
-	    if (Lookup_pos_nick != 0)
-		Lfdynamic_nick = DynamicBoost[Lookup_pos_nick];	// TODO Lookup(lookup_pos_nick , Dta)        'look for a new sensitivity factor in a table
+	    Lookup_pos_pitch = abs(pitch_stick);	// make a variable that grows when stick is out of centre
+	    Lookup_pos_pitch = Lookup_pos_pitch - 25;
+	    Lookup_pos_pitch = CLAMP(Lookup_pos_pitch, 0, 13);
+	    if (Lookup_pos_pitch != 0)
+		Lfdynamic_pitch = DynamicBoost[Lookup_pos_pitch];	// TODO Lookup(lookup_pos_nick , Dta)        'look for a new sensitivity factor in a table
 	    else
-		Lfdynamic_nick = Lf;
+		Lfdynamic_pitch = Lf;
 
 	    Lookup_pos_roll = abs(roll_stick);	//               'make a variable that grows when stick is out of centre
 	    Lookup_pos_roll = Lookup_pos_roll - 26;
@@ -835,7 +802,7 @@ void Mixer(void)
 	}
     } else {
 	Lfdynamic_roll = Lf;
-	Lfdynamic_nick = Lf;
+	Lfdynamic_pitch = Lf;
     }
 
     // 'ACRO MODE (angular velocity control, ACC = off)
@@ -894,93 +861,53 @@ void Mixer(void)
 	Yaw_p_sens = 0;		//                                           'don't react to gyros
 	Yaw_i_sens = 0;		//                                           'don't react to gyros
     }
-    
-    // '-Mix components-
-    if (Motors_on == 1) {	// 'only when motors are running
-	// -MOTOR 1- (front left)
-	Mot_FrontLeftValue_i = throttle_stick + Minthrottle;	//               'throttle stick (3-228) + Vorwahl(20)
-	if (Mot_FrontLeftValue_i > 247) {	//                                    'throttle clipping
-	    Mot_FrontLeftValue_i = 247;
-	}
 
-	Mot_FrontLeftValue_i = Mot_FrontLeftValue_i + P_set_roll_int;	//                      'add the gyro measurements (note the differences in "+" and "-")
-	Mot_FrontLeftValue_i = Mot_FrontLeftValue_i + P_set_pitch_int;
-	Mot_FrontLeftValue_i = Mot_FrontLeftValue_i + I_set_roll_int;
-	Mot_FrontLeftValue_i = Mot_FrontLeftValue_i + I_set_pitch_int;
-	Mot_FrontLeftValue_i = Mot_FrontLeftValue_i + D_set_roll_int;
-	Mot_FrontLeftValue_i = Mot_FrontLeftValue_i + D_set_pitch_int;
-	Mot_FrontLeftValue_i = Mot_FrontLeftValue_i - Yaw_gyro_scale_int;
-	Mot_FrontLeftValue_i = Mot_FrontLeftValue_i - Yaw_gyro_i_scale_int;
+    // Mix components
+    if (Motors_on == 1) {
+        // only when motors are running
+        s16 Roll, Pitch, Yaw;
 
-	if (State == 2) {	// add DD term in hover mode
-	    Mot_FrontLeftValue_i = Mot_FrontLeftValue_i + Dd_set_roll_int;
-	    Mot_FrontLeftValue_i = Mot_FrontLeftValue_i + Dd_set_pitch_int;
-	}
-	// -MOTOR 2- (rear right)
-	Mot_RearRightValue_i = throttle_stick + Minthrottle;
-	if (Mot_RearRightValue_i > 247) {
-	    Mot_RearRightValue_i = 247;
-	}
-	Mot_RearRightValue_i = Mot_RearRightValue_i - P_set_roll_int;
-	Mot_RearRightValue_i = Mot_RearRightValue_i - P_set_pitch_int;
-	Mot_RearRightValue_i = Mot_RearRightValue_i - I_set_roll_int;
-	Mot_RearRightValue_i = Mot_RearRightValue_i - I_set_pitch_int;
-	Mot_RearRightValue_i = Mot_RearRightValue_i - D_set_roll_int;
-	Mot_RearRightValue_i = Mot_RearRightValue_i - D_set_pitch_int;
-	Mot_RearRightValue_i = Mot_RearRightValue_i - Yaw_gyro_scale_int;
-	Mot_RearRightValue_i = Mot_RearRightValue_i - Yaw_gyro_i_scale_int;
-	if (State == 2) {
-	    Mot_RearRightValue_i = Mot_RearRightValue_i - Dd_set_roll_int;
-	    Mot_RearRightValue_i = Mot_RearRightValue_i - Dd_set_pitch_int;
-	}
-	// '-MOTOR 3-  (rear left)
-	Mot_RearLeftValue_i = throttle_stick + Minthrottle;
-	if (Mot_RearLeftValue_i > 247) {
-	    Mot_RearLeftValue_i = 247;
-	}
-	Mot_RearLeftValue_i = Mot_RearLeftValue_i + P_set_roll_int;
-	Mot_RearLeftValue_i = Mot_RearLeftValue_i - P_set_pitch_int;
-	Mot_RearLeftValue_i = Mot_RearLeftValue_i + I_set_roll_int;
-	Mot_RearLeftValue_i = Mot_RearLeftValue_i - I_set_pitch_int;
-	Mot_RearLeftValue_i = Mot_RearLeftValue_i + D_set_roll_int;
-	Mot_RearLeftValue_i = Mot_RearLeftValue_i - D_set_pitch_int;
-	Mot_RearLeftValue_i = Mot_RearLeftValue_i + Yaw_gyro_scale_int;
-	Mot_RearLeftValue_i = Mot_RearLeftValue_i + Yaw_gyro_i_scale_int;
-	if (State == 2) {
-	    Mot_RearLeftValue_i = Mot_RearLeftValue_i + Dd_set_roll_int;
-	    Mot_RearLeftValue_i = Mot_RearLeftValue_i - Dd_set_pitch_int;
-	}
-	// '-MOTOR 4- (front right)
-	Mot_FrontRightValue_i = throttle_stick + Minthrottle;	//              'throttle stick (3-228) + Vorwahl(20)
-	if (Mot_FrontRightValue_i > 247) {	//                                    'throttle clipping
-	    Mot_FrontRightValue_i = 247;
-	}
+        // Calculate roll/pitch/yaw values for mixer
+        Roll = P_set_roll_int + I_set_roll_int + D_set_roll_int;
+        Pitch = P_set_pitch_int + I_set_pitch_int + D_set_pitch_int;
+        Yaw = Yaw_gyro_scale_int + Yaw_gyro_i_scale_int;
+        if (State == 2) {
+            Roll += Dd_set_roll_int;
+            Pitch += Dd_set_pitch_int;
+        }
 
-	Mot_FrontRightValue_i = Mot_FrontRightValue_i - P_set_roll_int;	//                       'add the gyro measurements (note the differences in "+" and "-")
-	Mot_FrontRightValue_i = Mot_FrontRightValue_i + P_set_pitch_int;
-	Mot_FrontRightValue_i = Mot_FrontRightValue_i - I_set_roll_int;
-	Mot_FrontRightValue_i = Mot_FrontRightValue_i + I_set_pitch_int;
-	Mot_FrontRightValue_i = Mot_FrontRightValue_i - D_set_roll_int;
-	Mot_FrontRightValue_i = Mot_FrontRightValue_i + D_set_pitch_int;
-	Mot_FrontRightValue_i = Mot_FrontRightValue_i + Yaw_gyro_scale_int;
-	Mot_FrontRightValue_i = Mot_FrontRightValue_i + Yaw_gyro_i_scale_int;
-	if (State == 2) {	// add DD term in hover mode
-	    Mot_FrontRightValue_i = Mot_FrontRightValue_i - Dd_set_roll_int;
-	    Mot_FrontRightValue_i = Mot_FrontRightValue_i + Dd_set_pitch_int;
-	}
-#if 0
-	printf("Motor values, Pitch: %d/%d/%d, Roll: %d/%d/%d, Yaw: %d/%d\r\n", P_set_pitch_int, I_set_pitch_int, D_set_pitch_int, P_set_roll_int, I_set_roll_int, D_set_roll_int, Yaw_gyro_scale_int, Yaw_gyro_i_scale_int);
-#endif
+        // Init with throttle
+        for (i = 0; i < 4; i++)
+            Motors[i] = throttle_stick + Minthrottle;
+
+        // Mixer
+        Motors[MOTOR1] += Roll;
+        Motors[MOTOR2] -= Roll;
+        Motors[MOTOR3] -= Roll;
+        Motors[MOTOR4] += Roll;
+        
+        Motors[MOTOR1] += Pitch;
+        Motors[MOTOR2] -= Pitch;
+        Motors[MOTOR3] += Pitch;
+        Motors[MOTOR4] -= Pitch;
+        
+        Motors[MOTOR1] -= Yaw;
+        Motors[MOTOR2] -= Yaw;
+        Motors[MOTOR3] += Yaw;
+        Motors[MOTOR4] += Yaw;
+
+        for (i = 0; i < 4; i++) {
+            if (Motors[i] < (s16)Minthrottle)
+                Motors[i] = Minthrottle;
+        }                
 
 #if 0
-	printf("Motors: %d, %d, %d, %d\r\n", Mot_FrontLeftValue_i, Mot_FrontRightValue_i, Mot_RearLeftValue_i, Mot_RearRightValue_i);
+	printf("Roll: %d Pitch: %d Yaw: %d Motors: %d, %d, %d, %d\r\n", Roll, Pitch, Yaw, Motors[0], Motors[1], Motors[2], Motors[3]);
 #endif
-
-    } else {			// motors off
-	Mot_FrontLeftValue_i = 0;
-	Mot_RearRightValue_i = 0;
-	Mot_RearLeftValue_i = 0;
-	Mot_FrontRightValue_i = 0;
+    } else {
+        // motors off
+        for (i = 0; i < 4; i++)
+            Motors[i] = 0;
     }
 }
 
@@ -988,7 +915,7 @@ static inline void Gyro(void)
 {
     int i;
     s16 yaw_stick = PPM_in[Yawchannel] / 4;
-    s16 pitch_stick = PPM_in[Nickchannel] / 4;
+    s16 pitch_stick = PPM_in[Pitchchannel] / 4;
     s16 roll_stick = PPM_in[Rollchannel] / 4;
 
     float Setpoint_roll;	// Stick position
@@ -1061,13 +988,13 @@ static inline void Gyro(void)
 
 	// '--Nick--
 	Meas_pitch = Getadc(ADC_GYRO_PITCH);	// 'see above
-	if (Nick_gyro_dir == 0) {
+	if (Pitch_gyro_dir == 0) {
 	    Meas_pitch = Meas_pitch - Pitch_init;
-	} else if (Nick_gyro_dir == 1) {
+	} else if (Pitch_gyro_dir == 1) {
 	    Meas_pitch = Pitch_init - Meas_pitch;
 	}
 	// 'Meas_nick = Meas_nick - Nickstickvel
-	Setpoint_pitch = pitch_stick * Lfdynamic_nick;
+	Setpoint_pitch = pitch_stick * Lfdynamic_pitch;
 	Error_pitch = Meas_pitch - Setpoint_pitch;
 	// this calcuhalates the angular velocity (D-term in acro mode)
 	Error_pitch_d[Looper] = Error_pitch - Error_pitch_old[Looper];
@@ -1135,9 +1062,9 @@ static inline void Gyro(void)
 
 	// '--Nick--
 	Meas_pitch = Getadc(ADC_GYRO_PITCH);	//                                     'see above
-	if (Nick_gyro_dir == 0) {
+	if (Pitch_gyro_dir == 0) {
 	    Meas_pitch = Meas_pitch - Pitch_init;
-	} else if (Nick_gyro_dir == 1) {
+	} else if (Pitch_gyro_dir == 1) {
 	    Meas_pitch = Pitch_init - Meas_pitch;
 	}
 	// 'Meas_nick = Meas_nick - Nickstickvel
@@ -1145,7 +1072,7 @@ static inline void Gyro(void)
 	// this calculates the angular velocity (D-term in acro mode)
 	Error_pitch_d[Looper] = Meas_pitch - Error_pitch_old[Looper];
 	Error_pitch_old[Looper] = Meas_pitch;
-	Dd_set_nick = Error_pitch_d[Looper] * Dd_sens;
+	Dd_set_pitch = Error_pitch_d[Looper] * Dd_sens;
 
 	Meas_angle_pitch = Meas_angle_pitch + Meas_pitch;
 	Meas_angle_pitch = Meas_angle_pitch * Gyro_influence;	//        '0.99
@@ -1171,7 +1098,7 @@ static inline void Gyro(void)
     I_set_pitch_int = I_set_pitch;
     D_set_pitch_int = D_set_pitch;
 
-    Dd_set_pitch_int = Dd_set_nick;
+    Dd_set_pitch_int = Dd_set_pitch;
     Dd_set_roll_int = Dd_set_roll;
 
 // --Yaw--
@@ -1318,44 +1245,24 @@ void Led(void)
 
 static void Send_mots()
 {
-    Mot_FrontLeftValue_i = CLAMP(Mot_FrontLeftValue_i, 0, 255);	// cap motor signals (upper limit = 255)
-    Mot_FrontRightValue_i = CLAMP(Mot_FrontRightValue_i, 0, 255);
-    Mot_RearRightValue_i = CLAMP(Mot_RearRightValue_i, 0, 255);
-    Mot_RearLeftValue_i = CLAMP(Mot_RearLeftValue_i, 0, 255);
-
-    if (Motors_on == 1) {
-	if (Mot_FrontLeftValue_i < Minthrottle)	// cap motor signals (lower limit = vorwahl)
-	    Mot_FrontLeftValue_i = Minthrottle;
-	if (Mot_FrontRightValue_i < Minthrottle)	// cap motor signals (lower limit = vorwahl)
-	    Mot_FrontRightValue_i = Minthrottle;
-	if (Mot_RearRightValue_i < Minthrottle)	// cap motor signals (lower limit = vorwahl)
-	    Mot_RearRightValue_i = Minthrottle;
-	if (Mot_RearLeftValue_i < Minthrottle)	// cap motor signals (lower limit = vorwahl)
-	    Mot_RearLeftValue_i = Minthrottle;
+    u8 i;
+    
+    for (i = 0; i < 4; i++) {
+        s16 Limit = (Motors_on == 1) ? Minthrottle : 0;
+        if (Motors[i] < Limit)
+            Motors[i] = Limit;
+        if (Motors[i] > (s16)255)
+            Motors[i] = 255;
     }
 
-    Mot_FrontLeftValue = Mot_FrontLeftValue_i;	// convert integer to word
-    Mot_RearLeftValue = Mot_RearLeftValue_i;
-    Mot_RearRightValue = Mot_RearRightValue_i;
-    Mot_FrontRightValue = Mot_FrontRightValue_i;
-
-/*
-static const u8 Mot_RearRightAddr = 0x54;	// rear right motor
-static const u8 Mot_RearLeftAddr = 0x58;	// rear left motor
-static const u8 Mot_FrontRightAddr = 0x56;	// front right motor
-static const u8 Mot_FrontLeftAddr = 0x52;	// front left motor
-*/
+    // printf("Motors: %d, %d, %d, %d\r\n", Motors[0], Motors[1], Motors[2], Motors[3]);
 
     if (Failure < 15 && Motorsenable == 1) {	// 'if there are NO problems with the receiver and shrediquette was programmed: run motors
-	i2c_write(Mot_FrontLeftAddr, Mot_FrontLeftValue);
-	i2c_write(Mot_RearRightAddr, Mot_RearRightValue);
-	i2c_write(Mot_FrontRightAddr, Mot_FrontRightValue);
-	i2c_write(Mot_RearLeftAddr, Mot_RearLeftValue);
+        for (i = 0; i < 4; i++)
+            i2c_write(MOTOR_START_ADDR + (i * 2), Motors[i]);
     } else {			// 'if there are problems with the receiver: turn off motors
-	i2c_write(Mot_FrontLeftAddr, 0);
-	i2c_write(Mot_RearRightAddr, 0);
-	i2c_write(Mot_FrontRightAddr, 0);
-	i2c_write(Mot_RearLeftAddr, 0);
+        for (i = 0; i < 4; i++)
+            i2c_write(MOTOR_START_ADDR + (i * 2), 0);
     }
 }
 
@@ -1440,7 +1347,7 @@ void Guiconnection()
 
 		Sensor[7] = PPM_in[Throttlechannel] + 127;
 		Sensor[8] = PPM_in[Rollchannel] + 127;
-		Sensor[9] = PPM_in[Nickchannel] + 127;
+		Sensor[9] = PPM_in[Pitchchannel] + 127;
 		Sensor[10] = PPM_in[Yawchannel] + 127;
 		Sensor[11] = PPM_in[Switchchannel] + 127;
 
@@ -1494,14 +1401,11 @@ static void settings_load(void)
     int i = 0;
     u8 blank = 1;
 
-    Mot_RearRightValue = 0;
-    i2c_write(Mot_RearRightAddr, Mot_RearRightValue);	//                            'turn off the motors
-    Mot_FrontLeftValue = 0;
-    i2c_write(Mot_FrontLeftAddr, Mot_FrontLeftValue);	//                            'load and convert settings from eeprom
-    Mot_FrontRightValue = 0;
-    i2c_write(Mot_FrontRightAddr, Mot_FrontRightValue);
-    Mot_RearLeftValue = 0;
-    i2c_write(Mot_RearLeftAddr, Mot_RearLeftValue);	//                            'load and convert settings from eeprom
+    // turn off motors
+    for (i = 0; i < 4; i++) {
+        Motors[i] = 0;
+        i2c_write(MOTOR_START_ADDR + (i * 2), 0);
+    }
 
     for (i = 0; i < 33; i++) {
 	Settings[i] = eeprom_read_byte((u8 *) i);
@@ -1514,7 +1418,7 @@ static void settings_load(void)
 
     Motorsenable = Settings[0];
     Roll_gyro_dir = Settings[1];
-    Nick_gyro_dir = Settings[2];
+    Pitch_gyro_dir = Settings[2];
     Yaw_gyro_dir = Settings[3];
     Xacc_dir = Settings[4];
     Yacc_dir = Settings[5];
@@ -1538,21 +1442,21 @@ static void settings_load(void)
     Xacc_offset = Settings[PARAM_XACC_OFFSET] + 384;
     Yacc_offset = Settings[PARAM_YACC_OFFSET] + 384;
     Throttlechannel = Settings[24];
-    Nickchannel = Settings[25];
+    Pitchchannel = Settings[25];
     Rollchannel = Settings[26];
     Yawchannel = Settings[27];
     D_sens_acro = Settings[28] / 50.0f;
     Dd_sens = Settings[29] / 50.0f;
     Switchchannel = Settings[30];
 
-    P_sens_acro *= 6.0/2.2;
-    I_sens_acro *= 6.0/2.2;
-    D_sens_acro *= 6.0/2.2;
-	
-    P_sens_hover *= 6.0/2.2;
-    I_sens_hover *= 6.0/2.2;
-    D_sens_hover *= 6.0/2.2;
-	
-    Xacc_scale *= 2.2/6.0;
-    Yacc_scale *= 2.2/6.0;
+    P_sens_acro *= 6.0 / 2.2;
+    I_sens_acro *= 6.0 / 2.2;
+    D_sens_acro *= 6.0 / 2.2;
+
+    P_sens_hover *= 6.0 / 2.2;
+    I_sens_hover *= 6.0 / 2.2;
+    D_sens_hover *= 6.0 / 2.2;
+
+    Xacc_scale *= 2.2 / 6.0;
+    Yacc_scale *= 2.2 / 6.0;
 }

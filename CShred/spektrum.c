@@ -158,7 +158,7 @@ SIGNAL(USART1_RX_vect)
     int bCheckDelay;
     uint8_t c;
 
-    c = UDR1; // get data byte
+    c = UDR1;			// get data byte
     if (ReSync == 1) {
 	// wait for beginning of new frame
 	ReSync = 0;

@@ -3,4 +3,4 @@
 
 void spektrum_init(void);
 
-#endif /* SPEKTRUM_H_ */
+#endif	/* SPEKTRUM_H_ */
