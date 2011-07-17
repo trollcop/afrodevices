@@ -143,21 +143,33 @@ static u16 BeepTime = 2500;
 static u16 BeepMask = 0xFFFF;
 extern unsigned char SpektrumTimer;
 
-// --I2C--
 /*
- X-config
-  
-52   56
-  \ /
-  / \
-58   54
+    M1 = CW
+    M2 = CW
+    M3 = CCW
+    M4 = CCW
+
+    Quadrotor-X config
+    M1   M3
+      \ /
+      / \
+    M4   M2
+    
+    Quadrotor-+ config
+       M1
+     M4  M3
+       M2
+
+    More mixes to be added later
+
 */
 
-#define MOTOR_START_ADDR        (0x52)
+enum eMixerType { QUAD = 0, QUAD_X = 1 }; 
 enum MotorIndex { MOTOR1 = 0, MOTOR2, MOTOR3, MOTOR4, MOTOR5, MOTOR6, MOTOR7, MOTOR8 };
+#define MOTOR_START_ADDR        (0x52)          // i2c address of 1st motor, the rest are += 2
 static s16 Motors[8] = { 0, };                  // motor values from mixer, for output to i2c. really only need u8 though, might fix 
 
-// --Gyros--
+// Gyros
 static u16 Roll_init;		// gyro offset
 static u16 Pitch_init;		// gyro offset
 static u16 Yaw_init;		// gyro offset
@@ -172,36 +184,26 @@ static float P_set_roll;	// P output including scaling (gain)
 static float I_set_roll;	// I output including scaling (gain)
 static float D_set_roll;	// D output including scaling (gain)
 
-static s16 P_set_roll_int;	// converts to integer
-static s16 I_set_roll_int;	// converts to integer
-static s16 D_set_roll_int;	// converts to integer
-
 static float P_set_pitch;	// P output including scaling (gain)
 static float I_set_pitch;	// I output including scaling (gain)
 static float D_set_pitch;	// D output including scaling (gain)
 
-static s16 P_set_pitch_int;	// converts to integer
-static s16 I_set_pitch_int;	// converts to integer
-static s16 D_set_pitch_int;	// converts to integer
+static s16 Yaw_gyro;		// angular velocity reading from gyroscope
+static s16 Yaw_gyro_i;		// yaw gyro var
+static float Yaw_gyro_scale;	// scaled-down values
+static float Yaw_gyro_i_scale;	// scaled-down values
 
-static s16 Yaw_gyro;		// As Integer                                     'angular velocity reading from gyroscope
-static s16 Yaw_gyro_i;		// As Integer                                   'yaw gyro var
-static float Yaw_gyro_scale;	// As Single                                'scaled-down values
-static s16 Yaw_gyro_scale_int;	// As Integer                           'converts to integer
-static float Yaw_gyro_i_scale;	// As Single                              'scaled-down values
-static s16 Yaw_gyro_i_scale_int;	// As Integer                         'converts to integer
+static float P_sens;		// roll/pitch P control loop sensitivity
+static float I_sens;		// roll/pitch I control loop sensitivity
+static float D_sens;		// roll/pitch D control loop sensitivity
+static float Yaw_p_sens;	// yaw P sensitivity
+static float Yaw_i_sens;	// yaw I sensitivity
 
-static float P_sens;		// As Single                                        'roll/nick P control loop sensitivity
-static float I_sens;		// As Single                                        'roll/nick I control loop sensitivity
-static float D_sens;		// As Single                                        'roll/nick D control loop sensitivity
-static float Yaw_p_sens;	// As Single                                    'yaw P sensitivity
-static float Yaw_i_sens;	// As Single                                    'yaw I sensitivity
-
-static u8 Gyro_i_enable = 0;	// As Bit                                    '0 or 1: don't perform gyro integration when motors off
+static u8 Gyro_i_enable = 0;	// 0 or 1: don't perform gyro integration when motors off
 
 static float Error_pitch_d[3];	// As Single
 static float Error_roll_d[3];	// As Single
-static float Error_pitch_old[3];	// As Single
+static float Error_pitch_old[3];// As Single
 static float Error_roll_old[3];	// As Single
 static u8 Looper;		// As Byte
 static float D_sens_acro;	// As Single
@@ -209,15 +211,13 @@ static float D_sens_acro;	// As Single
 static float Dd_sens;		// As Single
 static float Dd_set_pitch;	// As Single
 static float Dd_set_roll;	// As Single
-static s16 Dd_set_pitch_int;	// As Integer
-static s16 Dd_set_roll_int;	// As Integer
 
 //'--Acc--
-static s16 Xacc;		// As Integer                                         'accelerometer nick
-static s16 Yacc;		// As Integer                                         'accelerometer roll
+static s16 Xacc;		// accelerometer pitch
+static s16 Yacc;		// accelerometer roll
 
 //'--Failsave--
-static u8 Failure;		// As Byte                                         'increases when there are errors in receiver reading
+static u8 Failure;		// increases when there are errors in receiver reading
 
 //'--Mixer--
 static u16 Minthrottle;		// throttle idle up
@@ -226,11 +226,11 @@ static u16 Minthrottle;		// throttle idle up
 static u8 Voltage_Cell_Min;	// Minimum per-cell voltage (3.3V default)
 static u16 Voltage_Warn;	// Battery Warning Voltage
 static u16 Voltage_Level = 100;	// Battery Voltage
-static u8 Lowvoltage;		// As Bit                                       'will be 1 if voltage is low
+static u8 Lowvoltage;		// will be 1 if voltage is low
 
 // '--LEDs--
-static u16 Ledcount = 1;	// As Word                                        'used for bling bling
-static u16 Blinker;		// As Word                                         'used for low voltage bling bling
+static u16 Ledcount = 1;	// used for bling bling
+static u16 Blinker;		// used for low voltage bling bling
 
 // '--GUI Connection--
 static u8 Settings[33];		// As Byte
@@ -262,7 +262,8 @@ static u8 Throttlechannel;	// As Byte
 static u8 Pitchchannel;		// As Byte
 static u8 Rollchannel;		// As Byte
 static u8 Yawchannel;		// As Byte
-static u8 Switchchannel = 5;	// 
+static u8 Switchchannel = 5;	// RC channel currently used for controlling flight mode
+static u8 MixerType = QUAD_X;   // Type of mixer currently in use
 
 volatile s16 CountMilliseconds = 0;
 
@@ -282,10 +283,6 @@ static void settings_write(void);
 static void settings_load(void);
 
 static u16 Getadc(u8 channel);
-
-// '--Variables--                                    'prepare some variables
-// State = 0; //                                                    'States: 0=GUI, 1=Acro, 2=Hover
-
 
 void beep(u8 count, u16 duration)
 {
@@ -413,10 +410,10 @@ static void gyro_calibration(void)
 {
     int i;
 
-    u16 Roll_check[5];		// As Word                                   'gyro offset
-    u16 Pitch_check[5];		// As Word                                   'gyro offset
-    u16 Yaw_check[5];		// As Word                                    'gyro offset
-    s16 Checkdiff = 10;		// As Integer
+    u16 Roll_check[5];		// gyro offset
+    u16 Pitch_check[5];		// gyro offset
+    u16 Yaw_check[5];		// gyro offset
+    s16 Checkdiff = 10;
 
     BeepTime = 500;
     BeepMask = 0xFEAF;
@@ -456,18 +453,18 @@ static void gyro_calibration(void)
 	// Toggle Led_2
 
 	for (i = 0; i < 5; i++) {
-	    Checkdiff = Roll_init - Roll_check[i];	//                     'compare mean value vs individual values
-	    Checkdiff = abs(Checkdiff);	//
-	    if (Checkdiff > 2)
-		continue;	// if individual values differ from mean, then the copter was moved. Redo offset measurement.
-	    Checkdiff = Pitch_init - Pitch_check[i];	//                     'compare mean value vs individual values
-	    Checkdiff = abs(Checkdiff);	//
-	    if (Checkdiff > 2)
-		continue;	// if individual values differ from mean, then the copter was moved. Redo offset measurement.
-	    Checkdiff = Yaw_init - Yaw_check[i];	//                       'compare mean value vs individual values
+	    Checkdiff = Roll_init - Roll_check[i];	// compare mean value vs individual values
 	    Checkdiff = abs(Checkdiff);
 	    if (Checkdiff > 2)
-		continue;	// if individual values differ from mean, then the copter was moved. Redo offset measurement.
+		continue;	                        // if individual values differ from mean, then the copter was moved. Redo offset measurement.
+	    Checkdiff = Pitch_init - Pitch_check[i];	// compare mean value vs individual values
+	    Checkdiff = abs(Checkdiff);
+	    if (Checkdiff > 2)
+		continue;	                        // if individual values differ from mean, then the copter was moved. Redo offset measurement.
+	    Checkdiff = Yaw_init - Yaw_check[i];	// compare mean value vs individual values
+	    Checkdiff = abs(Checkdiff);
+	    if (Checkdiff > 2)
+		continue;	                        // if individual values differ from mean, then the copter was moved. Redo offset measurement.
 	}
     } while (Checkdiff > 2);
 
@@ -655,13 +652,8 @@ int main(void)
         i2c_write(MOTOR_START_ADDR + (i * 2), 0);
     }
 
-    //Reset Led_1                                                 'turn off led's
-    //Reset Led_2
-    //Reset Led_3
-
     for (i = 0; i < 5; i++) {
 	GRN_FLASH;
-	// Toggle Led_Grn
 	_delay_ms(200);
     }
 
@@ -669,7 +661,6 @@ int main(void)
 
     for (i = 0; i < 5; i++) {
 	GRN_FLASH;
-	// Toggle Led_Grn
 	_delay_ms(200);
     }
 
@@ -678,46 +669,28 @@ int main(void)
 
     // rc test
     rctest();
-    _delay_ms(50);		// 'If we got the correct stick positions 500 times... proceed
-    //Led_grn = 1
-    //Reset Led_1
-    //Reset Led_3
+    _delay_ms(50);		// If we got the correct stick positions 500 times... proceed
 
-    // '=== Measure Gyro Offset (don't move copter now!) ===
+    // Measure Gyro Offset (don't move copter now!)
     gyro_calibration();
-    //Reset Led_1
-    //Reset Led_2
-    //Reset Led_3
 
-    GRN_ON;
+    GRN_ON;                     // All green
     BUZZ_OFF;
 
     while (1) {
-	// BUZZ_ON;
 	Acc();
 	Gyro();
 	Mixer();
-	// BUZZ_OFF;
 	Send_mots();
 	Led();
 	Voltage();
 	// Failsave();
 	Guiconnection();
-
-#if 0
-	printf("PPM: ");
-	for (i = 0; i < 24; i++)
-	    printf("%d ", PPM_in[i] / 4);
-	printf("\r\n");
-#endif
-
     }
 }
 
 u16 Getadc(u8 channel)
 {
-    u8 low, high;
-
     // choose channel
     ADMUX = channel & 0x07;
     // start the conversion
@@ -725,14 +698,10 @@ u16 Getadc(u8 channel)
     // ADSC is cleared when the conversion finishes
     while (bit_is_set(ADCSRA, ADSC));
 
-    low = ADCL;
-    high = ADCH;
-
-    return (high << 8) | low;
+    return ADCW;
 }
 
 static const float DynamicBoost[] = { 5.8f, 6.1f, 6.3f, 6.5f, 6.8f, 7.2f, 7.6f, 8.1f, 8.7f, 9.4f, 10.2f, 11.0f, 12.0f, 13.6f };
-
 
 void Mixer(void)
 {
@@ -740,7 +709,6 @@ void Mixer(void)
     static int cal_counter = 0;
 
     s16 throttle_stick = ((PPM_in[Throttlechannel] + 127) * (228.0f / 255.0f)) + 3;	// (3-228)
-    s16 yaw_stick = PPM_in[Yawchannel] / 4;
     s16 pitch_stick = PPM_in[Pitchchannel] / 4;
     s16 roll_stick = PPM_in[Rollchannel] / 4;
     s16 switch_channel = PPM_in[Switchchannel];
@@ -778,7 +746,8 @@ void Mixer(void)
 	    RED_OFF;
 	}
     }
-    // 'Dynamic LF: Makes the copter react non-linearly to nick. I use this for flying loopings. The more I pull, the faster(exponential) the copter will nick
+
+    // Dynamic LF: Makes the copter react non-linearly to pitch/roll. I use this for flying loopings. The more I pull, the faster (exponential) the copter will pitch/roll
     if (Lf_boost == 1) {
 	s16 Lookup_pos_pitch;
 	s16 Lookup_pos_roll;
@@ -805,7 +774,7 @@ void Mixer(void)
 	Lfdynamic_pitch = Lf;
     }
 
-    // 'ACRO MODE (angular velocity control, ACC = off)
+    // ACRO MODE (angular velocity control, ACC = off)
     if (Motorsenable == 1) {	// only listen to receiver (and especially channel 5) when user enabled the motors in the GUI
 	if (switch_channel > -40 && switch_channel < 40) {	// switch in middle = motors on; sempf(5) is the idle up switch
 	    Minthrottle = Idle_up;	//                                        'minimum throttle
@@ -840,7 +809,6 @@ void Mixer(void)
 		Motors_on = 0;	//
 		State = 0;	//                                              'flight mode: off
 		Lf = 0;		//                                                 'don't react to stick movements
-		// 'Lf_tail = 0
 		P_sens = 0;	//                                             'don't react to gyros
 		I_sens = 0;	//                                             'don't react to gyros
 		D_sens = 0;	//                                             'don't react to gyros
@@ -854,7 +822,6 @@ void Mixer(void)
 	Motors_on = 0;		//
 	State = 0;		//                                                'flight mode: off
 	Lf = 0;			//                                                   'don't react to stick movements
-	// 'Lf_tail = 0
 	P_sens = 0;		//                                               'don't react to gyros
 	I_sens = 0;		//                                               'don't react to gyros
 	D_sens = 0;		//                                               'don't react to gyros
@@ -868,12 +835,14 @@ void Mixer(void)
         s16 Roll, Pitch, Yaw;
 
         // Calculate roll/pitch/yaw values for mixer
-        Roll = P_set_roll_int + I_set_roll_int + D_set_roll_int;
-        Pitch = P_set_pitch_int + I_set_pitch_int + D_set_pitch_int;
-        Yaw = Yaw_gyro_scale_int + Yaw_gyro_i_scale_int;
+        Roll = P_set_roll + I_set_roll + D_set_roll;
+        Pitch = P_set_pitch + I_set_pitch + D_set_pitch;
+        Yaw = Yaw_gyro_scale + Yaw_gyro_i_scale;
+
         if (State == 2) {
-            Roll += Dd_set_roll_int;
-            Pitch += Dd_set_pitch_int;
+            // In hover, add Dd terms
+            Roll += Dd_set_roll;
+            Pitch += Dd_set_pitch;
         }
 
         // Init with throttle
@@ -881,20 +850,35 @@ void Mixer(void)
             Motors[i] = throttle_stick + Minthrottle;
 
         // Mixer
-        Motors[MOTOR1] += Roll;
-        Motors[MOTOR2] -= Roll;
-        Motors[MOTOR3] -= Roll;
-        Motors[MOTOR4] += Roll;
+        if (MixerType == QUAD) {
+            // Quad-Plus mixer
+            Motors[MOTOR3] -= Roll;
+            Motors[MOTOR4] += Roll;
+
+            Motors[MOTOR1] += Pitch;
+            Motors[MOTOR2] -= Pitch;
+
+            Motors[MOTOR1] -= Yaw;
+            Motors[MOTOR2] -= Yaw;
+            Motors[MOTOR3] += Yaw;
+            Motors[MOTOR4] += Yaw;
+        } else if (MixerType == QUAD_X) {
+            // Quad-X mixer
+            Motors[MOTOR1] += Roll;
+            Motors[MOTOR2] -= Roll;
+            Motors[MOTOR3] -= Roll;
+            Motors[MOTOR4] += Roll;
         
-        Motors[MOTOR1] += Pitch;
-        Motors[MOTOR2] -= Pitch;
-        Motors[MOTOR3] += Pitch;
-        Motors[MOTOR4] -= Pitch;
+            Motors[MOTOR1] += Pitch;
+            Motors[MOTOR2] -= Pitch;
+            Motors[MOTOR3] += Pitch;
+            Motors[MOTOR4] -= Pitch;
         
-        Motors[MOTOR1] -= Yaw;
-        Motors[MOTOR2] -= Yaw;
-        Motors[MOTOR3] += Yaw;
-        Motors[MOTOR4] += Yaw;
+            Motors[MOTOR1] -= Yaw;
+            Motors[MOTOR2] -= Yaw;
+            Motors[MOTOR3] += Yaw;
+            Motors[MOTOR4] += Yaw;
+        }            
 
         for (i = 0; i < 4; i++) {
             if (Motors[i] < (s16)Minthrottle)
@@ -943,8 +927,8 @@ static inline void Gyro(void)
 	}
 
 	if (State == 2) {
-	    Meas_angle_roll = Yacc;	//                                  'when switching from acro mode to hover mode
-	    Meas_angle_pitch = Xacc;	//                                 'start with a "close to reality" angle
+	    Meas_angle_roll = Yacc;	            // when switching from acro mode to hover mode
+	    Meas_angle_pitch = Xacc;	            // start with a "close to reality" angle
 	} else {
 	    Meas_angle_roll = 0;
 	    Meas_angle_pitch = 0;
@@ -955,22 +939,22 @@ static inline void Gyro(void)
 
     Old_state = State;
 
-    if (State == 1) {		// 'ACROBATIC MODE = Angular velocity control
+    if (State == 1) {		                    // ACROBATIC MODE = Angular velocity control
 
-	if (Looper < 2) {	// 'for angular acceleration measurement
-	    Looper++;		//                                      'acceleration will be calculated as the difference in velocity between
-	} else {		//                                                       'loop n and loop n+2
+	if (Looper < 2) {	// for angular acceleration measurement
+	    Looper++;		// acceleration will be calculated as the difference in velocity between
+	} else {		// loop n and loop n+2
 	    Looper = 0;
 	}
 
-	// '--Roll--
+	// Roll
 	Meas_roll = Getadc(ADC_GYRO_ROLL);	// get gyro signal
 	if (Roll_gyro_dir == 0) {	// make gyro direction reversal possible
 	    Meas_roll = Roll_init - Meas_roll;	// subtract offset
 	} else if (Roll_gyro_dir == 1) {
 	    Meas_roll = Meas_roll - Roll_init;	// subtract offset
 	}
-	// 'Meas_roll = Meas_roll - Rollstickvel
+
 	Setpoint_roll = roll_stick * Lfdynamic_roll;	// roll stick position
 	Error_roll = Meas_roll - Setpoint_roll;	// calculate difference between angular velocity and stick position
 	// this calculates the angular velocity (D-term in acro mode)
@@ -981,22 +965,22 @@ static inline void Gyro(void)
 	Error_roll_sum = Error_roll_sum + Error_roll;	// integrate the above
 	Error_roll_sum = CLAMP(Error_roll_sum, -10000, 10000);
 	P_set_roll = Error_roll * P_sens;	// multiply with gain
-	if (Gyro_i_enable == 0) {	// don't integrate when motors off
+        // don't integrate when motors off
+	if (Gyro_i_enable == 0)
 	    Error_roll_sum = 0;
-	}
-	I_set_roll = Error_roll_sum * I_sens;	// 'multiply with gain
+	I_set_roll = Error_roll_sum * I_sens;	// multiply with gain
 
-	// '--Nick--
-	Meas_pitch = Getadc(ADC_GYRO_PITCH);	// 'see above
+	// Pitch
+	Meas_pitch = Getadc(ADC_GYRO_PITCH);	// see above
 	if (Pitch_gyro_dir == 0) {
 	    Meas_pitch = Meas_pitch - Pitch_init;
 	} else if (Pitch_gyro_dir == 1) {
 	    Meas_pitch = Pitch_init - Meas_pitch;
 	}
-	// 'Meas_nick = Meas_nick - Nickstickvel
+
 	Setpoint_pitch = pitch_stick * Lfdynamic_pitch;
 	Error_pitch = Meas_pitch - Setpoint_pitch;
-	// this calcuhalates the angular velocity (D-term in acro mode)
+	// this calculates the angular velocity (D-term in acro mode)
 	Error_pitch_d[Looper] = Error_pitch - Error_pitch_old[Looper];
 	Error_pitch_old[Looper] = Error_pitch;
 	D_set_pitch = Error_pitch_d[Looper] * D_sens;
@@ -1004,33 +988,33 @@ static inline void Gyro(void)
 	Error_pitch_sum = Error_pitch_sum + Error_pitch;
 	Error_pitch_sum = CLAMP(Error_pitch_sum, -10000, 10000);
 	P_set_pitch = Error_pitch * P_sens;
-	if (Gyro_i_enable == 0) {
+	if (Gyro_i_enable == 0)
 	    Error_pitch_sum = 0;
-	}
 	I_set_pitch = Error_pitch_sum * I_sens;
     }
+
     // HOVER MODE = Angle control
     if (State == 2 || State == 0) {
-	float Accy_temp;	// As Single                                     'used for complementary filtering
-	float Accx_temp;	// As Single                                     'used for complementary filtering
+	float Accy_temp;	// used for complementary filtering
+	float Accx_temp;	// used for complementary filtering
 
 	// for angular acceleration measurement
 	// acceleration will be calculated as the difference in velocity between
-	// 'loop n and loop n+2
+	// loop n and loop n+2
 	if (Looper < 1) {
 	    Looper++;
 	} else {
 	    Looper = 0;
 	}
 
-	// '--Roll--
+	// Roll
 	Meas_roll = Getadc(ADC_GYRO_ROLL);	// get gyro signal
 	if (Roll_gyro_dir == 0) {	// make gyro direction reversal possible
 	    Meas_roll = Roll_init - Meas_roll;	// subtract offset
 	} else if (Roll_gyro_dir == 1) {
 	    Meas_roll = Meas_roll - Roll_init;
 	}
-	// 'Meas_roll = Meas_roll - Rollstickvel
+
 	// this calculates the angular velocity (D-term in acro mode)
 	Error_roll_d[Looper] = Meas_roll - Error_roll_old[Looper];
 	Error_roll_old[Looper] = Meas_roll;
@@ -1038,36 +1022,33 @@ static inline void Gyro(void)
 	// integrate gyro signal
 	Meas_angle_roll = Meas_angle_roll + Meas_roll;
 
-	//'this might require some further explanation:
-	//'The gyroscopes can only measure differences in rotational speed. Integrated over a long time (e.g. 11 minutes of flight)
-	//'the angle calculated from gyro's alone loses precision. Here, the acc comes into play: It always knows the angle of the
-	//'copter, but it reacts pretty slowly. And it contains quite some noise. The following lines of code combine the fast
-	//'signal of the gyroscopes and the absolute precision of the accelerometer. In the end, you get the best out of both worlds:
+	// this might require some further explanation:
+	// The gyroscopes can only measure differences in rotational speed. Integrated over a long time (e.g. 11 minutes of flight)
+	// the angle calculated from gyro's alone loses precision. Here, the acc comes into play: It always knows the angle of the
+	// copter, but it reacts pretty slowly. And it contains quite some noise. The following lines of code combine the fast
+	// signal of the gyroscopes and the absolute precision of the accelerometer. In the end, you get the best out of both worlds:
 
 	Meas_angle_roll = Meas_angle_roll * Gyro_influence;	// 0.99 take 0.99 of gyro integral and 0.01 of acc...
-	Accy_temp = Yacc * Acc_influence;	// 0.01
-	Meas_angle_roll = Meas_angle_roll + Accy_temp;	//             '...and put these two together (complementary filtering)
+	Accy_temp = Yacc * Acc_influence;	                // 0.01
+	Meas_angle_roll = Meas_angle_roll + Accy_temp;	        // ...and put these two together (complementary filtering)
 
-	Setpoint_roll = roll_stick * Lf;	//                   'roll stick position * stick sensitivity
-	Error_roll = Meas_angle_roll - Setpoint_roll;	// 'current angle minus desired angle (stick position)
-	Error_roll_sum = Error_roll_sum + Error_roll;	//              'integral of an integral
+	Setpoint_roll = roll_stick * Lf;	                // roll stick position * stick sensitivity
+	Error_roll = Meas_angle_roll - Setpoint_roll;	        // current angle minus desired angle (stick position)
+	Error_roll_sum = Error_roll_sum + Error_roll;	        // integral of an integral
 	Error_roll_sum = CLAMP(Error_roll_sum, -4000000, 4000000);	// integral clipping
-
-	P_set_roll = Error_roll * P_sens;	//                           'multiply with gain
-	if (Gyro_i_enable == 0) {
+	P_set_roll = Error_roll * P_sens;	                // multiply with gain
+	if (Gyro_i_enable == 0)
 	    Error_roll_sum = 0;
-	}
-	I_set_roll = Error_roll_sum * I_sens;	// 'multiply with gain
-	D_set_roll = Meas_roll * D_sens;	// 'multiply with gain
+	I_set_roll = Error_roll_sum * I_sens;	                // multiply with gain
+	D_set_roll = Meas_roll * D_sens;	                // multiply with gain
 
-	// '--Nick--
-	Meas_pitch = Getadc(ADC_GYRO_PITCH);	//                                     'see above
+	// Pitch
+	Meas_pitch = Getadc(ADC_GYRO_PITCH);	                // see above
 	if (Pitch_gyro_dir == 0) {
 	    Meas_pitch = Meas_pitch - Pitch_init;
 	} else if (Pitch_gyro_dir == 1) {
 	    Meas_pitch = Pitch_init - Meas_pitch;
 	}
-	// 'Meas_nick = Meas_nick - Nickstickvel
 
 	// this calculates the angular velocity (D-term in acro mode)
 	Error_pitch_d[Looper] = Meas_pitch - Error_pitch_old[Looper];
@@ -1075,8 +1056,8 @@ static inline void Gyro(void)
 	Dd_set_pitch = Error_pitch_d[Looper] * Dd_sens;
 
 	Meas_angle_pitch = Meas_angle_pitch + Meas_pitch;
-	Meas_angle_pitch = Meas_angle_pitch * Gyro_influence;	//        '0.99
-	Accx_temp = Xacc * Acc_influence;	//                          '0.01
+	Meas_angle_pitch = Meas_angle_pitch * Gyro_influence;	// 0.99
+	Accx_temp = Xacc * Acc_influence;	                // 0.01
 	Meas_angle_pitch = Meas_angle_pitch + Accx_temp;
 	Setpoint_pitch = pitch_stick * Lf;
 	Error_pitch = Meas_angle_pitch - Setpoint_pitch;
@@ -1090,43 +1071,28 @@ static inline void Gyro(void)
 	I_set_pitch = Error_pitch_sum * I_sens;
 	D_set_pitch = Meas_pitch * D_sens;
     }
-// convert rescaled values (single) to integers.
-    P_set_roll_int = P_set_roll;
-    I_set_roll_int = I_set_roll;
-    D_set_roll_int = D_set_roll;
-    P_set_pitch_int = P_set_pitch;
-    I_set_pitch_int = I_set_pitch;
-    D_set_pitch_int = D_set_pitch;
 
-    Dd_set_pitch_int = Dd_set_pitch;
-    Dd_set_roll_int = Dd_set_roll;
-
-// --Yaw--
-    Yaw_gyro = Getadc(ADC_GYRO_YAW);	// get yaw rate from gyro
+    // Yaw
+    Yaw_gyro = Getadc(ADC_GYRO_YAW);	                        // get yaw rate from gyro
     if (Yaw_gyro_dir == 0) {
-	Yaw_gyro = Yaw_gyro - Yaw_init;	// subtract offset
+	Yaw_gyro = Yaw_gyro - Yaw_init;	                        // subtract offset
     } else {
 	Yaw_gyro = Yaw_init - Yaw_gyro;
     }
 
-    Yaw_diff = yaw_stick * Lf_yaw;	// yaw stick position
-
-    if (Yaw_gyro_dir == 1) {
+    Yaw_diff = yaw_stick * Lf_yaw;	                        // yaw stick position
+    if (Yaw_gyro_dir == 1)
 	Yaw_diff = -Yaw_diff;
-    }
 
-    Yaw_diff = Yaw_diff - Yaw_gyro;	// stick position - current angular velocity
+    Yaw_diff = Yaw_diff - Yaw_gyro;	                        // stick position - current angular velocity
+    Yaw_gyro_i = Yaw_gyro_i + Yaw_diff;	                        // integral of the above
+    Yaw_gyro_i = CLAMP(Yaw_gyro_i, -32000, 32000);	        // protect from overflow
 
-    Yaw_gyro_i = Yaw_gyro_i + Yaw_diff;	// 'integral of the above
-    Yaw_gyro_i = CLAMP(Yaw_gyro_i, -32000, 32000);	// protect from overflow
-
-    Yaw_gyro_scale = Yaw_diff * Yaw_p_sens;	//                       'multiply with gain
-    if (Gyro_i_enable == 0) {	//                                    'integrate only when motors on
+    Yaw_gyro_scale = Yaw_diff * Yaw_p_sens;	                // multiply with gain
+    // integrate only when motors on
+    if (Gyro_i_enable == 0)
 	Yaw_gyro_i = 0;
-    }
-    Yaw_gyro_i_scale = Yaw_gyro_i * Yaw_i_sens;	// 'multiply with gain
-    Yaw_gyro_scale_int = Yaw_gyro_scale;	// 'convert single to integer
-    Yaw_gyro_i_scale_int = Yaw_gyro_i_scale;	// 'convert single to integer
+    Yaw_gyro_i_scale = Yaw_gyro_i * Yaw_i_sens;	                // multiply with gain
 }
 
 void Acc()
@@ -1393,7 +1359,7 @@ static void settings_write(void)
     u8 i;
 
     for (i = 0; i < 33; i++)
-	eeprom_write_byte((u8 *) i, Settings[i]);
+	eeprom_write_byte((u8 *)i, Settings[i]);
 }
 
 static void settings_load(void)

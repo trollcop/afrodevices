@@ -56,7 +56,6 @@ void i2c_init(void)
     TWSR &= ~((1 << TWPS1) | (1 << TWPS0));
     // set TWI Bit Rate Register
     TWBR = ((F_CPU / SCL_CLOCK) - 16) / 2;
-
 }
 
 int i2c_write(uint8_t address, uint8_t data)
