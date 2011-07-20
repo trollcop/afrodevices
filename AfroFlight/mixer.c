@@ -56,12 +56,12 @@ void Mixer(s16 Throttle, s16 Roll, s16 Pitch, s16 Yaw)
         Motors[MOTOR4] += Pitch;
         Motors[MOTOR5] += Pitch;
 	// Yaw
-        Motors[MOTOR1] += Yaw;
-        Motors[MOTOR2] += Yaw;
-        Motors[MOTOR3] -= Yaw;
-        Motors[MOTOR4] -= Yaw;
-        Motors[MOTOR5] -= Yaw;
-        Motors[MOTOR6] += Yaw;
+        Motors[MOTOR1] -= Yaw;
+        Motors[MOTOR2] -= Yaw;
+        Motors[MOTOR3] += Yaw;
+        Motors[MOTOR4] += Yaw;
+        Motors[MOTOR5] += Yaw;
+        Motors[MOTOR6] -= Yaw;
     }
 
     // Limit lowest motor  value to avoid stopping motor
