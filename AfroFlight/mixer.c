@@ -44,21 +44,21 @@ void Mixer(s16 Throttle, s16 Roll, s16 Pitch, s16 Yaw)
 	// Roll
 	Roll = (Roll * 7) >> 3;
         Motors[MOTOR1] += Roll;
-        Motors[MOTOR2] += Roll;
-        Motors[MOTOR3] -= Roll;
-        Motors[MOTOR4] -= Roll;
+        Motors[MOTOR4] += Roll;
+        Motors[MOTOR2] -= Roll;
+        Motors[MOTOR5] -= Roll;
 	// Pitch
-        Motors[MOTOR5] -= Pitch;
+        Motors[MOTOR3] -= Pitch;
         Motors[MOTOR6] -= Pitch;
 	Pitch = Pitch >> 1; // halve the power because we got 2 motors
         Motors[MOTOR1] += Pitch;
         Motors[MOTOR2] += Pitch;
-        Motors[MOTOR3] += Pitch;
         Motors[MOTOR4] += Pitch;
+        Motors[MOTOR5] += Pitch;
 	// Yaw
-        Motors[MOTOR1] -= Yaw;
+        Motors[MOTOR1] += Yaw;
         Motors[MOTOR2] += Yaw;
-        Motors[MOTOR3] += Yaw;
+        Motors[MOTOR3] -= Yaw;
         Motors[MOTOR4] -= Yaw;
         Motors[MOTOR5] -= Yaw;
         Motors[MOTOR6] += Yaw;
