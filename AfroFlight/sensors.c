@@ -37,8 +37,8 @@ s16 gyroZero[3] = { 0, 0, 0 };                                // used for calibr
 /* Accumulated sensor values - this is set by ADC and SPI read interrupts */
 /* 0:Pitch 1:Roll 2:Yaw 3:Battery Voltage 4:AX 5:AY 6:AZ */
 static vs16 sensorInputs[7] = { 0, };
-/* Are we currently reading ADC data? */
-static vu8 isAdcReading = FALSE;
+/* How many samples are added up in sensorInputs[0..3] by 200us ADC interrupt */
+static u8 adcSampleCount = 0;
 
 static u16 batteryWarning;	// Battery Warning Voltage
 static u16 voltageLevel = 100;	// Battery Voltage
@@ -126,21 +126,19 @@ static u8 ADXL_GetAccelValues(void)
     AIN3        Voltage
     
     Analog IRQ handler - end of conversion
+    This is called by TIM4 every 200us
+    It averages s16 worth of samples (or until it overflows, then it clears the buffer.
 */
-static u8 adcSampleCount = 0;
-
 __near __interrupt void ADC1_IRQHandler(void)
 {
     u8 i = 0;
-    static vu8 count = 0;
-
-    DEBUG_LED;
 
     // clear at start of loop
     if (adcSampleCount == 0 || adcSampleCount > 30) {
-        for (i = 0; i < 4; i++) {
-            sensorInputs[i] = 0;
-        }
+        sensorInputs[0] = 0;
+        sensorInputs[1] = 0;
+        sensorInputs[2] = 0;
+        sensorInputs[3] = 0;
         adcSampleCount = 0;
     }
 
@@ -151,18 +149,6 @@ __near __interrupt void ADC1_IRQHandler(void)
     adcSampleCount++;
 
     ADC1_ClearITPendingBit(ADC1_CSR_EOC);
-    isAdcReading = FALSE;
-
-#if 0
-    // loop 2 times
-    count++;
-    if (count < 8)
-        ADC1_StartConversion();
-    else {
-        count = 0;
-        isAdcReading = FALSE;
-    }
-#endif
 }
 
 /* Public functions */
@@ -172,7 +158,7 @@ void Sensors_Init(void)
     SPI_DeInit();
     SPI_Init(SPI_FIRSTBIT_MSB, SPI_BAUDRATEPRESCALER_2, SPI_MODE_MASTER, SPI_CLOCKPOLARITY_HIGH, SPI_CLOCKPHASE_2EDGE, SPI_DATADIRECTION_2LINES_FULLDUPLEX, SPI_NSS_SOFT, 0x07);
     SPI_Cmd(ENABLE);
-    
+
     // SPI ChipSelect for Accel
     GPIO_Init(GPIOE, GPIO_PIN_5, GPIO_MODE_OUT_PP_HIGH_FAST);
     ADXL_OFF;
@@ -187,9 +173,6 @@ void Sensors_Init(void)
     ADC1_DataBufferCmd(ENABLE);
     ADC1_ScanModeCmd(ENABLE);
     ADC1_ITConfig(ADC1_IT_EOCIE, ENABLE);
-
-    // TODO remove
-    // ADC1_StartConversion();
 
     // Initialize SPI Accelerometer
     ADXL_Init();
@@ -272,25 +255,27 @@ void Sensors_ReadACC(void)
     acc[1] = sensorInputs[5] / count;
     acc[2] = sensorInputs[6] / count;
 
-    for (i = 4; i < 7; i++) {
-        sensorInputs[i] = 0;
-    }
+    sensorInputs[4] = 0;
+    sensorInputs[5] = 0;
+    sensorInputs[6] = 0;
 }
 
 void Sensors_ReadADC(void)
 {
     u8 i = 0;
-    u8 remaining = 0, count = 0;
+    u16 vbat;
 
     // average 1 gyro readings
-    gyro[0] = (sensorInputs[0] / adcSampleCount); //>> 1); // - gyroZero[0];
-    gyro[1] = (sensorInputs[1] / adcSampleCount); //>> 1); // - gyroZero[1];
-    gyro[2] = (sensorInputs[2] / adcSampleCount); //>> 1); // - gyroZero[2];
+    gyro[0] = (sensorInputs[0] / adcSampleCount);
+    gyro[1] = (sensorInputs[1] / adcSampleCount);
+    gyro[2] = (sensorInputs[2] / adcSampleCount);
+
+    vbat = sensorInputs[3] / adcSampleCount;
 
     // 3.3V reference
-    battery = (3 * battery + (11 * (sensorInputs[3] / adcSampleCount)) / 30) / 4;
-    // printf("S: %u\r\n", (u16)adcSampleCount);
+    battery = (3 * battery + (11 * (vbat)) / 30) / 4;
 
+    // clear adcSampleCount. ADC isr will empty the sensorInputs[] array at that time
     adcSampleCount = 0;
 }
 
@@ -318,6 +303,6 @@ u8 Voltage_Check(void)
 {
     if (battery != 0 && battery < batteryWarning)
         return 1;
-        
+
     return 0;
 }
