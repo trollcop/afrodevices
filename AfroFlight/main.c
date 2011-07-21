@@ -8,7 +8,7 @@ s16 Motors[MAX_MOTORS] = { 0, };                                     // Global m
 /* local static vars */
 static u8 Armed = FALSE;                                             // Motors armed or not :)
 static u16 Loop = 0;                                                 // Loop counter used for slow timing
-static vu16 Rtc2ms = 0;                                              // Semi-accurate 1sec resolution timer used for flight hours and running tasks that shouldn't have to happen too often.
+static vu16 rtc200us = 0;                                              // Semi-accurate 1sec resolution timer used for flight hours and running tasks that shouldn't have to happen too often.
 static u16 Rtc1sec = 0;                                              // 1 second RTC
 static u8 FlightMode = FC_MODE_ACRO;                                 // current flight mode as defined by "Switch"
 static u8 OldFlightMode = FC_MODE_ACRO;                              // previous value of flight mode
@@ -82,10 +82,11 @@ __inline void PWM_WriteMotors(void)
 /* 2ms RTC timer, to make 1s counter */
 __near __interrupt void TIM4_UPD_OVF_IRQHandler(void)
 {
-    Rtc2ms++;
-    // TIM4_ClearITPendingBit(TIM4_IT_UPDATE);
-    // Optimize away a call()
+    rtc200us++;
+    // Optimize away a call() - TIM4_ClearITPendingBit(TIM4_IT_UPDATE);
     TIM4->SR1 = (u8)(~TIM4_IT_UPDATE);
+    // fire off gyro sensor reading (every 200us)...
+    ADC1_StartConversion();
 }
 
 /* Hardware Initialization */
@@ -127,11 +128,13 @@ static void HW_Init(void)
 
     // system tick timer for buzzer etc
     TIM4_DeInit();
-    TIM4_TimeBaseInit(TIM4_PRESCALER_128, 249); // 2ms timer for RTC-ish tasks
+    TIM4_TimeBaseInit(TIM4_PRESCALER_128, 24); // 200us timer for RTC-ish tasks
     TIM4_ITConfig(TIM4_IT_UPDATE, ENABLE);
 
     TIM1_Cmd(ENABLE);
     TIM2_Cmd(ENABLE);
+    // RTC timer (2ms)
+    TIM4_Cmd(ENABLE);
 
     // I2C [ TODO ]
     I2C_DeInit();
@@ -157,6 +160,7 @@ void loop(void)
     s32 ipart;
     s32 error;
     s16 RxInRollPrev, RxInPitchPrev, RxInYawPrev;
+    s16 lgyro[3]; // loop gyro
 
     // get RC stuff in. TODO use stick centering... or maybe allow center from GUI.
     RxInRoll = 1500 - RC_GetChannel(RC_ROLL);
@@ -168,9 +172,9 @@ void loop(void)
     RxInThrottle = RC_GetChannel(RC_THROTTLE) - 1120;
     
     // prep gyro
-    gyro[0] -= gyroZero[0];
-    gyro[1] -= gyroZero[1];
-    gyro[2] -= gyroZero[2];
+    lgyro[0] = gyro[0] - gyroZero[0];
+    lgyro[1] = gyro[1] - gyroZero[1];
+    lgyro[2] = gyro[2] - gyroZero[2];
 
     // Throttle is low, do stuff like arming etc
     if (RxInThrottle < 0 || !Armed) {
@@ -218,18 +222,18 @@ void loop(void)
     // ROLL
     RxInRoll = RxInRoll * Config.StickP + RxInRollPrev * Config.StickD; // RC_PRTY[CONTROL_PITCH] = RCChannel(CH_PITCH) * staticParams.StickP + RCDiff(CH_PITCH) * staticParams.StickD;
     // RxInRoll = (RxInRoll * GainIn[ROLL]) >> Config.RollPitchStickGain;
-    gyro[ROLL] = (gyro[ROLL] * GainIn[ROLL]) >> Config.RollPitchGyroGain;
+    lgyro[ROLL] = (lgyro[ROLL] * GainIn[ROLL]) >> Config.RollPitchGyroGain;
     if (Config.RollGyroDirection == GYRO_NORMAL)
-        gyro[ROLL] = -gyro[ROLL];
-    RxInRoll -= gyro[ROLL];
+        lgyro[ROLL] = -lgyro[ROLL];
+    RxInRoll -= lgyro[ROLL];
 
     // PITCH
     RxInPitch = RxInPitch * Config.StickP + RxInPitchPrev * Config.StickD;
     // RxInPitch = (RxInPitch * GainIn[PITCH]) >> Config.RollPitchStickGain;
-    gyro[PITCH] = (gyro[PITCH] * GainIn[PITCH]) >> Config.RollPitchGyroGain;
+    lgyro[PITCH] = (lgyro[PITCH] * GainIn[PITCH]) >> Config.RollPitchGyroGain;
     if (Config.PitchGyroDirection == GYRO_NORMAL)
-            gyro[PITCH] = -gyro[PITCH];
-    RxInPitch -= gyro[PITCH];
+            lgyro[PITCH] = -lgyro[PITCH];
+    RxInPitch -= lgyro[PITCH];
 
     // YAW
     error = RxInYaw - RxInYawPrev;
@@ -237,13 +241,13 @@ void loop(void)
     ppart += (Config.YawStickP * error) >> 2;
     RxInYaw = (s16)(ppart);
     // RxInYaw = (RxInYaw * GainIn[YAW]) >> Config.YawStickGain;
-    gyro[YAW] = (gyro[YAW] * GainIn[YAW]) >> Config.YawGyroGain;
+    lgyro[YAW] = (lgyro[YAW] * GainIn[YAW]) >> Config.YawGyroGain;
     if (Config.YawGyroDirection == GYRO_NORMAL)
-            gyro[YAW] = -gyro[YAW];
+            lgyro[YAW] = -lgyro[YAW];
 
 #if 1
     // Yaw PID
-    error = RxInYaw - gyro[YAW];
+    error = RxInYaw - lgyro[YAW];
     ppart = error * Config.YawP;
     ppart = CLAMP(ppart, -emax, emax);
 
@@ -255,7 +259,7 @@ void loop(void)
     last_error[YAW] = error;
     RxInYaw += (s16)(ppart >> 4) + (s16)(ipart >> 4) + (s16)(derivative >> 4);
 #else
-    RxInYaw -= gyro[YAW];
+    RxInYaw -= lgyro[YAW];
 #endif
 
     // Multirotor mixing (mixer.c)
@@ -310,31 +314,21 @@ void main(void)
     // Battery check (will beep number of cells)
     Voltage_Init();
 
-    // RTC timer (2ms)
-    TIM4_Cmd(ENABLE);
-
     // main loop
     while (1) {
-        // LED_ON
-        if (Rtc2ms > 499) {
-            Rtc2ms = 0;
+        if (rtc200us > 4999) {
+            rtc200us = 0;
             Rtc1sec++;
         }
-        rtcOld = Rtc2ms;
+        rtcOld = rtc200us;
         Loop++;
  
-        // Debugging only, to be removed
-        #if 0
-        if (Armed)
-            LED_ON
-        else
-            LED_OFF
-        #endif
-
         // This checks for "Commands" from RC module. Returns stuff like arm/disarm/calibrate/etc
         RC_Update();
+
         // Main flight loop, don't call it THAT often :)
         loop();
+
         // let's try: we "receive" signals often, which set flags. then transmit will happen less often. or something.
         UART_ReceiveTelemetry();
 
@@ -353,11 +347,10 @@ void main(void)
         }
 
         // artificial delay
-        // LED_OFF
         // update + average sensors
-        Sensors_Read();
-        while (rtcOld == Rtc2ms); // idle until loop reaches 500Hz
-        // LED_ON
+        Sensors_ReadACC();
+        Sensors_ReadADC();
+        while (rtc200us % 10 != 0); // idle until loop reaches 500Hz
     }
 }
 

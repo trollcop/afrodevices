@@ -127,18 +127,34 @@ static u8 ADXL_GetAccelValues(void)
     
     Analog IRQ handler - end of conversion
 */
+static u8 adcSampleCount = 0;
+
 __near __interrupt void ADC1_IRQHandler(void)
 {
     u8 i = 0;
     static vu8 count = 0;
-    
+
+    DEBUG_LED;
+
+    // clear at start of loop
+    if (adcSampleCount == 0 || adcSampleCount > 30) {
+        for (i = 0; i < 4; i++) {
+            sensorInputs[i] = 0;
+        }
+        adcSampleCount = 0;
+    }
+
     // Get 4 ADC readings from buffer
     for (i = 0; i < 4; i++)
         sensorInputs[i] += ADC1_GetBufferValue(i);
 
-    ADC1_ClearITPendingBit(ADC1_CSR_EOC);
+    adcSampleCount++;
 
-    // loop 8 times
+    ADC1_ClearITPendingBit(ADC1_CSR_EOC);
+    isAdcReading = FALSE;
+
+#if 0
+    // loop 2 times
     count++;
     if (count < 8)
         ADC1_StartConversion();
@@ -146,6 +162,7 @@ __near __interrupt void ADC1_IRQHandler(void)
         count = 0;
         isAdcReading = FALSE;
     }
+#endif
 }
 
 /* Public functions */
@@ -172,7 +189,7 @@ void Sensors_Init(void)
     ADC1_ITConfig(ADC1_IT_EOCIE, ENABLE);
 
     // TODO remove
-    ADC1_StartConversion();
+    // ADC1_StartConversion();
 
     // Initialize SPI Accelerometer
     ADXL_Init();
@@ -187,32 +204,37 @@ void Gyro_Calibrate(void)
     u8 i, j;
     u16 gyroCheck[8 * 3];       // gyro offset calc
     s16 gyroDiff = 0;
-    
+
+    // read soem samples up
+    Sensors_ReadADC();
+    delay_ms(2);
+
     do {
         for (i = 0; i < 3; i++)
             gyroZero[i] = 0;
 
-	for (i = 0; i < 8; i++) {
+        for (i = 0; i < 8; i++) {
             for (j = 0; j < 3; j++) {
-                Sensors_Read();
+                Sensors_ReadADC();
+                delay_ms(2);
                 gyroZero[j] += gyro[j];
                 gyroCheck[i + (j * 8)] = gyro[j];
             }
-	    delay_ms(100);
-	}
-        
+            delay_ms(100);
+        }
+
         for (i = 0; i < 3; i++) {
             gyroZero[i] = gyroZero[i] >> 3;
             if (gyroZero[i] > 500 || gyroZero[i] < 300) {
                 while (1) {
-                    Sensors_Read();
+                    Sensors_ReadADC();
                     Beep(1, 400, 50);
                     Beep(2, 100, 25);
                     LED_TOGGLE;
                 }
             }
         }
-            
+
 	LED_TOGGLE;
 
         // compare mean value vs individual values
@@ -233,22 +255,12 @@ void Gyro_Calibrate(void)
     LED_OFF;
 }
 
-void Sensors_Read(void)
+void Sensors_ReadACC(void)
 {
+    u8 count = 0;
+    u8 remaining = 0;
     u8 i = 0;
-    u8 remaining = 0, count = 0;
 
-    // Fire off 8 adc reads (Gyro, Voltage)
-    isAdcReading = TRUE;
-    ADC1_StartConversion();
-    // Wait for the sample loop to complete
-    while (isAdcReading);
-
-    // average 8 gyro readings
-    gyro[0] = (sensorInputs[0] >> 3); // - gyroZero[0];
-    gyro[1] = (sensorInputs[1] >> 3); // - gyroZero[1];
-    gyro[2] = (sensorInputs[2] >> 3); // - gyroZero[2];
-    
     // Next up is accel fifo + avg
     do {
         count++;
@@ -260,17 +272,26 @@ void Sensors_Read(void)
     acc[1] = sensorInputs[5] / count;
     acc[2] = sensorInputs[6] / count;
 
-    // 3.3V reference
-    battery = (3 * battery + (11 * (sensorInputs[3] >> 3)) / 30) / 4;
-
-    // clear for next pass
-    for (i = 0; i < 8; i++)
+    for (i = 4; i < 7; i++) {
         sensorInputs[i] = 0;
+    }
 }
 
-void Sensors_Debug(void)
+void Sensors_ReadADC(void)
 {
-    printf("Acc: %d %d %d Gyro: %d %d %d Volt: %d\r\n", acc[0], acc[1], acc[2], gyro[0], gyro[1], gyro[2], battery);
+    u8 i = 0;
+    u8 remaining = 0, count = 0;
+
+    // average 1 gyro readings
+    gyro[0] = (sensorInputs[0] / adcSampleCount); //>> 1); // - gyroZero[0];
+    gyro[1] = (sensorInputs[1] / adcSampleCount); //>> 1); // - gyroZero[1];
+    gyro[2] = (sensorInputs[2] / adcSampleCount); //>> 1); // - gyroZero[2];
+
+    // 3.3V reference
+    battery = (3 * battery + (11 * (sensorInputs[3] / adcSampleCount)) / 30) / 4;
+    // printf("S: %u\r\n", (u16)adcSampleCount);
+
+    adcSampleCount = 0;
 }
 
 void Voltage_Init(void)
@@ -278,8 +299,10 @@ void Voltage_Init(void)
     u8 i;
 
     // measure a few times to start rolling average
-    for (i = 0; i < 30; i++)
-        Sensors_Read();
+    for (i = 0; i < 30; i++) {
+        Sensors_ReadADC();
+        delay_ms(2);
+    }
 
     for (i = 2; i < 6; i++) {
 	if (battery < i * MAX_LIPO_CELL_VOLTAGE)

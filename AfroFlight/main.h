@@ -64,6 +64,8 @@ typedef volatile int32_t vs32;
 #define LED_ON		GPIO_WriteLow(GPIOD, GPIO_PIN_7);
 #define LED_TOGGLE	GPIO_WriteReverse(GPIOD, GPIO_PIN_7);
 
+#define DEBUG_LED       { LED_ON; LED_OFF; }
+
 #define BUZZ_OFF	GPIO_WriteLow(GPIOF, GPIO_PIN_4);
 #define BUZZ_ON		GPIO_WriteHigh(GPIOF, GPIO_PIN_4);
 #define BUZZ_TOGGLE	GPIO_WriteReverse(GPIOF, GPIO_PIN_4);

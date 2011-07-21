@@ -12,7 +12,10 @@ extern s16 gyroZero[3];
 
 void Sensors_Init(void);
 void Gyro_Calibrate(void);
-void Sensors_Read(void);
+
+void Sensors_ReadADC(void);
+void Sensors_ReadACC(void);
+
 void Sensors_Debug(void);
 // s16 Sensors_Get(u8 Index);
 // s16 *Sensors_GetPointer(void);
