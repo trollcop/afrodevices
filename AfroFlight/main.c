@@ -8,19 +8,13 @@ s16 Motors[MAX_MOTORS] = { 0, };                                     // Global m
 /* local static vars */
 static u8 Armed = FALSE;                                             // Motors armed or not :)
 static u16 Loop = 0;                                                 // Loop counter used for slow timing
-static vu16 rtc200us = 0;                                              // Semi-accurate 1sec resolution timer used for flight hours and running tasks that shouldn't have to happen too often.
-static u16 Rtc1sec = 0;                                              // 1 second RTC
+static vu16 rtc200us = 0;                                            // 
+static u16 Rtc1sec = 0;                                              // Semi-accurate 1sec resolution timer used for flight hours and running tasks that shouldn't have to happen too often.
 static u8 FlightMode = FC_MODE_ACRO;                                 // current flight mode as defined by "Switch"
 static u8 OldFlightMode = FC_MODE_ACRO;                              // previous value of flight mode
 static u8 FCFlags = 0;                                               // FC flags, such as low voltage etc [ In progress ]
-static s16 RxInRoll;					             // Roll setpoint
-static s16 RxInPitch;                                                // Pitch setpoint
-static s16 RxInThrottle;                                             // Throttle setpoint
-static s16 RxInYaw;                                                  // Yaw setpoint
 static s32 integral[3] = { 0, };				     // PID integral term
 static s32 last_error[3] = { 0, };			             // PID Last proportional error
-// static s16 gyroADC[3] = { 0, 0, 0 };	                             // Holds Gyro ADCs, used for rate calculation
-static s16 GainIn[3] = { 25, 25, 25 };			             // was 20 = GainInADC[3]/10
 
 /* Main configuration struct, saved in eeprom */
 static const _Config DefaultConfig = {
@@ -30,6 +24,9 @@ static const _Config DefaultConfig = {
     GYRO_NORMAL,                // RollGyroDirection
     GYRO_NORMAL,                // PitchGyroDirection
     GYRO_NORMAL,                // YawGyroDirection
+
+    25,                         // Gain for roll/pitch gyros
+    25,                         // Gain for yaw gyro
 
     2,                          // Divider for pitch/roll gyros
     2,                          // Divider for yaw gyro
@@ -133,6 +130,7 @@ static void HW_Init(void)
 
     TIM1_Cmd(ENABLE);
     TIM2_Cmd(ENABLE);
+    // TIM3 is used by PPM input
     // RTC timer (2ms)
     TIM4_Cmd(ENABLE);
 
@@ -150,7 +148,6 @@ static void Acc_Calibration(void)
     // TODO
 }
 
-
 void loop(void)
 {
     u8 i;
@@ -159,18 +156,19 @@ void loop(void)
     s32 ppart;
     s32 ipart;
     s32 error;
-    s16 RxInRollPrev, RxInPitchPrev, RxInYawPrev;
     s16 lgyro[3]; // loop gyro
 
-    // get RC stuff in. TODO use stick centering... or maybe allow center from GUI.
-    RxInRoll = 1500 - RC_GetChannel(RC_ROLL);
-    RxInRollPrev = RC_GetDiffChannel(RC_ROLL);
-    RxInPitch = 1500 - RC_GetChannel(RC_PITCH);
-    RxInPitchPrev = RC_GetDiffChannel(RC_PITCH);
-    RxInYaw = 1500 - RC_GetChannel(RC_YAW);
-    RxInYawPrev = RC_GetDiffChannel(RC_YAW);
-    RxInThrottle = RC_GetChannel(RC_THROTTLE) - 1120;
-    
+    s16 RxInRoll;					          // Roll setpoint
+    s16 RxInPitch;                                                // Pitch setpoint
+    s16 RxInThrottle;                                             // Throttle setpoint
+    s16 RxInYaw;                                                  // Yaw setpoint
+
+    // get RC stuff in. ControlChannels[] is updated every 50hz.
+    RxInRoll = ControlChannels[RC_ROLL];
+    RxInPitch = ControlChannels[RC_PITCH];
+    RxInYaw = ControlChannels[RC_YAW];
+    RxInThrottle = ControlChannels[RC_THROTTLE];
+
     // prep gyro
     lgyro[0] = gyro[0] - gyroZero[0];
     lgyro[1] = gyro[1] - gyroZero[1];
@@ -220,28 +218,19 @@ void loop(void)
     // Lose GainInADC stuff since there are no pots to twist.
 
     // ROLL
-    RxInRoll = RxInRoll * Config.StickP + RxInRollPrev * Config.StickD; // RC_PRTY[CONTROL_PITCH] = RCChannel(CH_PITCH) * staticParams.StickP + RCDiff(CH_PITCH) * staticParams.StickD;
-    // RxInRoll = (RxInRoll * GainIn[ROLL]) >> Config.RollPitchStickGain;
-    lgyro[ROLL] = (lgyro[ROLL] * GainIn[ROLL]) >> Config.RollPitchGyroGain;
+    lgyro[ROLL] = (lgyro[ROLL] * Config.RollPitchGyroGain) >> Config.RollPitchGyroDiv;
     if (Config.RollGyroDirection == GYRO_NORMAL)
         lgyro[ROLL] = -lgyro[ROLL];
     RxInRoll -= lgyro[ROLL];
 
     // PITCH
-    RxInPitch = RxInPitch * Config.StickP + RxInPitchPrev * Config.StickD;
-    // RxInPitch = (RxInPitch * GainIn[PITCH]) >> Config.RollPitchStickGain;
-    lgyro[PITCH] = (lgyro[PITCH] * GainIn[PITCH]) >> Config.RollPitchGyroGain;
+    lgyro[PITCH] = (lgyro[PITCH] * Config.RollPitchGyroGain) >> Config.RollPitchGyroDiv;
     if (Config.PitchGyroDirection == GYRO_NORMAL)
             lgyro[PITCH] = -lgyro[PITCH];
     RxInPitch -= lgyro[PITCH];
 
     // YAW
-    error = RxInYaw - RxInYawPrev;
-    ppart = (Config.YawStickP * error * abs(error)) >> 9;
-    ppart += (Config.YawStickP * error) >> 2;
-    RxInYaw = (s16)(ppart);
-    // RxInYaw = (RxInYaw * GainIn[YAW]) >> Config.YawStickGain;
-    lgyro[YAW] = (lgyro[YAW] * GainIn[YAW]) >> Config.YawGyroGain;
+    lgyro[YAW] = (lgyro[YAW] * Config.YawGyroGain) >> Config.YawGyroDiv;
     if (Config.YawGyroDirection == GYRO_NORMAL)
             lgyro[YAW] = -lgyro[YAW];
 
@@ -285,6 +274,7 @@ void main(void)
     RC_Init();                  // PPM Input
     Sensors_Init();             // ADC + SPI Sensors
     
+    // TODO eeprom
     memcpy(&Config, &DefaultConfig, sizeof(Config));
 
     // Enable interrupts to start stuff up
@@ -308,7 +298,7 @@ void main(void)
     }
 
     LED_OFF;
-    
+
     // 0.8 second final beep
     Beep(1, 500, 400);
     // Battery check (will beep number of cells)

@@ -98,8 +98,11 @@ typedef struct _Config {
     u8 PitchGyroDirection;              // Direction of Pitch gyro
     u8 YawGyroDirection;                // Direction of Yaw gyro
     
-    u8 RollPitchGyroGain;               // Divider for pitch/roll gyros
-    u8 YawGyroGain;                     // Divider for yaw gyro
+    u8 RollPitchGyroGain;               // Gain for roll/pitch gyros
+    u8 YawGyroGain;                     // Gain for yaw gyro
+    
+    u8 RollPitchGyroDiv;                // Divider for pitch/roll gyros
+    u8 YawGyroDiv;                      // Divider for yaw gyro
     
     u8 StickP;                          // Roll/Pitch stick P-term
     u8 StickD;                          // Roll/Pitch stick D-term

@@ -1,6 +1,7 @@
 #include "main.h"
 
 /* PPM */
+static u8 ControlChannelsReceived = 0;                                          // after we get the first 4 pulses in PPM, that's probably pitch/roll/throttle/whatever
 static u8 GoodPulses = 0;
 static u8 PulseIndex;
 static u16 PreviousValue;
@@ -16,6 +17,9 @@ static s16 PrevCaptureValue[PPM_NUM_INPUTS];
 #define COMMAND_TIMER           (400)		    // 0.8 seconds @ 500Hz
 static u8 LastRCCommand = RC_COMMAND_NONE;
 static u16 CommandTimer = 0;
+
+/* Exported 4 control channels, for faster access. The rest are accessed through RC_GetChannel() */
+s16 ControlChannels[4] = { 0, 0, 0, 0 };
 
 __near __interrupt void TIM3_CAP_COM_IRQHandler(void)
 {
@@ -40,6 +44,11 @@ __near __interrupt void TIM3_CAP_COM_IRQHandler(void)
             // save channel difference for expo calculation and trash lower few bits to reduce noise
             PrevCaptureValue[PulseIndex] = ((tmp - CaptureValue[PulseIndex]) / 3) * 3;
             CaptureValue[PulseIndex] = tmp;
+
+            // let the rest of the code know we got enough to do stick inputs
+            if (PulseIndex >= 4)
+                ControlChannelsReceived = 1;
+
             PulseIndex++;
             if (GoodPulses < 200)
                 GoodPulses += 10;
@@ -73,21 +82,6 @@ void RC_Init(void)
 s16 RC_GetChannel(u8 Channel)
 {
     return MAPPED_CHANNEL(Channel);
-}
-
-s16 RC_GetDiffChannel(u8 Channel)
-{
-    return DIFF_CHANNEL(Channel);
-}
-
-#define HYSTERESIS 32
-
-s16 RC_Hysteresis(s16 Value)
-{
-    if (Value > HYSTERESIS || Value < HYSTERESIS)
-        return Value;
-    else
-        return 0;
 }
 
 void RC_Calibrate(u8 MotorsEnable)
@@ -158,18 +152,41 @@ void RC_Update(void)
 {
     u8 command = _RCCommand();
 
-    // decrement  signal level
-    if (GoodPulses != 0)
+    // decrement signal level... too many loops without rx input and we're in emergency mode
+    if (GoodPulses) {
         GoodPulses--;
 
-    if (LastRCCommand == command) {
-      // Keep timer from overrunning.
-      if (CommandTimer < COMMAND_TIMER)
-        CommandTimer++;
+        // check if we got the first 4 channels in the PPM frame. This is every 50Hz or so.
+        if (ControlChannelsReceived) {
+            s16 Error, PPart;
+            // Roll/Pitch PD
+            ControlChannels[RC_ROLL] = (1500 - MAPPED_CHANNEL(RC_ROLL)) * Config.StickP + DIFF_CHANNEL(RC_ROLL) * Config.StickD;
+            ControlChannels[RC_PITCH] = (1500 - MAPPED_CHANNEL(RC_PITCH)) * Config.StickP + DIFF_CHANNEL(RC_PITCH) * Config.StickD;
+            // Yaw D
+            Error = (1500 - MAPPED_CHANNEL(RC_YAW)) - DIFF_CHANNEL(RC_YAW);
+            PPart = (Config.YawStickP * Error * abs(Error)) >> 9;
+            PPart += (Config.YawStickP * Error) >> 2;
+            ControlChannels[RC_YAW] = (s16)PPart;
+            ControlChannels[RC_THROTTLE] = (MAPPED_CHANNEL(RC_THROTTLE) - RC_THROTTLE_MIN); // 1120us
+            // No need to recalculate this until next usable PPM frame
+            ControlChannelsReceived = 0;
+        }
+
+        if (LastRCCommand == command) {
+          // Keep timer from overrunning.
+          if (CommandTimer < COMMAND_TIMER)
+            CommandTimer++;
+        } else {
+          // There was a change.
+          LastRCCommand = command;
+          CommandTimer = 0;
+        }
     } else {
-      // There was a change.
-      LastRCCommand = command;
-      CommandTimer = 0;
+        // lost signal, drop all controls
+        ControlChannels[RC_ROLL] = 0;
+        ControlChannels[RC_PITCH] = 0;
+        ControlChannels[RC_YAW] = 0;
+        ControlChannels[RC_THROTTLE] = 0;
     }
 }
 
@@ -181,7 +198,7 @@ u8 RC_GetCommand(void)
         CommandTimer = 0;
         return LastRCCommand;
     }
-        
+
     return RC_COMMAND_NONE;
 }
 
