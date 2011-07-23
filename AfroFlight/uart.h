@@ -8,7 +8,9 @@ typedef struct _UARTVersion {
 
 enum {
     UART_REQ_VERSION                    = 1 << 0,
-    UART_REQ_ADCDATA                    = 1 << 1
+    UART_REQ_ADCDATA                    = 1 << 1,
+    
+    UART_REQ_REBOOT                     = 1 << 7
 };
 
 void UART_Init(void);

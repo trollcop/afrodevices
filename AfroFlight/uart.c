@@ -158,9 +158,9 @@ void UART_ReceiveTelemetry(void)
 {
     if (!RxLocked)
         return;
-        
+
     UART_Decode();
-    
+
     switch (RxBuffer[1]) {
         case 'V':       // Version info
             FLAG_SET(UartRequest, UART_REQ_VERSION);
@@ -168,8 +168,11 @@ void UART_ReceiveTelemetry(void)
         case 'A':       // Analog values
             FLAG_SET(UartRequest, UART_REQ_ADCDATA);
             break;
+        case 'R':       // Reboot
+            FLAG_SET(UartRequest, UART_REQ_REBOOT);
+            break;
     }
-    
+
     RxLocked = FALSE;
     RxBytes = 0;    
 }
@@ -187,5 +190,9 @@ void UART_TransmitTelemetry(void)
     if (FLAG_ISSET(UartRequest, UART_REQ_ADCDATA)) {
         UART_Transmit('A', 1, (u8 *)gyro, sizeof(gyro), (u8 *)&battery, sizeof(s16), (u8 *)acc, sizeof(acc));
         FLAG_CLEAR(UartRequest, UART_REQ_ADCDATA);
+    }
+    if (FLAG_ISSET(UartRequest, UART_REQ_REBOOT)) {
+        // reboot to bootloader
+        WWDG_SWReset();
     }
 }

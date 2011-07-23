@@ -30,10 +30,10 @@ static const _Config DefaultConfig = {
 
     2,                          // Divider for pitch/roll gyros
     2,                          // Divider for yaw gyro
-    
+
     2,                          // StickP: Roll/Pitch stick P-term
     5,                          // StickD: Roll/Pitch stick D-term
-    2,                          // YawStickP: Yaw-stick P-term
+    8,                          // YawStickP: Yaw-stick P-term
 
     3,                          // Divider for pitch/roll stick
     4,                          // Divider for yaw stick
@@ -148,6 +148,137 @@ static void Acc_Calibration(void)
     // TODO
 }
 
+/* PID loop */
+void pidloop(void)
+{
+    u8 i;
+    s16 lgyro[3]; // loop gyro
+    s16 Roll;					          // Roll setpoint
+    s16 Pitch;                                            // Pitch setpoint
+    s16 Throttle;                                         // Throttle setpoint
+    s16 Yaw;                                              // Yaw setpoint
+
+    float setpoint;
+    float error;
+    static float error_d[3][3] = { 0, };
+    static float error_old[3][3] = { 0, };
+    static float error_sum[3] = { 0, };
+    static u8 index;
+    float p_set;
+    float i_set;
+    float d_set;
+
+    // get RC stuff in. ControlChannels[] is updated every 50hz.
+    Roll = ControlChannels[RC_ROLL];
+    Pitch = ControlChannels[RC_PITCH];
+    Yaw = ControlChannels[RC_YAW];
+    Throttle = ControlChannels[RC_THROTTLE];
+
+    // prep gyro
+    lgyro[0] = gyro[0] - gyroZero[0];
+    lgyro[1] = gyro[1] - gyroZero[1];
+    lgyro[2] = gyro[2] - gyroZero[2];
+
+    // Throttle is low, do stuff like arming etc
+    if (Throttle < 0 || !Armed) {
+        u8 command = RC_GetCommand();
+
+        if (command == RC_COMMAND_ARM) {
+            Armed = TRUE;
+            printf("Motors Armed!!\r\n");
+        } else if (command == RC_COMMAND_DISARM) {
+            Armed = FALSE;
+            printf("Motors Disarmed!!\r\n");
+        } else if (command == RC_COMMAND_GYROCAL) {
+            Beep(3, 50, 50);
+            Gyro_Calibrate();
+        } else if (command == RC_COMMAND_ACCCAL) {
+            Beep(2, 50, 50);
+            Acc_Calibration();
+        }
+
+        // Clear out PID integrals
+        error_sum[ROLL] = 0;
+        error_sum[PITCH] = 0;
+        error_sum[YAW] = 0;
+    } else {
+        // Flight Mode
+        OldFlightMode = FlightMode;
+        FlightMode = RC_GetSwitchMode();
+    }
+
+    // Rescale Throttle to 0..1000us
+    Throttle = (Throttle * 10) >> 3;	// 0-800 -> 0-1000
+    // Limit throttle just in case
+    if (Throttle > MAX_THROTTLE)
+        Throttle = MAX_THROTTLE;
+
+    // D history
+    index++;
+    index = index % 2;
+
+    // ROLL
+    if (Config.RollGyroDirection == GYRO_NORMAL)
+        lgyro[ROLL] = -lgyro[ROLL];
+
+    setpoint = Roll * 4.0f; // roll stick position
+    error = (lgyro[ROLL] * 25.0f) - setpoint; // calculate difference between angular velocity and stick position
+    // this calculates the angular velocity
+    error_d[ROLL][index] = error - error_old[ROLL][index];
+    error_old[ROLL][index] = error;
+    d_set = error_d[ROLL][index] * 0.3f; // Kd;
+    error_sum[ROLL] += error; // integrate the above
+    error_sum[ROLL] = CLAMP(error_sum[ROLL], -10000, 10000);
+    p_set = error * 0.5f; // Kp
+    i_set = error * 0.0012f; // Ki
+    Roll = -(p_set + i_set + d_set);
+
+    // PITCH
+    if (Config.PitchGyroDirection == GYRO_NORMAL)
+        lgyro[PITCH] = -lgyro[PITCH];
+
+    setpoint = Pitch * 4.0f; // pitch stick position
+    error = (lgyro[PITCH] * 25.0f) - setpoint; // calculate difference between angular velocity and stick position
+    // this calculates the angular velocity
+    error_d[PITCH][index] = error - error_old[PITCH][index];
+    error_old[PITCH][index] = error;
+    d_set = error_d[PITCH][index] * 0.3f; // Kd;
+    error_sum[PITCH] += error; // integrate the above
+    error_sum[PITCH] = CLAMP(error_sum[PITCH], -10000, 10000);
+    p_set = error * 0.5f; // Kp
+    i_set = error * 0.0012f; // Ki
+    Pitch = -(p_set + i_set + d_set);
+
+    // YAW
+    if (Config.YawGyroDirection == GYRO_NORMAL)
+            lgyro[YAW] = -lgyro[YAW];
+
+    setpoint = Yaw * 10.0f; // pitch stick position
+    error = (lgyro[YAW] * 25.0f) - setpoint; // calculate difference between angular velocity and stick position
+    // this calculates the angular velocity
+    error_d[YAW][index] = error - error_old[YAW][index];
+    error_old[YAW][index] = error;
+    d_set = error_d[YAW][index] * 0.3f; // Kd;
+    error_sum[YAW] += error; // integrate the above
+    error_sum[YAW] = CLAMP(error_sum[YAW], -32000, 32000);
+    p_set = error * 0.4f; // Kp
+    i_set = error * 0.003f; // Ki
+    Yaw = -(p_set + i_set + d_set);
+
+    // Multirotor mixing (mixer.c)
+    Mixer(Throttle, Roll, Pitch, Yaw);
+
+    // Kill off motors when not armed. Really.
+    if (Throttle < 0 || !Armed) {
+        for (i = 0; i < MAX_MOTORS; i++)
+            Motors[i] = 0;
+    }
+
+    // Output to ESCs
+    PWM_WriteMotors();		// output ESC signal
+}
+
+/* Non-pid rate loop */
 void loop(void)
 {
     u8 i;
@@ -158,24 +289,24 @@ void loop(void)
     s32 error;
     s16 lgyro[3]; // loop gyro
 
-    s16 RxInRoll;					          // Roll setpoint
-    s16 RxInPitch;                                                // Pitch setpoint
-    s16 RxInThrottle;                                             // Throttle setpoint
-    s16 RxInYaw;                                                  // Yaw setpoint
+    s16 Roll;					          // Roll setpoint
+    s16 Pitch;                                            // Pitch setpoint
+    s16 Throttle;                                         // Throttle setpoint
+    s16 Yaw;                                              // Yaw setpoint
 
     // get RC stuff in. ControlChannels[] is updated every 50hz.
-    RxInRoll = ControlChannels[RC_ROLL];
-    RxInPitch = ControlChannels[RC_PITCH];
-    RxInYaw = ControlChannels[RC_YAW];
-    RxInThrottle = ControlChannels[RC_THROTTLE];
+    Roll = ControlChannels[RC_ROLL];
+    Pitch = ControlChannels[RC_PITCH];
+    Yaw = ControlChannels[RC_YAW];
+    Throttle = ControlChannels[RC_THROTTLE];
 
     // prep gyro
-    lgyro[0] = gyro[0] - gyroZero[0];
-    lgyro[1] = gyro[1] - gyroZero[1];
-    lgyro[2] = gyro[2] - gyroZero[2];
+    lgyro[0] = gyroZero[0] - gyro[0];
+    lgyro[1] = gyroZero[1] - gyro[1];
+    lgyro[2] = gyroZero[2] - gyro[2];
 
     // Throttle is low, do stuff like arming etc
-    if (RxInThrottle < 0 || !Armed) {
+    if (Throttle < 0 || !Armed) {
         u8 command = RC_GetCommand();
 
         if (command == RC_COMMAND_ARM) {
@@ -203,15 +334,14 @@ void loop(void)
     }
 
     // Rescale Throttle to 0..1000us
-    RxInThrottle = (RxInThrottle * 10) >> 3;	// 0-800 -> 0-1000
-    imax = RxInThrottle;
+    Throttle = (Throttle * 10) >> 3;	// 0-800 -> 0-1000
+    imax = Throttle;
     if (imax < 0)
         imax = 0;
-    // imax >>= 3;	/* 1000 -> 200 */
 
     // Limit throttle just in case
-    if (RxInThrottle > MAX_THROTTLE)
-        RxInThrottle = MAX_THROTTLE;
+    if (Throttle > MAX_THROTTLE)
+        Throttle = MAX_THROTTLE;
         
     // TODO STM8 has hardware division for 8 and 16bit values. There is no need to use shifts.
     // Rewrite this using proper division factors to allow finer grained control over gains.
@@ -219,24 +349,24 @@ void loop(void)
 
     // ROLL
     lgyro[ROLL] = (lgyro[ROLL] * Config.RollPitchGyroGain) >> Config.RollPitchGyroDiv;
-    if (Config.RollGyroDirection == GYRO_NORMAL)
+    if (Config.RollGyroDirection == GYRO_REVERSED)
         lgyro[ROLL] = -lgyro[ROLL];
-    RxInRoll -= lgyro[ROLL];
+    Roll -= lgyro[ROLL];
 
     // PITCH
     lgyro[PITCH] = (lgyro[PITCH] * Config.RollPitchGyroGain) >> Config.RollPitchGyroDiv;
-    if (Config.PitchGyroDirection == GYRO_NORMAL)
+    if (Config.PitchGyroDirection == GYRO_REVERSED)
             lgyro[PITCH] = -lgyro[PITCH];
-    RxInPitch -= lgyro[PITCH];
+    Pitch -= lgyro[PITCH];
 
     // YAW
     lgyro[YAW] = (lgyro[YAW] * Config.YawGyroGain) >> Config.YawGyroDiv;
-    if (Config.YawGyroDirection == GYRO_NORMAL)
+    if (Config.YawGyroDirection == GYRO_REVERSED)
             lgyro[YAW] = -lgyro[YAW];
 
 #if 1
     // Yaw PID
-    error = RxInYaw - lgyro[YAW];
+    error = Yaw - lgyro[YAW];
     ppart = error * Config.YawP;
     ppart = CLAMP(ppart, -emax, emax);
 
@@ -246,16 +376,17 @@ void loop(void)
 
     derivative = (s16)(error - last_error[YAW]);
     last_error[YAW] = error;
-    RxInYaw += (s16)(ppart >> 4) + (s16)(ipart >> 4) + (s16)(derivative >> 4);
+    Yaw += (s16)(ppart >> 4) + (s16)(ipart >> 4) + (s16)(derivative >> 4);
 #else
-    RxInYaw -= lgyro[YAW];
+    // Yaw normal
+    Yaw -= lgyro[YAW];
 #endif
 
     // Multirotor mixing (mixer.c)
-    Mixer(RxInThrottle, RxInRoll, RxInPitch, RxInYaw);
+    Mixer(Throttle, Roll, Pitch, Yaw);
 
     // Kill off motors when not armed. Really.
-    if (RxInThrottle < 0 || !Armed) {
+    if (Throttle < 0 || !Armed) {
         for (i = 0; i < MAX_MOTORS; i++)
             Motors[i] = 0;
     }
@@ -317,7 +448,11 @@ void main(void)
         RC_Update();
 
         // Main flight loop, don't call it THAT often :)
+#if 0
+        pidloop();
+#else
         loop();
+#endif
 
         // let's try: we "receive" signals often, which set flags. then transmit will happen less often. or something.
         UART_ReceiveTelemetry();

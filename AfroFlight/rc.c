@@ -164,9 +164,8 @@ void RC_Update(void)
             ControlChannels[RC_PITCH] = (1500 - MAPPED_CHANNEL(RC_PITCH)) * Config.StickP + DIFF_CHANNEL(RC_PITCH) * Config.StickD;
             // Yaw D
             Error = (1500 - MAPPED_CHANNEL(RC_YAW)) - DIFF_CHANNEL(RC_YAW);
-            PPart = (Config.YawStickP * Error * abs(Error)) >> 9;
-            PPart += (Config.YawStickP * Error) >> 2;
-            ControlChannels[RC_YAW] = (s16)PPart;
+            PPart = Config.YawStickP * Error;
+            ControlChannels[RC_YAW] = PPart >> 3;
             ControlChannels[RC_THROTTLE] = (MAPPED_CHANNEL(RC_THROTTLE) - RC_THROTTLE_MIN); // 1120us
             // No need to recalculate this until next usable PPM frame
             ControlChannelsReceived = 0;
