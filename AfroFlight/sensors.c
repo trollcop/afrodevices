@@ -25,6 +25,9 @@
 #define ADXL_RANGE_16G     0x03
 #define ADXL_FIFO_STREAM   0x80
 
+// Perform a lowpass filter on acc data instead of averaging noise
+#define LOWPASS_ACC
+
 /* Gyro Pitch/Roll/Yaw final measurements */
 vs16 gyro[3] = { 512, 512, 512 };
 /* Accelerometer X/Y/Z */
@@ -74,16 +77,16 @@ static void ADXL_Init(void)
 {
     // setup ADXL345 rate/range/start measuring
     
-    // Rate
+    // Rate 3200Hz
     ADXL_ON;
     ADXL_WriteByte(ADXL_RATE_ADDR);
     ADXL_WriteByte(ADXL_RATE_3200 & 0x0F);
     ADXL_OFF;
 
-    // Range
+    // Range 8G
     ADXL_ON;
     ADXL_WriteByte(ADXL_FORMAT_ADDR);
-    ADXL_WriteByte((ADXL_RANGE_4G & 0x03) | ADXL_FULL_RES | ADXL_4WIRE);
+    ADXL_WriteByte((ADXL_RANGE_8G & 0x03) | ADXL_FULL_RES | ADXL_4WIRE);
     ADXL_OFF;
 
     // Fifo depth = 16
@@ -108,8 +111,15 @@ static u8 ADXL_GetAccelValues(void)
         u8 i1, i2;
         i1 = ADXL_ReadByte();
         i2 = ADXL_ReadByte();
+
+#ifdef LOWPASS_ACC
+        // new result = 0.95 * previous_result + 0.05 * current_data
+        sensorInputs[i + 4] = ((sensorInputs[i + 4] * 19) / 20) + (((i1 | i2 << 8) * 5) / 100);
+#else
         sensorInputs[i + 4] += (i1 | i2 << 8);
+#endif
     }
+
     // skip over this register
     ADXL_ReadByte();
     // FIFO_STATUS register (last few bits = fifo remaining)
@@ -154,6 +164,9 @@ __near __interrupt void ADC1_IRQHandler(void)
 /* Public functions */
 void Sensors_Init(void)
 {
+    // Clean out sensor data
+    memset(sensorInputs, 0, sizeof(sensorInputs));
+
     // SPI
     SPI_DeInit();
     SPI_Init(SPI_FIRSTBIT_MSB, SPI_BAUDRATEPRESCALER_2, SPI_MODE_MASTER, SPI_CLOCKPOLARITY_HIGH, SPI_CLOCKPHASE_2EDGE, SPI_DATADIRECTION_2LINES_FULLDUPLEX, SPI_NSS_SOFT, 0x07);
@@ -180,7 +193,7 @@ void Sensors_Init(void)
 
 /* 
  * Find Gyro offset, and make sure model was not moving during the operation. Will beep and flash LED if some movement is detected.
- * TODO: Check for unreasonable values (broken gyros)
+ * This function uses 270 bytes of stack. I gotta fix this, thats ridiculous.
 */
 void Gyro_Calibrate(void)
 {
@@ -188,7 +201,7 @@ void Gyro_Calibrate(void)
     u16 gyroCheck[8 * 3];       // gyro offset calc
     s16 gyroDiff = 0;
 
-    // read soem samples up
+    // read some samples up
     Sensors_ReadADC();
     delay_ms(2);
 
@@ -208,6 +221,8 @@ void Gyro_Calibrate(void)
 
         for (i = 0; i < 3; i++) {
             gyroZero[i] = gyroZero[i] >> 3;
+            // Check for unreasonable gyro values (0 or 1023 when its broken, etc...
+            // Just beep and flash, you can't fly with broken gyros :(
             if (gyroZero[i] > 500 || gyroZero[i] < 300) {
                 while (1) {
                     Sensors_ReadADC();
@@ -250,14 +265,22 @@ void Sensors_ReadACC(void)
         remaining = ADXL_GetAccelValues();
     } while ((count < 32) && (remaining > 0));
 
+#ifdef LOWPASS_ACC
+    // commit current values to acc[]
+    acc[0] = sensorInputs[4];
+    acc[1] = sensorInputs[5];
+    acc[2] = sensorInputs[6];
+#else
     // accel + average
     acc[0] = sensorInputs[4] / count;
     acc[1] = sensorInputs[5] / count;
     acc[2] = sensorInputs[6] / count;
 
+    // clear out averaging results
     sensorInputs[4] = 0;
     sensorInputs[5] = 0;
     sensorInputs[6] = 0;
+#endif
 }
 
 void Sensors_ReadADC(void)
@@ -265,7 +288,7 @@ void Sensors_ReadADC(void)
     u8 i = 0;
     u16 vbat;
 
-    // average 1 gyro readings
+    // average x gyro readings
     gyro[0] = (sensorInputs[0] / adcSampleCount);
     gyro[1] = (sensorInputs[1] / adcSampleCount);
     gyro[2] = (sensorInputs[2] / adcSampleCount);

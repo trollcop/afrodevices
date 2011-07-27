@@ -9,6 +9,7 @@ static u8 TxBuffer[TX_BUFFER_SIZE];                                     // Trans
 static u8 RxBuffer[RX_BUFFER_SIZE];                                     // Receive buffer
 static u8 RxLocked = FALSE;                                             // After receiving full buffer lock it while main loop process it
 static u8 TxComplete = FALSE;                                           // Transmission complete
+static u8 TxBytes = 0;                                                  // When sending raw data, this is used to specify buffer length
 static u8 RxBytes = 0;                                                  // number of bytes received
 static u16 UartRequest = 0;                                             // What data do we want returned from FC?
 
@@ -26,12 +27,14 @@ __near __interrupt void UART2_TX_IRQHandler(void)
         u8 ch;
         buffer_ptr++;
         ch = TxBuffer[buffer_ptr];      // 1st byte was already sent in UART_Transmit() to fire off the interrupt
-        if (ch == '\n' || buffer_ptr == TX_BUFFER_SIZE) {
+        if (TxBytes == 0 || buffer_ptr == TX_BUFFER_SIZE)) {
             buffer_ptr = 0;
             TxComplete = TRUE;
+        } else {
+            // transmit it, this will call back interrupt
+            UART2_SendData8(ch);
+            TxBytes--;
         }
-        // transmit it, this will call back interrupt
-        UART2_SendData8(ch);
     } else {
         buffer_ptr = 0;
         UART2_ITConfig(UART2_IT_TXE, DISABLE);
@@ -114,6 +117,7 @@ void UART_Transmit(u8 cmd, u8 nblocks, ...)
             ch = data[ptr++];
             len--;
             if ((!len) && nblocks) {
+                // TxBuffer[pt++] = '$';
                 data = va_arg(va, u8 *);
                 len = (u8)va_arg(va, int);
                 ptr = 0;
@@ -127,6 +131,58 @@ void UART_Transmit(u8 cmd, u8 nblocks, ...)
     va_end(va);
     // last char
     TxBuffer[pt] = '\n';
+    // number of bytes to send
+    TxBytes = pt;
+    // send off 1st byte to start the process
+    TxComplete = FALSE;
+    UART2_SendData8(TxBuffer[0]);
+    UART2_ITConfig(UART2_IT_TXE, ENABLE);
+}
+
+void UART_TransmitRaw(u8 cmd, u8 nblocks, ...)
+{
+    va_list va;
+    u8 pt = 0;
+    u8 *data = NULL;
+    u8 ptr = 0;
+    u8 len = 0;
+    u8 ch, b, c;
+
+    va_start(va, nblocks);
+
+    // sync char (0xAA twice)
+    TxBuffer[pt++] = 0xAA;
+    TxBuffer[pt++] = 0xAA;
+
+    if (nblocks) {
+        data = va_arg(va, u8 *);
+        len = (u8)va_arg(va, int);
+        ptr = 0;
+        nblocks--;
+    }
+
+    while (len) {
+        if (len) {
+            ch = data[ptr++];
+            len--;
+            if ((!len) && nblocks) {
+                TxBuffer[pt++] = ch;
+                TxBuffer[pt++] = 0xAA;
+                data = va_arg(va, u8 *);
+                len = (u8)va_arg(va, int);
+                ptr = 0;
+                nblocks--;
+            } else {
+                TxBuffer[pt++] = ch;
+            }
+        }
+    }
+
+    va_end(va);
+    // last char
+    TxBuffer[pt] = '\n';
+    // number of bytes to send
+    TxBytes = pt;
     // send off 1st byte to start the process
     TxComplete = FALSE;
     UART2_SendData8(TxBuffer[0]);
@@ -139,8 +195,7 @@ char putchar(char c)
     UART2_SendData8(c);
     /* Loop until the end of transmission */
     while (UART2_GetFlagStatus(UART2_FLAG_TXE) == RESET);
-
-    return (c);
+    return c;
 }
 
 void UART_Init(void)
@@ -165,11 +220,17 @@ void UART_ReceiveTelemetry(void)
         case 'V':       // Version info
             FLAG_SET(UartRequest, UART_REQ_VERSION);
             break;
+        case 'a':       // Continous analog values RAW
+            FLAG_SET(UartRequest, UART_REQ_ADCDATACONT);
+            break;
         case 'A':       // Analog values
             FLAG_SET(UartRequest, UART_REQ_ADCDATA);
             break;
         case 'R':       // Reboot
             FLAG_SET(UartRequest, UART_REQ_REBOOT);
+            break;
+        case 's':       // Stop continous analog values
+            FLAG_CLEAR(UartRequest, UART_REQ_ADCDATACONT);
             break;
     }
 
@@ -188,8 +249,12 @@ void UART_TransmitTelemetry(void)
         FLAG_CLEAR(UartRequest, UART_REQ_VERSION);
     }
     if (FLAG_ISSET(UartRequest, UART_REQ_ADCDATA)) {
-        UART_Transmit('A', 1, (u8 *)gyro, sizeof(gyro), (u8 *)&battery, sizeof(s16), (u8 *)acc, sizeof(acc));
+        UART_Transmit('A', 3, (u8 *)gyro, sizeof(gyro), (u8 *)&battery, sizeof(s16), (u8 *)acc, sizeof(acc));
         FLAG_CLEAR(UartRequest, UART_REQ_ADCDATA);
+    }
+    if (FLAG_ISSET(UartRequest, UART_REQ_ADCDATACONT)) {
+        UART_TransmitRaw('a', 3, (u8 *)gyro, sizeof(gyro), (u8 *)&battery, sizeof(s16), (u8 *)acc, sizeof(acc));
+        // Don't clear this flag as its continous
     }
     if (FLAG_ISSET(UartRequest, UART_REQ_REBOOT)) {
         // reboot to bootloader

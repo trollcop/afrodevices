@@ -184,11 +184,13 @@ void pidloop(void)
         u8 command = RC_GetCommand();
 
         if (command == RC_COMMAND_ARM) {
+            Beep(1, 500, 0);
             Armed = TRUE;
-            printf("Motors Armed!!\r\n");
+            // printf("Motors Armed!!\r\n");
         } else if (command == RC_COMMAND_DISARM) {
             Armed = FALSE;
-            printf("Motors Disarmed!!\r\n");
+            Beep(2, 500, 100);
+            // printf("Motors Disarmed!!\r\n");
         } else if (command == RC_COMMAND_GYROCAL) {
             Beep(3, 50, 50);
             Gyro_Calibrate();
@@ -310,11 +312,11 @@ void loop(void)
         u8 command = RC_GetCommand();
 
         if (command == RC_COMMAND_ARM) {
+            Beep(1, 200, 0);
             Armed = TRUE;
-            printf("Motors Armed!!\r\n");
         } else if (command == RC_COMMAND_DISARM) {
+            Beep(2, 200, 100);
             Armed = FALSE;
-            printf("Motors Disarmed!!\r\n");
         } else if (command == RC_COMMAND_GYROCAL) {
             Beep(3, 50, 50);
             Gyro_Calibrate();
@@ -456,11 +458,13 @@ void main(void)
 
         // let's try: we "receive" signals often, which set flags. then transmit will happen less often. or something.
         UART_ReceiveTelemetry();
+        
+        // see if we wanna process anything (250Hz)
+        if (Loop % 2 == 0)
+            UART_TransmitTelemetry();
 
         // Low-priority loop activities
         if (Loop > 50) {
-            // see if we wanna process anything
-            UART_TransmitTelemetry();
             if (Voltage_Check()) {
                 FLAG_SET(FCFlags, FC_FLAG_LOWVOLTAGE);
                 BUZZ_ON;
