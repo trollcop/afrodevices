@@ -1427,9 +1427,9 @@ void computeIMU()
 #define INV_GYR_CMPF_FACTOR   (1.0f / (GYR_CMPF_FACTOR  + 1.0f))
 #define INV_GYR_CMPFM_FACTOR  (1.0f / (GYR_CMPFM_FACTOR + 1.0f))
 #if GYRO
-#define GYRO_SCALE ((2000.0f * PI)/((32767.0f / 4.0f ) * 180.0f * 1000000.0f) * 1.155f)
+// #define GYRO_SCALE ((2000.0f * PI)/((32767.0f / 4.0f ) * 180.0f * 1000000.0f) * 1.155f)
   // +-2000/sec deg scale
-  //#define GYRO_SCALE ((200.0f * PI)/((32768.0f / 5.0f / 4.0f ) * 180.0f * 1000000.0f) * 1.5f)     
+#define GYRO_SCALE ((500.0f * PI)/((32768.0f / 5.0f / 4.0f ) * 180.0f * 1000000.0f) * 1.5f)     
   // +- 200/sec deg scale
   // 1.5 is emperical, not sure what it means
   // should be in rad/sec
@@ -1453,8 +1453,8 @@ typedef union {
     t_fp_vector_def V;
 } t_fp_vector;
 
-
-#define fp_is_neg(val) ((((unsigned char *)&val)[3] & 0x80) != 0)
+// comeon guys. endian anyone??
+#define fp_is_neg(val) ((((unsigned char *)&val)[0] & 0x80) != 0)
 
 int16_t _atan2(float y, float x)
 {
@@ -2335,7 +2335,7 @@ static void ADXL_Init(void)
     // Range 8G
     ADXL_ON;
     ADXL_WriteByte(ADXL_FORMAT_ADDR);
-    ADXL_WriteByte((ADXL_RANGE_8G & 0x03) | ADXL_FULL_RES | ADXL_4WIRE);
+    ADXL_WriteByte((ADXL_RANGE_16G & 0x03) | ADXL_FULL_RES | ADXL_4WIRE);
     ADXL_OFF;
 
     // Fifo depth = 16
@@ -2424,7 +2424,7 @@ void ACC_getADC()
 #endif
     
     // i2c_getSixRawADC(ADXL345_ADDRESS, 0x32);
-    ACC_ORIENTATION( -sensorInputs[4], sensorInputs[5], sensorInputs[6]);
+    ACC_ORIENTATION( sensorInputs[4], sensorInputs[5], sensorInputs[6]);
     ACC_Common();
 }
 #endif
@@ -2631,7 +2631,7 @@ void Gyro_getADC()
     ADC1_StartConversion();
     while (adcInProgress) { }; // wait for conversion
 
-    GYRO_ORIENTATION(  (sensorInputs[1]), (sensorInputs[0]), -(sensorInputs[2]) );
+    GYRO_ORIENTATION( -(sensorInputs[0] * 16), (sensorInputs[1] * 16), -(sensorInputs[2] * 16) );
     GYRO_Common();
     #endif
 }
