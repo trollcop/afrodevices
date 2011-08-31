@@ -13,6 +13,9 @@
       <UniqueIdentifier>{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}</UniqueIdentifier>
       <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav;mfcribbon-ms</Extensions>
     </Filter>
+    <Filter Include="STVD Workspace">
+      <UniqueIdentifier>{3a0bfbc6-4b5f-48c6-af62-e6cf2f9b6186}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="config.h">
@@ -22,6 +25,12 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="sysdep.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="stm8s_it.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="stm8s_conf.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
@@ -35,5 +44,25 @@
     <ClCompile Include="sysdep.c">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="stm8_interrupt_vector.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="afrowii.stp">
+      <Filter>STVD Workspace</Filter>
+    </None>
+    <None Include="afrowii.wdb">
+      <Filter>STVD Workspace</Filter>
+    </None>
+    <None Include="afrowii.dep">
+      <Filter>STVD Workspace</Filter>
+    </None>
+    <None Include="afrowii.stw">
+      <Filter>STVD Workspace</Filter>
+    </None>
+    <None Include="afrowii.wed">
+      <Filter>STVD Workspace</Filter>
+    </None>
   </ItemGroup>
 </Project>
