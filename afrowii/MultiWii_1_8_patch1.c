@@ -164,7 +164,7 @@ void blinkLED(uint8_t num, uint8_t wait, uint8_t repeat)
     uint8_t i, r;
     for (r = 0; r < repeat; r++) {
 	for (i = 0; i < num; i++) {
-	    LEDPIN_SWITCH;	//switch LEDPIN state
+	    LEDPIN_TOGGLE;	//switch LEDPIN state??
 	    BUZZERPIN_ON;
 	    delay(wait);
 	    BUZZERPIN_OFF;
@@ -633,7 +633,7 @@ typedef struct eep_entry_t {
 // ************************************************************************************************************
 // EEPROM Layout definition
 // ************************************************************************************************************
-static eep_entry_t eep_entry[] = {
+volatile eep_entry_t eep_entry[] = {
     &checkNewConf, sizeof(checkNewConf),
     &P8, sizeof(P8), 
     &I8, sizeof(I8), 
@@ -656,11 +656,26 @@ static eep_entry_t eep_entry[] = {
 
 void readEEPROM()
 {
-    uint8_t i, _address = eep_entry[0].size;
+    uint32_t _address = FLASH_DATA_START_PHYSICAL_ADDRESS + eep_entry[0].size;
+    uint8_t i;
+    
+    FLASH_SetProgrammingTime(FLASH_PROGRAMTIME_STANDARD);
+    FLASH_Unlock(FLASH_MEMTYPE_DATA);
+
+    for (i = 1; i < EEBLOCK_SIZE; i++) {
+        memcpy(eep_entry[i].var, (void *)_address, eep_entry[i].size);
+        _address += eep_entry[i].size;
+    }
+    
+    FLASH_Lock(FLASH_MEMTYPE_DATA);
+
+#if 0
     for (i = 1; i < EEBLOCK_SIZE; i++) {
 	eeprom_read_block(eep_entry[i].var, (void *) (_address), eep_entry[i].size);
 	_address += eep_entry[i].size;
     }
+#endif
+
 #if defined(POWERMETER)
     pAlarm = (uint32_t) powerTrigger1 *(uint32_t) PLEVELSCALE *(uint32_t) PLEVELDIV;	// need to cast before multiplying
 #endif
@@ -670,11 +685,20 @@ void readEEPROM()
 
 void writeParams()
 {
-    uint8_t i, _address = 0;
+    uint32_t _address = FLASH_DATA_START_PHYSICAL_ADDRESS;
+    uint8_t i, j;
+
+    FLASH_SetProgrammingTime(FLASH_PROGRAMTIME_STANDARD);
+    FLASH_Unlock(FLASH_MEMTYPE_DATA);
+
     for (i = 0; i < EEBLOCK_SIZE; i++) {
-	eeprom_write_block(eep_entry[i].var, (void *) (_address), eep_entry[i].size);
-	_address += eep_entry[i].size;
+	uint8_t *data = (uint8_t *)(eep_entry[i].var);
+	for (j = 0; j < eep_entry[i].size; j++)
+	    FLASH_ProgramByte(_address++, *data++);
     }
+    
+    FLASH_Lock(FLASH_MEMTYPE_DATA);
+
     readEEPROM();
     blinkLED(15, 20, 1);
 }
@@ -682,9 +706,18 @@ void writeParams()
 void checkFirstTime()
 {
     uint8_t test_val, i;
-    eeprom_read_block((void *) &test_val, (void *) (0), sizeof(test_val));
+
+    FLASH_SetProgrammingTime(FLASH_PROGRAMTIME_STANDARD);
+    FLASH_Unlock(FLASH_MEMTYPE_DATA);
+
+    test_val = FLASH_ReadByte(FLASH_DATA_START_PHYSICAL_ADDRESS);
+    FLASH_Lock(FLASH_MEMTYPE_DATA);
+
+#if 1
     if (test_val == checkNewConf)
 	return;
+#endif
+
     P8[ROLL] = 40;
     I8[ROLL] = 30;
     D8[ROLL] = 17;
@@ -752,6 +785,16 @@ void configureReceiver()
     PCICR = 1 << 2;		// PCINT activated only for PORTK dealing with [A8-A15] PINs
 #endif
 #endif
+#if defined(STM8)
+    // Configure GPIO pin for ppm input
+    GPIO_Init(GPIOD, GPIO_PIN_2, GPIO_MODE_IN_FL_NO_IT);
+    
+    TIM3_TimeBaseInit(TIM3_PRESCALER_8, 0xFFFF);
+    TIM3_ICInit(TIM3_CHANNEL_1, TIM3_ICPOLARITY_RISING, TIM3_ICSELECTION_DIRECTTI, TIM3_ICPSC_DIV1, 0x0);
+    TIM3_ITConfig(TIM3_IT_CC1, ENABLE);
+    TIM3_Cmd(ENABLE);
+#endif
+
 #if defined(SERIAL_SUM_PPM)
     PPM_PIN_INTERRUPT
 #endif
@@ -852,6 +895,45 @@ ISR(PCINT2_vect)
 #endif
 
 #if defined(SERIAL_SUM_PPM)
+#if defined(STM8)
+__near __interrupt void TIM3_CAP_COM_IRQHandler(void)
+{
+    uint16_t diff;
+    static uint16_t now;
+    static uint16_t last = 0;
+    static uint8_t chan = 0;
+    
+    if (TIM3_GetITStatus(TIM3_IT_CC1) == SET) {
+        last = now;
+        now = TIM3_GetCapture1();
+    }
+
+    TIM3_ClearITPendingBit(TIM3_IT_CC1);
+
+    if (now > last) {
+        diff = (now - last);
+    } else {
+        diff = ((0xFFFF - last) + now);
+    }
+    
+    if (diff > 8000) {
+	chan = 0;
+    } else {
+        if (diff > 1500 && diff < 4500 && chan < 8) { // div2, 750 to 2250 ms Only if the signal is between these values it is valid, otherwise the failsafe counter should move up
+            uint16_t tmp = diff >> 1;
+            rcValue[chan] = tmp;
+    
+    #if defined(FAILSAFE)
+            if (failsafeCnt > 20)
+                failsafeCnt -= 20;
+            else
+                failsafeCnt = 0;	// clear FailSafe counter - added by MIS  //incompatible to quadroppm
+    #endif
+        }
+        chan++;
+    }
+}
+#else
 void rxInt()
 {
     uint16_t now, diff;
@@ -859,6 +941,7 @@ void rxInt()
     static uint8_t chan = 0;
 
     now = micros();
+    
     diff = now - last;
     last = now;
     if (diff > 3000)
@@ -877,6 +960,7 @@ void rxInt()
     }
 }
 #endif
+#endif
 
 #if defined(SPEKTRUM)
 
@@ -886,11 +970,8 @@ void rxInt()
 uint16_t readRawRC(uint8_t chan)
 {
     uint16_t data;
-#ifdef STM8
-
-    data = 1500; // TODO
-
-
+#if defined(STM8) && defined(SERIAL_SUM_PPM)
+    data = rcValue[rcChannel[chan]];
 #else
     uint8_t oldSREG;
     oldSREG = SREG;
@@ -930,6 +1011,27 @@ void computeRC()
 }
 
 /* OUTPUT ------------------------------------------------------------------------------------- */
+
+#if defined(STM8)
+// 1ms pulse width (we have 0.5us precision)
+#define PULSE_1MS       (2000)
+// pulse period (400Hz)
+#define PULSE_PERIOD    (5000)
+
+/* Fixed lookup table for TIM1/2 Pulse Width registers */
+static const struct {
+    u8 *addressH;
+    u8 *addressL;
+} TimerAddress[] = {
+    { &(TIM1->CCR1H), &(TIM1->CCR1L) },
+    { &(TIM1->CCR2H), &(TIM1->CCR2L) },
+    { &(TIM1->CCR3H), &(TIM1->CCR3L) },
+    { &(TIM1->CCR4H), &(TIM1->CCR4L) },
+    { &(TIM2->CCR2H), &(TIM2->CCR2L) },
+    { &(TIM2->CCR1H), &(TIM2->CCR1L) }
+};
+
+#endif
 
 #if defined(BI) || defined(TRI) || defined(SERVO_TILT) || defined(GIMBAL) || defined(FLYING_WING) || defined(CAMTRIG)
 #define SERVO
@@ -973,6 +1075,17 @@ void writeMotors()
 {
     uint8_t i;
 
+    
+#if defined(STM8)
+    // full scale motor control
+    // Set the Pulse value
+    for (i = 0; i < NUMBER_MOTOR; i++) {
+        uint16_t pulse = PULSE_1MS + (motor[i] << 1); // STM8 pwm is actually 0.5us precision, so we double it
+        *TimerAddress[i].addressH = (u8)(pulse >> 8); // and write into timer regs
+        *TimerAddress[i].addressL = (u8)(pulse);
+    }
+#else
+
     // [1000;2000] => [125;250]
 #if defined(MEGA)
     for (i = 0; i < NUMBER_MOTOR; i++)
@@ -985,8 +1098,9 @@ void writeMotors()
     atomicPWM_PIN5_lowState = 255 - atomicPWM_PIN5_highState;
     atomicPWM_PIN6_highState = motor[4] / 8;
     atomicPWM_PIN6_lowState = 255 - atomicPWM_PIN6_highState;
-#endif
-#endif
+#endif /* NUMBER_MOTOR == 6 */
+#endif /* MEGA */
+#endif /* STM8 */
 }
 
 void writeAllMotors(int16_t mc)
@@ -1025,6 +1139,33 @@ void initOutput()
     uint8_t i;
     for (i = 0; i < NUMBER_MOTOR; i++)
 	pinMode(PWM_PIN[i], OUTPUT);
+
+#if defined(STM8)
+    // Motor PWM timers
+    TIM1_DeInit();
+    TIM1_TimeBaseInit(7, TIM1_COUNTERMODE_UP, PULSE_PERIOD, 0);
+    TIM1_OC1Init(TIM1_OCMODE_PWM2, TIM1_OUTPUTSTATE_ENABLE, TIM1_OUTPUTSTATE_DISABLE, PULSE_1MS, TIM1_OCPOLARITY_LOW, TIM1_OCPOLARITY_HIGH, TIM1_OCIDLESTATE_RESET, TIM1_OCIDLESTATE_RESET);
+    TIM1_OC1PreloadConfig(ENABLE);
+    TIM1_OC2Init(TIM1_OCMODE_PWM2, TIM1_OUTPUTSTATE_ENABLE, TIM1_OUTPUTSTATE_DISABLE, PULSE_1MS, TIM1_OCPOLARITY_LOW, TIM1_OCPOLARITY_HIGH, TIM1_OCIDLESTATE_RESET, TIM1_OCIDLESTATE_RESET);
+    TIM1_OC2PreloadConfig(ENABLE);
+    TIM1_OC3Init(TIM1_OCMODE_PWM2, TIM1_OUTPUTSTATE_ENABLE, TIM1_OUTPUTSTATE_DISABLE, PULSE_1MS, TIM1_OCPOLARITY_LOW, TIM1_OCPOLARITY_HIGH, TIM1_OCIDLESTATE_RESET, TIM1_OCIDLESTATE_RESET);
+    TIM1_OC3PreloadConfig(ENABLE);
+    TIM1_OC4Init(TIM1_OCMODE_PWM2, TIM1_OUTPUTSTATE_ENABLE, PULSE_1MS, TIM1_OCPOLARITY_LOW, TIM1_OCIDLESTATE_RESET);
+    TIM1_OC4PreloadConfig(ENABLE);
+    TIM1_ARRPreloadConfig(ENABLE);
+    TIM1_CtrlPWMOutputs(ENABLE);
+    TIM2_DeInit();
+    TIM2_TimeBaseInit(TIM2_PRESCALER_8, PULSE_PERIOD);
+    TIM2_OC1Init(TIM2_OCMODE_PWM2, TIM2_OUTPUTSTATE_ENABLE, PULSE_1MS, TIM2_OCPOLARITY_LOW);
+    TIM2_OC1PreloadConfig(ENABLE);
+    TIM2_OC2Init(TIM2_OCMODE_PWM2, TIM2_OUTPUTSTATE_ENABLE, PULSE_1MS, TIM2_OCPOLARITY_LOW);
+    TIM2_OC2PreloadConfig(ENABLE);
+    TIM2_ARRPreloadConfig(ENABLE);
+    
+    TIM1_Cmd(ENABLE);
+    TIM2_Cmd(ENABLE);
+#endif
+
     writeAllMotors(1000);
     delay(300);
 #if defined(SERVO)
@@ -2335,7 +2476,7 @@ static void ADXL_Init(void)
     // Range 8G
     ADXL_ON;
     ADXL_WriteByte(ADXL_FORMAT_ADDR);
-    ADXL_WriteByte((ADXL_RANGE_16G & 0x03) | ADXL_FULL_RES | ADXL_4WIRE);
+    ADXL_WriteByte((ADXL_RANGE_8G & 0x03) | ADXL_FULL_RES | ADXL_4WIRE);
     ADXL_OFF;
 
     // Fifo depth = 16
@@ -2612,28 +2753,24 @@ __near __interrupt void ADC1_IRQHandler(void)
 #if defined(STM8) && defined(ADCGYRO)
 void Gyro_init()
 {
-    #if 1
     // ADC1
     ADC1_DeInit();
     GPIO_Init(GPIOB, GPIO_PIN_0 | GPIO_PIN_1 | GPIO_PIN_2 | GPIO_PIN_3, GPIO_MODE_IN_FL_NO_IT);
-    ADC1_Init(ADC1_CONVERSIONMODE_SINGLE, ADC1_CHANNEL_3, ADC1_PRESSEL_FCPU_D8, ADC1_EXTTRIG_TIM, DISABLE, ADC1_ALIGN_RIGHT, ADC1_SCHMITTTRIG_ALL, DISABLE);
+    ADC1_Init(ADC1_CONVERSIONMODE_SINGLE, ADC1_CHANNEL_3, ADC1_PRESSEL_FCPU_D2, ADC1_EXTTRIG_TIM, DISABLE, ADC1_ALIGN_RIGHT, ADC1_SCHMITTTRIG_ALL, DISABLE);
     ADC1_DataBufferCmd(ENABLE);
     ADC1_ScanModeCmd(ENABLE);
     ADC1_ITConfig(ADC1_IT_EOCIE, ENABLE);
-    #endif
 }
 
 void Gyro_getADC()
 {
-    #if 1
     // read out
     adcInProgress = 1;
     ADC1_StartConversion();
-    while (adcInProgress) { }; // wait for conversion
+    while (adcInProgress); // wait for conversion
 
     GYRO_ORIENTATION( -(sensorInputs[0] * 16), (sensorInputs[1] * 16), -(sensorInputs[2] * 16) );
     GYRO_Common();
-    #endif
 }
 #endif
 
@@ -2825,12 +2962,6 @@ void WMP_init(uint8_t d)
 
 uint8_t WMP_getRawADC()
 {
-#ifdef STM8
-
-    // TODO
-    return 0;
-
-#else
     uint8_t axis;
     TWBR = ((16000000L / I2C_SPEED) - 16) / 2;	// change the I2C clock rate
     i2c_getSixRawADC(0xA4, 0x00);
@@ -2861,7 +2992,6 @@ uint8_t WMP_getRawADC()
 	return 0;
     } else
 	return 2;
-#endif
 }
 #endif
 

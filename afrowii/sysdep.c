@@ -32,7 +32,7 @@ __near __interrupt void UART2_RX_IRQHandler(void)
     uint8_t c;
 
     c = UART2_ReceiveData8();
-    // UART2_ClearFlag(UART2_FLAG_RXNE);
+    UART2_ClearFlag(UART2_FLAG_RXNE);
     store_char(c, &rx_buffer);
 }
 

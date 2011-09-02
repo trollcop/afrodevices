@@ -210,7 +210,7 @@ typedef long int32_t;
 #define DIGITAL_BI_LEFT_PINMODE    pinMode(11,OUTPUT);
 #define DIGITAL_BI_LEFT_HIGH       PORTB |= 1<<3;
 #define DIGITAL_BI_LEFT_LOW        PORTB &= ~(1<<3);
-#define PPM_PIN_INTERRUPT          attachInterrupt(0, rxInt, RISING);	//PIN 0
+#define PPM_PIN_INTERRUPT          ;
 #define MOTOR_ORDER                9,10,11,3,6,5	//for a quad+: rear,right,left,front
 #define DIGITAL_CAM_PINMODE        pinMode(A2,OUTPUT);
 #define DIGITAL_CAM_HIGH           PORTC |= 1<<2;
