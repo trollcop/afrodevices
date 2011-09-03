@@ -1080,7 +1080,7 @@ void writeMotors()
     // full scale motor control
     // Set the Pulse value
     for (i = 0; i < NUMBER_MOTOR; i++) {
-        uint16_t pulse = PULSE_1MS + (motor[i] << 1); // STM8 pwm is actually 0.5us precision, so we double it
+        uint16_t pulse = (motor[i] << 1); // STM8 pwm is actually 0.5us precision, so we double it
         *TimerAddress[i].addressH = (u8)(pulse >> 8); // and write into timer regs
         *TimerAddress[i].addressL = (u8)(pulse);
     }
