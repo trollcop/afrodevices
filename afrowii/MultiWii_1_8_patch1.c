@@ -151,13 +151,18 @@ void getEstimatedAltitude(void);
 void ACC_getADC(void);
 void Gyro_getADC(void);
 void GYRO_Common(void);
+void Device_Mag_getADC(void);
 void ACC_Common(void);
 void Gyro_init(void);
+#if defined(BARO)
 void Baro_init(void);
+#endif
 void ACC_init(void);
 void Mag_init(void);
 void UartSendData(void);
-void WMP_init(uint8_t d);
+// void WMP_init(uint8_t d);
+uint8_t i2c_read(uint8_t *Data_Pointer, uint8_t Bytes, uint8_t Addr, uint8_t Sub_Addr);
+uint8_t i2c_write(uint8_t *Confstr, uint8_t Bytes);
 
 void blinkLED(uint8_t num, uint8_t wait, uint8_t repeat)
 {
@@ -481,33 +486,35 @@ void loop()
 	    STABLEPIN_OFF;
 	}
 
-	if (BARO) {
-	    if (rcOptions & activate[BOXBARO]) {
-		if (baroMode == 0) {
-		    baroMode = 1;
-		    AltHold = EstAlt;
-		    initialThrottleHold = rcCommand[THROTTLE];
-		    errorAltitudeI = 0;
-		    lastVelError = 0;
-		    EstVelocity = 0;
-		}
-	    } else
-		baroMode = 0;
-	}
-	if (MAG) {
-	    if (rcOptions & activate[BOXMAG]) {
-		if (magMode == 0) {
-		    magMode = 1;
-		    magHold = heading;
-		}
-	    } else
-		magMode = 0;
-	}
+#if defined(BARO)
+        if (rcOptions & activate[BOXBARO]) {
+            if (baroMode == 0) {
+                baroMode = 1;
+                AltHold = EstAlt;
+                initialThrottleHold = rcCommand[THROTTLE];
+                errorAltitudeI = 0;
+                lastVelError = 0;
+                EstVelocity = 0;
+            }
+        } else
+            baroMode = 0;
+#endif
+#if defined(MAG)
+        if (rcOptions & activate[BOXMAG]) {
+            if (magMode == 0) {
+                magMode = 1;
+                magHold = heading;
+            }
+        } else
+            magMode = 0;
+#endif
     }
-    if (MAG)
-	Mag_getADC();
-    if (BARO)
-	Baro_update();
+#if defined(MAG)
+    Mag_getADC();
+#endif
+#if defined(BARO)
+    Baro_update();
+#endif
 
     computeIMU();
     // Measure loop rate just afer reading the sensors
@@ -515,46 +522,46 @@ void loop()
     cycleTime = currentTime - previousTime;
     previousTime = currentTime;
 
-    if (MAG) {
-	if (abs(rcCommand[YAW]) < 70 && magMode) {
-	    int16_t dif = heading - magHold;
-	    if (dif <= -180)
-		dif += 360;
-	    if (dif >= +180)
-		dif -= 360;
-	    if ((abs(angle[ROLL]) < 200) && (abs(angle[PITCH]) < 200))	//20 deg
-		rcCommand[YAW] -= dif * P8[PIDMAG] / 30;
-	} else
-	    magHold = heading;
+#if defined(MAG)
+    if (abs(rcCommand[YAW]) < 70 && magMode) {
+        int16_t dif = heading - magHold;
+        if (dif <= -180)
+            dif += 360;
+        if (dif >= +180)
+            dif -= 360;
+        if ((abs(angle[ROLL]) < 200) && (abs(angle[PITCH]) < 200))	//20 deg
+            rcCommand[YAW] -= dif * P8[PIDMAG] / 30;
+    } else
+        magHold = heading;
+#endif
+
+#if defined(BARO)
+    if (baroMode) {
+        if (abs(rcCommand[THROTTLE] - initialThrottleHold) > 20) {
+            baroMode = 0;
+            errorAltitudeI = 0;
+        }
+        //**** Alt. Set Point stabilization PID ****
+        error = constrain((AltHold - EstAlt) * 10, -100, 100);	//  +/-10m,  1 decimeter accuracy
+        errorAltitudeI += error;
+        errorAltitudeI = constrain(errorAltitudeI, -5000, 5000);
+
+        PTerm = P8[PIDALT] * error / 100;	// 16 bits is ok here
+        ITerm = (int32_t) I8[PIDALT] * errorAltitudeI / 4000;	// 
+
+        AltPID = PTerm + ITerm;
+
+        //**** Velocity stabilization PD ****        
+        error = constrain(EstVelocity * 2000.0f, -30000.0f, 30000.0f);
+        delta = error - lastVelError;
+        lastVelError = error;
+
+        PTerm = (int32_t) error *P8[PIDVEL] / 800;
+        DTerm = (int32_t) delta *D8[PIDVEL] / 16;
+
+        rcCommand[THROTTLE] = initialThrottleHold + constrain(AltPID - (PTerm - DTerm), -100, +100);
     }
-
-    if (BARO) {
-	if (baroMode) {
-	    if (abs(rcCommand[THROTTLE] - initialThrottleHold) > 20) {
-		baroMode = 0;
-		errorAltitudeI = 0;
-	    }
-	    //**** Alt. Set Point stabilization PID ****
-	    error = constrain((AltHold - EstAlt) * 10, -100, 100);	//  +/-10m,  1 decimeter accuracy
-	    errorAltitudeI += error;
-	    errorAltitudeI = constrain(errorAltitudeI, -5000, 5000);
-
-	    PTerm = P8[PIDALT] * error / 100;	// 16 bits is ok here
-	    ITerm = (int32_t) I8[PIDALT] * errorAltitudeI / 4000;	// 
-
-	    AltPID = PTerm + ITerm;
-
-	    //**** Velocity stabilization PD ****        
-	    error = constrain(EstVelocity * 2000.0f, -30000.0f, 30000.0f);
-	    delta = error - lastVelError;
-	    lastVelError = error;
-
-	    PTerm = (int32_t) error *P8[PIDVEL] / 800;
-	    DTerm = (int32_t) delta *D8[PIDVEL] / 16;
-
-	    rcCommand[THROTTLE] = initialThrottleHold + constrain(AltPID - (PTerm - DTerm), -100, +100);
-	}
-    }
+#endif
     //**** PITCH & ROLL & YAW PID ****    
     for (axis = 0; axis < 3; axis++) {
 	if (accMode == 1 && axis < 2) {	//LEVEL MODE
@@ -635,8 +642,8 @@ typedef struct eep_entry_t {
 // ************************************************************************************************************
 volatile eep_entry_t eep_entry[] = {
     &checkNewConf, sizeof(checkNewConf),
-    &P8, sizeof(P8), 
-    &I8, sizeof(I8), 
+    &P8, sizeof(P8),
+    &I8, sizeof(I8),
     &D8, sizeof(D8),
     &rcRate8, sizeof(rcRate8),
     &rcExpo8, sizeof(rcExpo8),
@@ -648,7 +655,7 @@ volatile eep_entry_t eep_entry[] = {
     &magZero, sizeof(magZero),
     &accTrim, sizeof(accTrim)
 #if defined(POWERMETER)
-    , &powerTrigger1, sizeof(powerTrigger1)
+	, &powerTrigger1, sizeof(powerTrigger1)
 #endif
 };
 #define EEBLOCK_SIZE sizeof(eep_entry)/sizeof(eep_entry_t)
@@ -658,15 +665,15 @@ void readEEPROM()
 {
     uint32_t _address = FLASH_DATA_START_PHYSICAL_ADDRESS + eep_entry[0].size;
     uint8_t i;
-    
+
     FLASH_SetProgrammingTime(FLASH_PROGRAMTIME_STANDARD);
     FLASH_Unlock(FLASH_MEMTYPE_DATA);
 
     for (i = 1; i < EEBLOCK_SIZE; i++) {
-        memcpy(eep_entry[i].var, (void *)_address, eep_entry[i].size);
-        _address += eep_entry[i].size;
+	memcpy(eep_entry[i].var, (void *) _address, eep_entry[i].size);
+	_address += eep_entry[i].size;
     }
-    
+
     FLASH_Lock(FLASH_MEMTYPE_DATA);
 
 #if 0
@@ -692,11 +699,11 @@ void writeParams()
     FLASH_Unlock(FLASH_MEMTYPE_DATA);
 
     for (i = 0; i < EEBLOCK_SIZE; i++) {
-	uint8_t *data = (uint8_t *)(eep_entry[i].var);
+	uint8_t *data = (uint8_t *) (eep_entry[i].var);
 	for (j = 0; j < eep_entry[i].size; j++)
 	    FLASH_ProgramByte(_address++, *data++);
     }
-    
+
     FLASH_Lock(FLASH_MEMTYPE_DATA);
 
     readEEPROM();
@@ -788,7 +795,7 @@ void configureReceiver()
 #if defined(STM8)
     // Configure GPIO pin for ppm input
     GPIO_Init(GPIOD, GPIO_PIN_2, GPIO_MODE_IN_FL_NO_IT);
-    
+
     TIM3_TimeBaseInit(TIM3_PRESCALER_8, 0xFFFF);
     TIM3_ICInit(TIM3_CHANNEL_1, TIM3_ICPOLARITY_RISING, TIM3_ICSELECTION_DIRECTTI, TIM3_ICPSC_DIV1, 0x0);
     TIM3_ITConfig(TIM3_IT_CC1, ENABLE);
@@ -902,35 +909,35 @@ __near __interrupt void TIM3_CAP_COM_IRQHandler(void)
     static uint16_t now;
     static uint16_t last = 0;
     static uint8_t chan = 0;
-    
+
     if (TIM3_GetITStatus(TIM3_IT_CC1) == SET) {
-        last = now;
-        now = TIM3_GetCapture1();
+	last = now;
+	now = TIM3_GetCapture1();
     }
 
     TIM3_ClearITPendingBit(TIM3_IT_CC1);
 
     if (now > last) {
-        diff = (now - last);
+	diff = (now - last);
     } else {
-        diff = ((0xFFFF - last) + now);
+	diff = ((0xFFFF - last) + now);
     }
-    
+
     if (diff > 8000) {
 	chan = 0;
     } else {
-        if (diff > 1500 && diff < 4500 && chan < 8) { // div2, 750 to 2250 ms Only if the signal is between these values it is valid, otherwise the failsafe counter should move up
-            uint16_t tmp = diff >> 1;
-            rcValue[chan] = tmp;
-    
-    #if defined(FAILSAFE)
-            if (failsafeCnt > 20)
-                failsafeCnt -= 20;
-            else
-                failsafeCnt = 0;	// clear FailSafe counter - added by MIS  //incompatible to quadroppm
-    #endif
-        }
-        chan++;
+	if (diff > 1500 && diff < 4500 && chan < 8) {	// div2, 750 to 2250 ms Only if the signal is between these values it is valid, otherwise the failsafe counter should move up
+	    uint16_t tmp = diff >> 1;
+	    rcValue[chan] = tmp;
+
+#if defined(FAILSAFE)
+	    if (failsafeCnt > 20)
+		failsafeCnt -= 20;
+	    else
+		failsafeCnt = 0;	// clear FailSafe counter - added by MIS  //incompatible to quadroppm
+#endif
+	}
+	chan++;
     }
 }
 #else
@@ -941,7 +948,7 @@ void rxInt()
     static uint8_t chan = 0;
 
     now = micros();
-    
+
     diff = now - last;
     last = now;
     if (diff > 3000)
@@ -987,7 +994,7 @@ uint16_t readRawRC(uint8_t chan)
     if (chan > 4)
 	return 1500;
 #endif
-#endif /* STM8 */
+#endif				/* STM8 */
     return data;		// We return the value correctly copied when the IRQ's where disabled
 }
 
@@ -1020,15 +1027,16 @@ void computeRC()
 
 /* Fixed lookup table for TIM1/2 Pulse Width registers */
 static const struct {
-    u8 *addressH;
-    u8 *addressL;
+    uint8_t *addressH;
+    uint8_t *addressL;
 } TimerAddress[] = {
-    { &(TIM1->CCR1H), &(TIM1->CCR1L) },
-    { &(TIM1->CCR2H), &(TIM1->CCR2L) },
-    { &(TIM1->CCR3H), &(TIM1->CCR3L) },
-    { &(TIM1->CCR4H), &(TIM1->CCR4L) },
-    { &(TIM2->CCR2H), &(TIM2->CCR2L) },
-    { &(TIM2->CCR1H), &(TIM2->CCR1L) }
+    {
+    &(TIM1->CCR1H), &(TIM1->CCR1L)}, {
+    &(TIM1->CCR2H), &(TIM1->CCR2L)}, {
+    &(TIM1->CCR3H), &(TIM1->CCR3L)}, {
+    &(TIM1->CCR4H), &(TIM1->CCR4L)}, {
+    &(TIM2->CCR2H), &(TIM2->CCR2L)}, {
+    &(TIM2->CCR1H), &(TIM2->CCR1L)}
 };
 
 #endif
@@ -1075,14 +1083,13 @@ void writeMotors()
 {
     uint8_t i;
 
-    
 #if defined(STM8)
     // full scale motor control
     // Set the Pulse value
     for (i = 0; i < NUMBER_MOTOR; i++) {
-        uint16_t pulse = (motor[i] << 1); // STM8 pwm is actually 0.5us precision, so we double it
-        *TimerAddress[i].addressH = (u8)(pulse >> 8); // and write into timer regs
-        *TimerAddress[i].addressL = (u8)(pulse);
+	uint16_t pulse = (motor[i] << 1);	// STM8 PWM is actually 0.5us precision, so we double it
+	*TimerAddress[i].addressH = (uint8_t) (pulse >> 8);	// and write into timer regs
+	*TimerAddress[i].addressL = (uint8_t) (pulse);
     }
 #else
 
@@ -1098,13 +1105,13 @@ void writeMotors()
     atomicPWM_PIN5_lowState = 255 - atomicPWM_PIN5_highState;
     atomicPWM_PIN6_highState = motor[4] / 8;
     atomicPWM_PIN6_lowState = 255 - atomicPWM_PIN6_highState;
-#endif /* NUMBER_MOTOR == 6 */
-#endif /* MEGA */
-#endif /* STM8 */
+#endif				/* NUMBER_MOTOR == 6 */
+#endif				/* MEGA */
+#endif				/* STM8 */
 }
 
 void writeAllMotors(int16_t mc)
-{      
+{
     uint8_t i;
     // Sends commands to all motors
     for (i = 0; i < NUMBER_MOTOR; i++)
@@ -1161,7 +1168,7 @@ void initOutput()
     TIM2_OC2Init(TIM2_OCMODE_PWM2, TIM2_OUTPUTSTATE_ENABLE, PULSE_1MS, TIM2_OCPOLARITY_LOW);
     TIM2_OC2PreloadConfig(ENABLE);
     TIM2_ARRPreloadConfig(ENABLE);
-    
+
     TIM1_Cmd(ENABLE);
     TIM2_Cmd(ENABLE);
 #endif
@@ -1466,7 +1473,8 @@ void computeIMU()
     //we separate the 2 situations because reading gyro values with a gyro only setup can be acchieved at a higher rate
     //gyro+nunchuk: we must wait for a quite high delay betwwen 2 reads to get both WM+ and Nunchuk data. It works with 3ms
     //gyro only: the delay to read 2 consecutive values can be reduced to only 0.65ms
-    if (!ACC && nunchuk) {
+#if !defined(ACC)
+    if (nunchuk) {
 	annexCode();
 	while ((micros() - timeInterleave) < INTERLEAVING_DELAY);	//interleaving delay between 2 consecutive reads
 	timeInterleave = micros();
@@ -1485,35 +1493,37 @@ void computeIMU()
 	    gyroData[axis] = (gyroADC[axis] * 3 + gyroADCprevious[axis] + 2) / 4;
 	    gyroADCprevious[axis] = gyroADC[axis];
 	}
-    } else {
-	if (ACC) {
-	    ACC_getADC();
-	    getEstimatedAttitude();
-	    if (BARO)
-		getEstimatedAltitude();
-	}
-	if (GYRO)
-	    Gyro_getADC();
-	else
-	    WMP_getRawADC();
-	for (axis = 0; axis < 3; axis++)
-	    gyroADCp[axis] = gyroADC[axis];
-	timeInterleave = micros();
-	annexCode();
-	while ((micros() - timeInterleave) < 650);	//empirical, interleaving delay between 2 consecutive reads
-	if (GYRO)
-	    Gyro_getADC();
-	else
-	    WMP_getRawADC();
-	for (axis = 0; axis < 3; axis++) {
-	    gyroADCinter[axis] = gyroADC[axis] + gyroADCp[axis];
-	    // empirical, we take a weighted value of the current and the previous values
-	    gyroData[axis] = (gyroADCinter[axis] + gyroADCprevious[axis] + 1) / 3;
-	    gyroADCprevious[axis] = gyroADCinter[axis] / 2;
-	    if (!ACC)
-		accADC[axis] = 0;
-	}
     }
+#else /* !ACC */
+    ACC_getADC();
+    getEstimatedAttitude();
+#if defined(BARO)
+    getEstimatedAltitude();
+#endif /* BARO */
+#if defined(GYRO)
+    Gyro_getADC();
+#else
+    WMP_getRawADC();
+#endif /* GYRO */
+    for (axis = 0; axis < 3; axis++)
+	gyroADCp[axis] = gyroADC[axis];
+    timeInterleave = micros();
+    annexCode();
+    while ((micros() - timeInterleave) < 650);	//empirical, interleaving delay between 2 consecutive reads
+#if defined(GYRO)
+    Gyro_getADC();
+#else
+    WMP_getRawADC();
+#endif
+    for (axis = 0; axis < 3; axis++) {
+	gyroADCinter[axis] = gyroADC[axis] + gyroADCp[axis];
+	// empirical, we take a weighted value of the current and the previous values
+	gyroData[axis] = (gyroADCinter[axis] + gyroADCprevious[axis] + 1) / 3;
+	gyroADCprevious[axis] = gyroADCinter[axis] / 2;
+	if (!ACC)
+	    accADC[axis] = 0;
+    }
+#endif /* !ACC */
 #if defined(TRI)
     gyroData[YAW] = (gyroYawSmooth * 2 + gyroData[YAW] + 1) / 3;
     gyroYawSmooth = gyroData[YAW];
@@ -1568,10 +1578,12 @@ void computeIMU()
 #define INV_GYR_CMPF_FACTOR   (1.0f / (GYR_CMPF_FACTOR  + 1.0f))
 #define INV_GYR_CMPFM_FACTOR  (1.0f / (GYR_CMPFM_FACTOR + 1.0f))
 #if GYRO
-// #define GYRO_SCALE ((2000.0f * PI)/((32767.0f / 4.0f ) * 180.0f * 1000000.0f) * 1.155f)
+#define GYRO_SCALE ((2000.0f * PI)/((32767.0f / 4.0f ) * 180.0f * 1000000.0f) * 1.155f)
   // +-2000/sec deg scale
-#define GYRO_SCALE ((500.0f * PI)/((32768.0f / 5.0f / 4.0f ) * 180.0f * 1000000.0f) * 1.5f)     
-  // +- 200/sec deg scale
+// #define GYRO_SCALE ((500.0f * PI)/((32768.0f / 5.0f / 4.0f ) * 180.0f * 1000000.0f) * 1.5f)
+// #define GYRO_SCALE ((500.0f * PI)/((1023.0f) * 180.0f * 1000000.0f) * 3.0f)
+
+// +- 200/sec deg scale
   // 1.5 is emperical, not sure what it means
   // should be in rad/sec
 #else
@@ -1600,7 +1612,7 @@ typedef union {
 int16_t _atan2(float y, float x)
 {
     float z = y / x;
-    int16_t zi = abs(((int16_t)(z * 100)));
+    int16_t zi = abs(((int16_t) (z * 100)));
     int8_t y_neg = fp_is_neg(y);
     if (zi < 100) {
 	if (zi > 10)
@@ -1643,12 +1655,12 @@ void getEstimatedAttitude()
 	accSmooth[axis] = accADC[axis];
 #define ACC_VALUE accADC[axis]
 #endif
-        {
+	{
 	    // AccMag += (ACC_VALUE * 10 / acc_1G) * (ACC_VALUE * 10 / acc_1G);
-            short temp = (ACC_VALUE * 10 / acc_1G);
-            AccMag += temp * temp;
-        }
-	
+	    short temp = (ACC_VALUE * 10 / acc_1G);	// compiler weirdness
+	    AccMag += (temp * temp);
+	}
+
 #if MAG
 #if defined(MG_LPF_FACTOR)
 	// LPF for Magnetometer values
@@ -1833,149 +1845,181 @@ static uint32_t neutralizeTime = 0;
 // I2C general functions
 // ************************************************************************************************************
 
-// Mask prescaler bits : only 5 bits of TWSR defines the status of each I2C request
-#define TW_STATUS_MASK	(1<<TWS7) | (1<<TWS6) | (1<<TWS5) | (1<<TWS4) | (1<<TWS3)
-#define TW_STATUS       (TWSR & TW_STATUS_MASK)
-
 void i2c_init(void)
 {
-#ifdef STM8
-
-
-#else
-#if defined(INTERNAL_I2C_PULLUPS)
-    I2C_PULLUPS_ENABLE
-#else
-    I2C_PULLUPS_DISABLE
-#endif
-	TWSR = 0;		// no prescaler => prescaler = 1
-    TWBR = ((16000000L / I2C_SPEED) - 16) / 2;	// change the I2C clock rate
-    TWCR = 1 << TWEN;		// enable twi module, no interrupt
-#endif
-}
-
-void i2c_rep_start(uint8_t address)
-{
-#ifdef STM8
-
-#else
-    TWCR = (1 << TWINT) | (1 << TWSTA) | (1 << TWEN) | (1 << TWSTO);	// send REPEAT START condition
-    waitTransmissionI2C();	// wait until transmission completed
-    checkStatusI2C();		// check value of TWI Status Register
-    TWDR = address;		// send device address
-    TWCR = (1 << TWINT) | (1 << TWEN);
-    waitTransmissionI2C();	// wail until transmission completed
-    checkStatusI2C();		// check value of TWI Status Register
-#endif
-}
-
-void i2c_rep_stop(void)
-{
-#ifdef STM8
-
-#else
-    TWCR = (1 << TWINT) | (1 << TWEN) | (1 << TWSTO);
-    waitTransmissionI2C();
-    checkStatusI2C();
-#endif
-}
-
-void i2c_write(uint8_t data)
-{
-#ifdef STM8
-
-#else
-    TWDR = data;		// send data to the previously addressed device
-    TWCR = (1 << TWINT) | (1 << TWEN);
-    waitTransmissionI2C();	// wait until transmission completed
-    checkStatusI2C();		// check value of TWI Status Register
-#endif
-}
-
-uint8_t i2c_readAck()
-{
-#ifdef STM8
-    return 0;
-#else
-    TWCR = (1 << TWINT) | (1 << TWEN) | (1 << TWEA);
-    waitTransmissionI2C();
-    return TWDR;
-#endif
-}
-
-uint8_t i2c_readNak(void)
-{
-#ifdef STM8
-    return 0;
-#else
-    TWCR = (1 << TWINT) | (1 << TWEN);
-    waitTransmissionI2C();
-    return TWDR;
-#endif
-}
-
-void waitTransmissionI2C()
-{
-#ifdef STM8
-
-#else
-    uint8_t count = 255;
-    while (count-- > 0 && !(TWCR & (1 << TWINT)));
-    if (count < 2) {		//we are in a blocking state => we don't insist
-	TWCR = 0;		//and we force a reset on TWINT register
-	neutralizeTime = micros();	//we take a timestamp here to neutralize the value during a short delay after the hard reset
-    }
-#endif
-}
-
-void checkStatusI2C()
-{
-#ifdef STM8
-
-#else
-    if (TW_STATUS == 0xF8) {	//TW_NO_INFO : this I2C error status indicates a wrong I2C communication.
-	// WMP does not respond anymore => we do a hard reset. I did not find another way to solve it. It takes only 13ms to reset and init to WMP or WMP+NK
-	TWCR = 0;
-	if (!GYRO) {
-	    POWERPIN_OFF;	//switch OFF WMP
-		delay(1);
-	    POWERPIN_ON;	//switch ON WMP
-		delay(10);
-	    WMP_init(0);
-	}
-	neutralizeTime = micros();	//we take a timestamp here to neutralize the WMP or WMP+NK values during a short delay after the hard reset
-    }
-#endif
+    I2C_DeInit();
+    I2C_Init(I2C_MAX_FAST_FREQ, 0xA0, I2C_DUTYCYCLE_2, I2C_ACK_CURR, I2C_ADDMODE_7BIT, I2C_MAX_INPUT_FREQ);
+    I2C_Cmd(ENABLE);
 }
 
 void i2c_getSixRawADC(uint8_t add, uint8_t reg)
 {
-#ifdef STM8
-
-#else
-    i2c_rep_start(add);
-    i2c_write(reg);		// Start multiple read at the reg register
-    i2c_rep_start(add + 1);	// I2C read direction => I2C address + 1
-    for (uint8_t i = 0; i < 5; i++) {
-	rawADC[i] = i2c_readAck();
-    }
-    rawADC[5] = i2c_readNak();
-#endif
+    i2c_read(rawADC, 6, add, reg);
 }
 
 void i2c_writeReg(uint8_t add, uint8_t reg, uint8_t val)
 {
-    i2c_rep_start(add + 0);	// I2C write direction
-    i2c_write(reg);		// register selection
-    i2c_write(val);		// value to write in register
+    uint8_t buf[3];
+    buf[0] = add;
+    buf[1] = reg;
+    buf[2] = val;
+    i2c_write(buf, 3);
 }
 
 uint8_t i2c_readReg(uint8_t add, uint8_t reg)
 {
-    i2c_rep_start(add + 0);	// I2C write direction
-    i2c_write(reg);		// register selection
-    i2c_rep_start(add + 1);	// I2C read direction
-    return i2c_readNak();	// Read single register and return value
+    uint8_t data[2];
+    i2c_read(data, 1, add, reg);
+    return data[0];
+}
+
+#define I2C_TIMEOUT 0x300
+
+typedef enum {			//returns I2C error/success codes
+    I2C_SUCCESS = 0,		//theres only one sort of success
+    I2C_START_TIMEOUT,
+    I2C_RSTART_TIMEOUT,
+    I2C_SACK_FAILURE,
+    I2C_SACK_TIMEOUT,
+    I2C_TX_TIMEOUT,
+    I2C_RX_TIMEOUT
+} I2C_Returntype;
+
+uint8_t i2c_write(uint8_t * Confstr, uint8_t Bytes)
+{				
+    //Sets up an i2c device
+    uint8_t n;
+    uint16_t Time = 0;
+    I2C_GenerateSTART(ENABLE);
+    while (!I2C_CheckEvent(I2C_EVENT_MASTER_MODE_SELECT)) {
+	Time++;
+	if (Time > I2C_TIMEOUT)
+	    return I2C_START_TIMEOUT;
+    }
+    Time = 0;
+    I2C_Send7bitAddress(Confstr[0], I2C_DIRECTION_TX);	//Address write
+    while (!I2C_CheckEvent(I2C_EVENT_MASTER_TRANSMITTER_MODE_SELECTED)) {
+	Time++;
+	if (Time > I2C_TIMEOUT)
+	    return I2C_SACK_TIMEOUT;
+	if (SET == I2C_GetFlagStatus(I2C_FLAG_ACKNOWLEDGEFAILURE)) {
+	    I2C_ClearFlag(I2C_FLAG_ACKNOWLEDGEFAILURE);
+	    I2C_GenerateSTOP(ENABLE);	//Enable the STOP here - so hardware is ready again
+	    return I2C_SACK_FAILURE;	//Slave did not ack
+	}
+    }
+    for (n = 1; n < Bytes; n++) {
+	Time = 0;
+	I2C_SendData(Confstr[n]);	//Write rest of string (registers)
+	while (!I2C_CheckEvent(I2C_EVENT_MASTER_BYTE_TRANSMITTED)) {
+	    Time++;
+	    if (Time > I2C_TIMEOUT)
+		return I2C_TX_TIMEOUT;
+	}
+    }
+    I2C_GenerateSTOP(ENABLE);	//Finally send the stop bit
+    return I2C_SUCCESS;		//Completed ok
+}
+
+uint8_t i2c_read(uint8_t * Data_Pointer, uint8_t Bytes, uint8_t Addr, uint8_t Sub_Addr)
+{
+    int8_t n = 0;		//0xFF as the Sub_Addr disables sub address
+    uint16_t Time = 0;
+    if (Sub_Addr != 0xFF) {	//0xFF disables this - so we wont setup addr pointer
+	I2C_GenerateSTART(ENABLE);
+	while (!I2C_CheckEvent(I2C_EVENT_MASTER_MODE_SELECT)) {
+	    Time++;
+	    if (Time > I2C_TIMEOUT)
+		return I2C_START_TIMEOUT;
+	}
+	Time = 0;
+
+	I2C_Send7bitAddress(Addr, I2C_DIRECTION_TX);	//Address write
+	while (!I2C_CheckEvent(I2C_EVENT_MASTER_TRANSMITTER_MODE_SELECTED)) {
+	    Time++;
+	    if (Time > I2C_TIMEOUT)
+		return I2C_SACK_TIMEOUT;	//Checks that the slave acknowledged
+	    if (SET == I2C_GetFlagStatus(I2C_FLAG_ACKNOWLEDGEFAILURE)) {
+		I2C_ClearFlag(I2C_FLAG_ACKNOWLEDGEFAILURE);
+		I2C_GenerateSTOP(ENABLE);	//Enable the STOP here - so hardware is ready again
+		return I2C_SACK_FAILURE;	//Slave did not ack
+	    }
+	}
+	Time = 0;
+	I2C_SendData(Sub_Addr);	//Write sub address register
+	while (!I2C_CheckEvent(I2C_EVENT_MASTER_BYTE_TRANSMITTED)) {
+	    Time++;
+	    if (Time > I2C_TIMEOUT)
+		return I2C_TX_TIMEOUT;
+	}
+	//I2C_GenerateSTOP( I2C1, ENABLE ); //This code doesnt _seem_ to be needed
+	//while(I2C_GetFlagStatus(I2C1,I2C_FLAG_BUSY)==SET); //Wait for bus to go inactive
+    }
+    Time = 0;
+    I2C_GenerateSTART(ENABLE);	//Repeated start or the first start
+    while (!I2C_CheckEvent(I2C_EVENT_MASTER_MODE_SELECT)) {
+	Time++;
+	if (Time > I2C_TIMEOUT)
+	    return I2C_RSTART_TIMEOUT;	//note that if we disable sub addr, then a start error
+    }				//becomes a repeated start error
+    Time = 0;
+    I2C_Send7bitAddress(Addr | 0x01, I2C_DIRECTION_RX);	//Address to read
+    while (!I2C_CheckEvent(I2C_EVENT_MASTER_RECEIVER_MODE_SELECTED)) {
+	Time++;
+	if (Time > I2C_TIMEOUT)
+	    return I2C_SACK_TIMEOUT;	//Checks that the slave acknowledged
+	if (SET == I2C_GetFlagStatus(I2C_FLAG_ACKNOWLEDGEFAILURE)) {
+	    I2C_ClearFlag(I2C_FLAG_ACKNOWLEDGEFAILURE);
+	    I2C_GenerateSTOP(ENABLE);	//Enable the STOP here - so hardware is ready again
+	    return I2C_SACK_FAILURE;	//Slave did not ack
+	}
+    }				//We now auto switch to rx mode
+    if (Bytes > 2) {		//More than two bytes to receive
+	Time = 0;
+	while (!I2C_CheckEvent(I2C_EVENT_MASTER_BYTE_RECEIVED)) {	//Wait for the first byte
+	    Time++;
+	    if (Time > I2C_TIMEOUT)
+		return I2C_RX_TIMEOUT;
+	}
+	for (; n < ((int8_t) Bytes - 3); n++) {
+	    Time = 0;
+	    Data_Pointer[n] = I2C_ReceiveData();
+	    while (!I2C_CheckEvent(I2C_EVENT_MASTER_BYTE_RECEIVED)) {
+		Time++;
+		if (Time > I2C_TIMEOUT)
+		    return I2C_RX_TIMEOUT;
+	    }
+	}
+	Time = 0;
+	while (I2C_GetFlagStatus(I2C_FLAG_TRANSFERFINISHED) != SET) {	//Wait for two bytes to be received - ref man p712
+	    Time++;
+	    if (Time > I2C_TIMEOUT)
+		return I2C_RX_TIMEOUT;
+	}
+	I2C_AcknowledgeConfig(DISABLE);	//Do not ack the last byte
+	Data_Pointer[n++] = I2C_ReceiveData();	//Third to last byte
+	I2C_GenerateSTOP(ENABLE);	//Enable the STOP here
+	Data_Pointer[n++] = I2C_ReceiveData();	//Read the Penultimate from buffer
+	Time = 0;
+	while (I2C_GetFlagStatus(I2C_FLAG_RXNOTEMPTY) != SET) {	//Last byte received here with a NACK and STOP
+	    Time++;
+	    if (Time > I2C_TIMEOUT)
+		return I2C_RX_TIMEOUT;
+	}
+    } else {
+	I2C_AcknowledgeConfig(DISABLE);	//Do not ack the last byte
+	Time = 0;
+	while (I2C_GetFlagStatus(I2C_FLAG_TRANSFERFINISHED) != SET) {	//Wait for two bytes to be received - ref man p713
+	    Time++;
+	    if (Time > I2C_TIMEOUT)
+		return I2C_RX_TIMEOUT;
+	}
+	I2C_GenerateSTOP(ENABLE);	//Enable the STOP here
+	Data_Pointer[n++] = I2C_ReceiveData();	//First byte to lowest location
+    }
+    Data_Pointer[n] = I2C_ReceiveData();	//Clear the buffer (last byte is in it)
+    I2C_AcknowledgeConfig(ENABLE);	//Re-enable ACK
+    return I2C_SUCCESS;		//Exit ok
 }
 
 // ****************
@@ -2436,25 +2480,25 @@ void ACC_getADC()
 #define ADXL_RANGE_16G     0x03
 #define ADXL_FIFO_STREAM   0x80
 
-static u8 ADXL_WriteByte(u8 Data)
+static uint8_t ADXL_WriteByte(uint8_t Data)
 {
     /* Wait until the transmit buffer is empty */
     while (SPI_GetFlagStatus(SPI_FLAG_TXE) == RESET);
     /* Send the byte */
     SPI_SendData(Data);
-    /* Wait to receive a byte*/
-    while(SPI_GetFlagStatus(SPI_FLAG_RXNE) == RESET);
-    /*Return the byte read from the SPI bus */ 
+    /* Wait to receive a byte */
+    while (SPI_GetFlagStatus(SPI_FLAG_RXNE) == RESET);
+    /*Return the byte read from the SPI bus */
     return SPI_ReceiveData();
 }
 
-static u8 ADXL_ReadByte(void)
+static uint8_t ADXL_ReadByte(void)
 {
-    volatile u8 Data = 0;
+    volatile uint8_t Data = 0;
     /* Wait until the transmit buffer is empty */
     while (SPI_GetFlagStatus(SPI_FLAG_TXE) == RESET);
     /* Send the byte */
-    SPI_SendData(0xFF); // Dummy Byte
+    SPI_SendData(0xFF);		// Dummy Byte
     /* Wait until a data is received */
     while (SPI_GetFlagStatus(SPI_FLAG_RXNE) == RESET);
     /* Get the received data */
@@ -2466,7 +2510,7 @@ static u8 ADXL_ReadByte(void)
 static void ADXL_Init(void)
 {
     // setup ADXL345 rate/range/start measuring
-    
+
     // Rate 3200Hz
     ADXL_ON;
     ADXL_WriteByte(ADXL_RATE_ADDR);
@@ -2491,22 +2535,22 @@ static void ADXL_Init(void)
     ADXL_OFF;
 }
 
-static u8 ADXL_GetAccelValues(void)
+static uint8_t ADXL_GetAccelValues(void)
 {
-    volatile u8 i;
-    
+    volatile uint8_t i;
+
     ADXL_ON;
     ADXL_WriteByte(ADXL_X0_ADDR | ADXL_MULTI_BIT | ADXL_READ_BIT);
     for (i = 0; i < 3; i++) {
-        u8 i1, i2;
-        i1 = ADXL_ReadByte();
-        i2 = ADXL_ReadByte();
+	uint8_t i1, i2;
+	i1 = ADXL_ReadByte();
+	i2 = ADXL_ReadByte();
 
 #ifdef LOWPASS_ACC
-        // new result = 0.95 * previous_result + 0.05 * current_data
-        sensorInputs[i + 4] = ((sensorInputs[i + 4] * 19) / 20) + (((i1 | i2 << 8) * 5) / 100);
+	// new result = 0.95 * previous_result + 0.05 * current_data
+	sensorInputs[i + 4] = ((sensorInputs[i + 4] * 19) / 20) + (((i1 | i2 << 8) * 5) / 100);
 #else
-        sensorInputs[i + 4] += (i1 | i2 << 8);
+	sensorInputs[i + 4] += (i1 | i2 << 8);
 #endif
     }
 
@@ -2516,7 +2560,7 @@ static u8 ADXL_GetAccelValues(void)
     i = ADXL_ReadByte();
     ADXL_OFF;
 
-    return i & 0x7F; // return number of entires left in fifo
+    return i & 0x7F;		// return number of entires left in fifo
 }
 
 void ACC_init()
@@ -2535,9 +2579,9 @@ void ACC_init()
     // Accel INT1 input tied to interrupt (TODO). Input-only for now.
     GPIO_Init(GPIOD, GPIO_PIN_0, GPIO_MODE_IN_FL_NO_IT);
 
-    // i2c_writeReg(ADXL345_ADDRESS, 0x2D, 1 << 3);	//  register: Power CTRL  -- value: Set measure bit 3 on
-    // i2c_writeReg(ADXL345_ADDRESS, 0x31, 0x0B);	//  register: DATA_FORMAT -- value: Set bits 3(full range) and 1 0 on (+/- 16g-range)
-    // i2c_writeReg(ADXL345_ADDRESS, 0x2C, 8 + 2 + 1);	// register: BW_RATE     -- value: 200Hz sampling (see table 5 of the spec)
+    // i2c_writeReg(ADXL345_ADDRESS, 0x2D, 1 << 3);     //  register: Power CTRL  -- value: Set measure bit 3 on
+    // i2c_writeReg(ADXL345_ADDRESS, 0x31, 0x0B);       //  register: DATA_FORMAT -- value: Set bits 3(full range) and 1 0 on (+/- 16g-range)
+    // i2c_writeReg(ADXL345_ADDRESS, 0x2C, 8 + 2 + 1);  // register: BW_RATE     -- value: 200Hz sampling (see table 5 of the spec)
     // Initialize SPI Accelerometer
     ADXL_Init();
     acc_1G = 256;
@@ -2545,14 +2589,14 @@ void ACC_init()
 
 void ACC_getADC()
 {
-    u8 count = 0;
-    u8 remaining = 0;
-    u8 i = 0;
+    uint8_t count = 0;
+    uint8_t remaining = 0;
+    uint8_t i = 0;
 
     // Next up is accel fifo + avg
     do {
-        count++;
-        remaining = ADXL_GetAccelValues();
+	count++;
+	remaining = ADXL_GetAccelValues();
     } while ((count < 32) && (remaining > 0));
 
 #ifdef LOWPASS_ACC
@@ -2563,9 +2607,9 @@ void ACC_getADC()
     sensorInputs[5] = sensorInputs[5] / count;
     sensorInputs[6] = sensorInputs[6] / count;
 #endif
-    
+
     // i2c_getSixRawADC(ADXL345_ADDRESS, 0x32);
-    ACC_ORIENTATION( sensorInputs[4], sensorInputs[5], sensorInputs[6]);
+    ACC_ORIENTATION(sensorInputs[4], sensorInputs[5], sensorInputs[6]);
     ACC_Common();
 }
 #endif
@@ -2634,8 +2678,10 @@ void ACC_getADC()
 #if defined(BMA020)
 void ACC_init()
 {
+    uint8_t control;
+
     i2c_writeReg(0x70, 0x15, 0x80);
-    uint8_t control = i2c_readReg(0x70, 0x14);
+    control = i2c_readReg(0x70, 0x14);
     control = control & 0xE0;
     control = control | (0x00 << 3);	//Range 2G 00
     control = control | 0x00;	//Bandwidth 25 Hz 000
@@ -2645,7 +2691,10 @@ void ACC_init()
 
 void ACC_getADC()
 {
+#if !defined(STM8)
     TWBR = ((16000000L / 400000L) - 16) / 2;
+#endif
+
     i2c_getSixRawADC(0x70, 0x02);
     ACC_ORIENTATION(((rawADC[1] << 8) | rawADC[0]) / 64, ((rawADC[3] << 8) | rawADC[2]) / 64, ((rawADC[5] << 8) | rawADC[4]) / 64);
     ACC_Common();
@@ -2722,28 +2771,27 @@ void ACC_getADC()
 // Analog Gyroscopes IDG500 + ISZ500
 // ************************************************************************************************************
 #ifdef STM8
-
-static volatile u8 adcInProgress = 0;
+static volatile uint8_t adcInProgress = 0;
 
 __near __interrupt void ADC1_IRQHandler(void)
 {
-    u8 i = 0;
+    uint8_t i = 0;
 
 #if 0
     // clear at start of loop
     if (adcSampleCount == 0 || adcSampleCount > 30) {
-        sensorInputs[0] = 0;
-        sensorInputs[1] = 0;
-        sensorInputs[2] = 0;
-        sensorInputs[3] = 0;
-        adcSampleCount = 0;
+	sensorInputs[0] = 0;
+	sensorInputs[1] = 0;
+	sensorInputs[2] = 0;
+	sensorInputs[3] = 0;
+	adcSampleCount = 0;
     }
     adcSampleCount++;
 #endif
 
     // Get 4 ADC readings from buffer
     for (i = 0; i < 4; i++)
-        sensorInputs[i] = ADC1_GetBufferValue(i);
+	sensorInputs[i] = ADC1_GetBufferValue(i);
 
     ADC1_ClearITPendingBit(ADC1_CSR_EOC);
     adcInProgress = 0;
@@ -2751,7 +2799,7 @@ __near __interrupt void ADC1_IRQHandler(void)
 #endif
 
 #if defined(STM8) && defined(ADCGYRO)
-void Gyro_init()
+void Gyro_init(void)
 {
     // ADC1
     ADC1_DeInit();
@@ -2762,14 +2810,14 @@ void Gyro_init()
     ADC1_ITConfig(ADC1_IT_EOCIE, ENABLE);
 }
 
-void Gyro_getADC()
+void Gyro_getADC(void)
 {
     // read out
     adcInProgress = 1;
     ADC1_StartConversion();
-    while (adcInProgress); // wait for conversion
+    while (adcInProgress);	// wait for conversion
 
-    GYRO_ORIENTATION( -(sensorInputs[0] * 16), (sensorInputs[1] * 16), -(sensorInputs[2] * 16) );
+    GYRO_ORIENTATION(-(sensorInputs[0]), (sensorInputs[1]), -(sensorInputs[2]));
     GYRO_Common();
 }
 #endif
@@ -2824,7 +2872,9 @@ void Gyro_init()
 
 void Gyro_getADC()
 {
+#if !defined(STM8)
     TWBR = ((16000000L / 400000L) - 16) / 2;	// change the I2C clock rate to 400kHz
+#endif
     i2c_getSixRawADC(ITG3200_ADDRESS, 0X1D);
     GYRO_ORIENTATION(+(((rawADC[2] << 8) | rawADC[3]) / 4),	// range: +/- 8192; +/- 2000 deg/sec
 		     -(((rawADC[0] << 8) | rawADC[1]) / 4), -(((rawADC[4] << 8) | rawADC[5]) / 4));
@@ -2847,7 +2897,9 @@ void Mag_getADC()
     if ((micros() - t) < 100000)
 	return;			//each read is spaced by 100ms
     t = micros();
+#if !defined(STM8)
     TWBR = ((16000000L / 400000L) - 16) / 2;	// change the I2C clock rate to 400kHz
+#endif
     Device_Mag_getADC();
     if (calibratingM == 1) {
 	tCal = t;
@@ -2944,8 +2996,8 @@ void WMP_init(uint8_t d)
     if (d > 0) {
 	// We need to set acc_1G for the Nunchuk beforehand; It's used in WMP_getRawADC() and ACC_Common()
 	// If a different accelerometer is used, it will be overwritten by its ACC_init() later.
-        uint8_t i;
-        uint8_t numberAccRead = 0;
+	uint8_t i;
+	uint8_t numberAccRead = 0;
 	acc_1G = 200;
 	// Read from WMP 100 times, this should return alternating WMP and Nunchuk data
 	for (i = 0; i < 100; i++) {
@@ -3002,16 +3054,20 @@ void initSensors()
     delay(100);
     i2c_init();
     delay(100);
-    if (GYRO)
-	Gyro_init();
-    else
-	WMP_init(250);
-    if (BARO)
-	Baro_init();
-    if (ACC)
-	ACC_init();
-    if (MAG)
-	Mag_init();
+#if defined(GYRO)
+    Gyro_init();
+#else
+    WMP_init(250);
+#endif
+#if defined(BARO)
+    Baro_init();
+#endif
+#if defined(ACC)
+    ACC_init();
+#endif
+#if defined(MAG)
+    Mag_init();
+#endif
 }
 
 /* SERIAL ---------------------------------------------------------------- */
@@ -3039,7 +3095,7 @@ __near __interrupt void UART2_TX_IRQHandler(void)
 {
     UART2_SendData8(s[tx_ptr++]);
     if (tx_ptr == point) {	/* Check if all data is transmitted */
-	UART2_ITConfig(UART2_IT_TXE, DISABLE); /* Disable transmitter interrupt */
+	UART2_ITConfig(UART2_IT_TXE, DISABLE);	/* Disable transmitter interrupt */
 	tx_busy = 0;
     }
 }
@@ -3057,8 +3113,8 @@ void UartSendData()
 {
 #ifdef STM8
     tx_ptr = 0;
-    UART2_SendData8(s[tx_ptr++]); /* Start transmission */
-    UART2_ITConfig(UART2_IT_TXE, ENABLE); /* Enable TX interrupt to continue sending */
+    UART2_SendData8(s[tx_ptr++]);	/* Start transmission */
+    UART2_ITConfig(UART2_IT_TXE, ENABLE);	/* Enable TX interrupt to continue sending */
 #else
     // start of the data block transmission
     cli();
@@ -3137,8 +3193,13 @@ void serialCom()
 		serialize16(motor[i]);
 	    for (i = 0; i < 8; i++)
 		serialize16(rcData[i]);
-	    serialize8(nunchuk | ACC << 1 | BARO << 2 | MAG << 3);
-	    serialize8(accMode | baroMode << 1 | magMode << 2);
+
+#if 0
+            serialize8(nunchuk | ACC << 1 | BARO << 2 | MAG << 3);
+#else
+            serialize8(nunchuk | 1 << 1 | 0 << 2 | 1 << 3);
+#endif
+            serialize8(accMode | baroMode << 1 | magMode << 2);
 	    serialize16(cycleTime);
 	    for (i = 0; i < 2; i++)
 		serialize16(angle[i] / 10);
@@ -3188,15 +3249,22 @@ void serialCom()
 	    for (i = 0; i < 6; i++) {
 		serialize16(rcData[i]);
 	    }			//44
-	    serialize8(nunchuk | ACC << 1 | BARO << 2 | MAG << 3);
-	    serialize8(accMode | baroMode << 1 | magMode << 2);
+
+#if 0
+            serialize8(nunchuk | ACC << 1 | BARO << 2 | MAG << 3);
+#else
+            serialize8(nunchuk | 1 << 1 | 0 << 2 | 1 << 3);
+#endif
+
+            serialize8(accMode | baroMode << 1 | magMode << 2);
 	    serialize8(vbat);	// Vbatt 47
 	    serialize8(VERSION);	// MultiWii Firmware version
 	    serialize8('O');	//49
 	    UartSendData();
 	    break;
 	case 'W':		//GUI write params to eeprom @ arduino
-	    while (Serial_available() < 29) { }
+	    while (Serial_available() < 29) {
+	    }
 	    for (i = 0; i < 5; i++) {
 		P8[i] = Serial_read();
 		I8[i] = Serial_read();
