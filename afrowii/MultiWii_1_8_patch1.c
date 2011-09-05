@@ -486,7 +486,7 @@ void loop()
 	    STABLEPIN_OFF;
 	}
 
-#if defined(BARO)
+#if BARO
         if (rcOptions & activate[BOXBARO]) {
             if (baroMode == 0) {
                 baroMode = 1;
@@ -499,7 +499,7 @@ void loop()
         } else
             baroMode = 0;
 #endif
-#if defined(MAG)
+#if MAG
         if (rcOptions & activate[BOXMAG]) {
             if (magMode == 0) {
                 magMode = 1;
@@ -509,10 +509,10 @@ void loop()
             magMode = 0;
 #endif
     }
-#if defined(MAG)
+#if MAG
     Mag_getADC();
 #endif
-#if defined(BARO)
+#if BARO
     Baro_update();
 #endif
 
@@ -522,7 +522,7 @@ void loop()
     cycleTime = currentTime - previousTime;
     previousTime = currentTime;
 
-#if defined(MAG)
+#if MAG
     if (abs(rcCommand[YAW]) < 70 && magMode) {
         int16_t dif = heading - magHold;
         if (dif <= -180)
@@ -535,7 +535,7 @@ void loop()
         magHold = heading;
 #endif
 
-#if defined(BARO)
+#if BARO
     if (baroMode) {
         if (abs(rcCommand[THROTTLE] - initialThrottleHold) > 20) {
             baroMode = 0;
@@ -1473,7 +1473,7 @@ void computeIMU()
     //we separate the 2 situations because reading gyro values with a gyro only setup can be acchieved at a higher rate
     //gyro+nunchuk: we must wait for a quite high delay betwwen 2 reads to get both WM+ and Nunchuk data. It works with 3ms
     //gyro only: the delay to read 2 consecutive values can be reduced to only 0.65ms
-#if !defined(ACC)
+#if !ACC
     if (nunchuk) {
 	annexCode();
 	while ((micros() - timeInterleave) < INTERLEAVING_DELAY);	//interleaving delay between 2 consecutive reads
@@ -1497,10 +1497,10 @@ void computeIMU()
 #else /* !ACC */
     ACC_getADC();
     getEstimatedAttitude();
-#if defined(BARO)
+#if BARO
     getEstimatedAltitude();
 #endif /* BARO */
-#if defined(GYRO)
+#if GYRO
     Gyro_getADC();
 #else
     WMP_getRawADC();
@@ -1510,7 +1510,7 @@ void computeIMU()
     timeInterleave = micros();
     annexCode();
     while ((micros() - timeInterleave) < 650);	//empirical, interleaving delay between 2 consecutive reads
-#if defined(GYRO)
+#if GYRO
     Gyro_getADC();
 #else
     WMP_getRawADC();
@@ -2817,7 +2817,7 @@ void Gyro_getADC(void)
     ADC1_StartConversion();
     while (adcInProgress);	// wait for conversion
 
-    GYRO_ORIENTATION(-(sensorInputs[0]), (sensorInputs[1]), -(sensorInputs[2]));
+    GYRO_ORIENTATION(-(sensorInputs[0]) * 5, (sensorInputs[1]) * 5, -(sensorInputs[2]) * 5);
     GYRO_Common();
 }
 #endif
@@ -2978,7 +2978,6 @@ void Device_Mag_getADC()
 }
 #endif
 
-
 #if !GYRO
 // ************************************************************************************************************
 // I2C Wii Motion Plus + optional Nunchuk
@@ -3045,7 +3044,7 @@ uint8_t WMP_getRawADC()
     } else
 	return 2;
 }
-#endif
+#endif /* !GYRO */
 
 void initSensors()
 {
@@ -3054,18 +3053,18 @@ void initSensors()
     delay(100);
     i2c_init();
     delay(100);
-#if defined(GYRO)
+#if GYRO
     Gyro_init();
 #else
     WMP_init(250);
 #endif
-#if defined(BARO)
+#if BARO
     Baro_init();
 #endif
-#if defined(ACC)
+#if ACC
     ACC_init();
 #endif
-#if defined(MAG)
+#if MAG
     Mag_init();
 #endif
 }
@@ -3193,12 +3192,7 @@ void serialCom()
 		serialize16(motor[i]);
 	    for (i = 0; i < 8; i++)
 		serialize16(rcData[i]);
-
-#if 0
             serialize8(nunchuk | ACC << 1 | BARO << 2 | MAG << 3);
-#else
-            serialize8(nunchuk | 1 << 1 | 0 << 2 | 1 << 3);
-#endif
             serialize8(accMode | baroMode << 1 | magMode << 2);
 	    serialize16(cycleTime);
 	    for (i = 0; i < 2; i++)
@@ -3249,13 +3243,7 @@ void serialCom()
 	    for (i = 0; i < 6; i++) {
 		serialize16(rcData[i]);
 	    }			//44
-
-#if 0
             serialize8(nunchuk | ACC << 1 | BARO << 2 | MAG << 3);
-#else
-            serialize8(nunchuk | 1 << 1 | 0 << 2 | 1 << 3);
-#endif
-
             serialize8(accMode | baroMode << 1 | magMode << 2);
 	    serialize8(vbat);	// Vbatt 47
 	    serialize8(VERSION);	// MultiWii Firmware version

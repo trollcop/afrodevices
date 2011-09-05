@@ -34,9 +34,9 @@ typedef long int32_t;
 #define sq(x) ((x)*(x))
 
 #if defined(STM8)
-#define ATAVRSBIN1
-// #define ADXL345SPI              // ADXL345 on SPI
-// #define ADCGYRO                 // analog gyro
+// #define ATAVRSBIN1
+#define ADXL345SPI              // ADXL345 on SPI
+#define ADCGYRO                 // analog gyro
 #endif
 
 //please submit any correction to this list.
@@ -158,25 +158,25 @@ typedef long int32_t;
 #if defined(ADXL345) || defined(ADXL345SPI) || defined(BMA020) || defined(BMA180) || defined(NUNCHACK) || defined(ADCACC)
 #define ACC 1
 #else
-#undef ACC
+#define ACC 0
 #endif
 
 #if defined(HMC5883) || defined(HMC5843) || defined(AK8975)
 #define MAG 1
 #else
-#undef MAG
+#define MAG 0
 #endif
 
 #if defined(ITG3200) || defined(L3G4200D) || defined(ADCGYRO)
 #define GYRO 1
 #else
-#undef GYRO
+#define GYRO 0
 #endif
 
 #if defined(BMP085) || defined(MS561101BA)
 #define BARO 1
 #else
-#undef BARO
+#define BARO 0
 #endif
 
 #if defined(STM8)
