@@ -1581,7 +1581,6 @@ void computeIMU()
 #define GYRO_SCALE ((2000.0f * PI)/((32767.0f / 4.0f ) * 180.0f * 1000000.0f) * 1.155f)
   // +-2000/sec deg scale
 // #define GYRO_SCALE ((500.0f * PI)/((32768.0f / 5.0f / 4.0f ) * 180.0f * 1000000.0f) * 1.5f)
-// #define GYRO_SCALE ((500.0f * PI)/((1023.0f) * 180.0f * 1000000.0f) * 3.0f)
 
 // +- 200/sec deg scale
   // 1.5 is emperical, not sure what it means
@@ -1635,21 +1634,24 @@ int16_t _atan2(float y, float x)
 void getEstimatedAttitude()
 {
     uint8_t axis;
-    int16_t AccMag = 0;
+    uint16_t accLim, accMag = 0;
+    static t_fp_vector EstG = { 0, 0, 300 };
+    static t_fp_vector EstM = { 0, 0, 300 };
     static t_fp_vector GEstG = { 0, 0, 200 };
-    t_fp_vector EstG = GEstG;
-    static t_fp_vector EstM = { 10, 10, 200 };
-    float deltaGyroAngle;
-    static uint16_t PreviousTime;
+    float scale, deltaGyroAngle;
     static int16_t mgSmooth[3];	//projection of smoothed and normalized magnetic vector on x/y/z axis, as measured by magnetometer
-    uint16_t CurrentTime = micros();
-    float deltaTime = (CurrentTime - PreviousTime) * GYRO_SCALE;
-    PreviousTime = CurrentTime;
+    static uint16_t previousT;
+    uint16_t currentT;
+
+    currentT  = micros();
+    scale = (currentT - previousT) * GYRO_SCALE;
+    previousT = currentT;
+
     // Initialization
     for (axis = 0; axis < 3; axis++) {
 #if defined(ACC_LPF_FACTOR)
-	// LPF for ACC values
-	accSmooth[axis] = (accSmooth[axis] * (ACC_LPF_FACTOR - 1) + accADC[axis]) / ACC_LPF_FACTOR;
+//      accSmooth[axis] = (accSmooth[axis] * (ACC_LPF_FACTOR - 1) + accADC[axis]) / ACC_LPF_FACTOR; // LPF for ACC values
+        accSmooth[axis] =(accSmooth[axis] * 7 + accADC[axis] + 4) >> 3;
 #define ACC_VALUE accSmooth[axis]
 #else
 	accSmooth[axis] = accADC[axis];
@@ -1658,29 +1660,30 @@ void getEstimatedAttitude()
 	{
 	    // AccMag += (ACC_VALUE * 10 / acc_1G) * (ACC_VALUE * 10 / acc_1G);
 	    short temp = (ACC_VALUE * 10 / acc_1G);	// compiler weirdness
-	    AccMag += (temp * temp);
+	    accMag += (temp * temp); // 788
 	}
 
 #if MAG
 #if defined(MG_LPF_FACTOR)
-	// LPF for Magnetometer values
-	mgSmooth[axis] = (mgSmooth[axis] * (MG_LPF_FACTOR - 1) + magADC[axis]) / MG_LPF_FACTOR;
+        mgSmooth[axis] = (mgSmooth[axis] * (MG_LPF_FACTOR - 1) + magADC[axis]) / MG_LPF_FACTOR; // LPF for Magnetometer values
 #define MAG_VALUE mgSmooth[axis]
 #else
 #define MAG_VALUE magADC[axis]
 #endif
 #endif
     }
+
     // Rotate Estimated vector(s), ROLL
-    deltaGyroAngle = gyroADC[ROLL] * deltaTime;
+    deltaGyroAngle  = gyroADC[ROLL] * scale;
     EstG.V.Z = scos(deltaGyroAngle) * EstG.V.Z - ssin(deltaGyroAngle) * EstG.V.X;
     EstG.V.X = ssin(deltaGyroAngle) * EstG.V.Z + scos(deltaGyroAngle) * EstG.V.X;
 #if MAG
     EstM.V.Z = scos(deltaGyroAngle) * EstM.V.Z - ssin(deltaGyroAngle) * EstM.V.X;
     EstM.V.X = ssin(deltaGyroAngle) * EstM.V.Z + scos(deltaGyroAngle) * EstM.V.X;
 #endif
+
     // Rotate Estimated vector(s), PITCH
-    deltaGyroAngle = gyroADC[PITCH] * deltaTime;
+    deltaGyroAngle  = gyroADC[PITCH] * scale;
     EstG.V.Y = scos(deltaGyroAngle) * EstG.V.Y + ssin(deltaGyroAngle) * EstG.V.Z;
     EstG.V.Z = -ssin(deltaGyroAngle) * EstG.V.Y + scos(deltaGyroAngle) * EstG.V.Z;
 #if MAG
@@ -1688,28 +1691,30 @@ void getEstimatedAttitude()
     EstM.V.Z = -ssin(deltaGyroAngle) * EstM.V.Y + scos(deltaGyroAngle) * EstM.V.Z;
 #endif
     // Rotate Estimated vector(s), YAW
-    deltaGyroAngle = gyroADC[YAW] * deltaTime;
+    deltaGyroAngle  = gyroADC[YAW] * scale;
     EstG.V.X = scos(deltaGyroAngle) * EstG.V.X - ssin(deltaGyroAngle) * EstG.V.Y;
     EstG.V.Y = ssin(deltaGyroAngle) * EstG.V.X + scos(deltaGyroAngle) * EstG.V.Y;
 #if MAG
     EstM.V.X = scos(deltaGyroAngle) * EstM.V.X - ssin(deltaGyroAngle) * EstM.V.Y;
     EstM.V.Y = ssin(deltaGyroAngle) * EstM.V.X + scos(deltaGyroAngle) * EstM.V.Y;
 #endif
+
     // Apply complimentary filter (Gyro drift correction)
-    // If accel magnitude >1.4G or <0.6G => we neutralize the effect of accelerometers in the angle estimation.
+    // If accel magnitude >1.4G or <0.6G and ACC vector outside of the limit range => we neutralize the effect of accelerometers in the angle estimation.
     // To do that, we just skip filter, as EstV already rotated by Gyro
-    if (!((36 > AccMag) || (AccMag > 196))) {
+    accLim = acc_1G * 4 / 10;
+    if ((36 < accMag && accMag < 196) || (abs(accSmooth[ROLL]) < accLim && abs(accSmooth[PITCH]) < accLim)) {
 	for (axis = 0; axis < 3; axis++)
 	    EstG.A[axis] = (EstG.A[axis] * GYR_CMPF_FACTOR + ACC_VALUE) * INV_GYR_CMPF_FACTOR;
     }
+
     // Attitude of the estimated vector
     angle[ROLL] = _atan2(EstG.V.X, EstG.V.Z);
     angle[PITCH] = _atan2(EstG.V.Y, EstG.V.Z);
-    GEstG = EstG;
 #if MAG
     // Apply complimentary filter (Gyro drift correction)
     for (axis = 0; axis < 3; axis++)
-	EstM.A[axis] = (EstM.A[axis] * GYR_CMPFM_FACTOR + MAG_VALUE) * INV_GYR_CMPFM_FACTOR;
+        EstM.A[axis] = (EstM.A[axis] * GYR_CMPFM_FACTOR - MAG_VALUE) * INV_GYR_CMPFM_FACTOR;
     // Attitude of the cross product vector GxM
     heading = _atan2(EstG.V.Z * EstM.V.X - EstG.V.X * EstM.V.Z, EstG.V.Y * EstM.V.Z - EstG.V.Z * EstM.V.Y) / 10;
 #endif
@@ -2261,18 +2266,17 @@ void Baro_update()
 // ************************************************************************************************************
 // I2C Barometer MS561101BA
 // ************************************************************************************************************
-// contribution from fabio
+// first contribution from Fabio
+// modification from Alex (September 2011)
 //
-// not tested
+// specs are here: http://www.meas-spec.com/downloads/MS5611-01BA03.pdf
+// useful info on pages 7 -> 12
 #if defined(MS561101BA)
 
 // registers of the device
 #define MS561101BA_PRESSURE 0x40
 #define MS561101BA_TEMPERATURE 0x50
 #define MS561101BA_RESET 0x1E
-
-// D1 and D2 result size (bytes)
-#define MS561101BA_D1D2_SIZE 3
 
 // OSR (Over Sampling Ratio) constants
 #define MS561101BA_OSR_256 0x00
@@ -2281,9 +2285,11 @@ void Baro_update()
 #define MS561101BA_OSR_2048 0x06
 #define MS561101BA_OSR_4096 0x08
 
+#define OSR MS561101BA_OSR_4096
+
 static struct {
     // sensor registers from the MS561101BA datasheet
-    uint16_t c1, c2, c3, c4, c5, c6;
+    uint16_t c[7];
     union {
 	uint32_t val;
 	uint8_t raw[4];
@@ -2295,7 +2301,6 @@ static struct {
     uint8_t state;
     uint32_t deadline;
 } ms561101ba_ctx;
-#define OSR MS561101BA_OSR_4096
 
 void i2c_MS561101BA_reset()
 {
@@ -2304,13 +2309,21 @@ void i2c_MS561101BA_reset()
 
 void i2c_MS561101BA_readCalibration()
 {
+    union {
+        uint16_t val; 
+        uint8_t raw[2];
+    } data;
+    uint8_t i;
+
     delay(10);
-    ms561101ba_ctx.c1 = i2c_MS561101BA_readIntRegister(0xA2);
-    ms561101ba_ctx.c2 = i2c_MS561101BA_readIntRegister(0xA4);
-    ms561101ba_ctx.c3 = i2c_MS561101BA_readIntRegister(0xA6);
-    ms561101ba_ctx.c4 = i2c_MS561101BA_readIntRegister(0xA8);
-    ms561101ba_ctx.c5 = i2c_MS561101BA_readIntRegister(0xAA);
-    ms561101ba_ctx.c6 = i2c_MS561101BA_readIntRegister(0xAC);
+    for (i = 0; i < 6; i++) {
+        i2c_rep_start(MS561101BA_ADDRESS + 0);
+        i2c_write(0xA2 + 2 * i);
+        i2c_rep_start(MS561101BA_ADDRESS + 1); //I2C read direction => 1
+        data.raw[1] = i2c_readAck();  // read a 16 bit register
+        data.raw[0] = i2c_readNak();
+        ms561101ba_ctx.c[i + 1] = data.val;
+    }
 }
 
 void Baro_init()
@@ -2319,59 +2332,39 @@ void Baro_init()
     i2c_MS561101BA_reset();
     delay(10);
     i2c_MS561101BA_readCalibration();
-    i2c_MS561101BA_UT_Start();
-    delay(10);
-    i2c_MS561101BA_UT_Read();
-}
-
-// read a 16 bit register
-int16_t i2c_MS561101BA_readIntRegister(uint8_t r)
-{
-    union {
-	int16_t val;
-	uint8_t raw[2];
-    } data;
-    i2c_rep_start(MS561101BA_ADDRESS + 0);
-    i2c_write(r);
-    i2c_rep_start(MS561101BA_ADDRESS + 1);	//I2C read direction => 1
-    data.raw[1] = i2c_readAck();
-    data.raw[0] = i2c_readNak();
-    return data.val;
 }
 
 // read uncompensated temperature value: send command first
 void i2c_MS561101BA_UT_Start()
 {
-    i2c_writeReg(MS561101BA_ADDRESS, MS561101BA_TEMPERATURE + OSR, 0);
-    //i2c_rep_start(MS561101BA_ADDRESS + 0);
-    //i2c_write(0xF6);
+    i2c_rep_start(MS561101BA_ADDRESS + 0);      // I2C write direction
+    i2c_write(MS561101BA_TEMPERATURE + OSR);  // register selection
 }
 
 // read uncompensated pressure value: send command first
 void i2c_MS561101BA_UP_Start()
 {
-    i2c_writeReg(MS561101BA_ADDRESS, MS561101BA_PRESSURE + OSR, 0);	// control register value for oversampling setting 3
-    //i2c_rep_start(MS561101BA_ADDRESS + 0); //I2C write direction => 0
-    //i2c_write(0xF6);
+    i2c_rep_start(MS561101BA_ADDRESS + 0);      // I2C write direction
+    i2c_write(MS561101BA_PRESSURE + OSR);     // register selection
 }
 
 // read uncompensated pressure value: read result bytes
-// the datasheet suggests a delay of 25.5 ms (oversampling settings 3) after the send command
 void i2c_MS561101BA_UP_Read()
 {
-    i2c_rep_start(MS561101BA_ADDRESS + 1);	//I2C read direction => 1
+    i2c_rep_start(MS561101BA_ADDRESS + 0);
+    i2c_write(0);
+    i2c_rep_start(MS561101BA_ADDRESS + 1);
     ms561101ba_ctx.up.raw[2] = i2c_readAck();
     ms561101ba_ctx.up.raw[1] = i2c_readAck();
     ms561101ba_ctx.up.raw[0] = i2c_readNak();
 }
 
 // read uncompensated temperature value: read result bytes
-// the datasheet suggests a delay of 4.5 ms after the send command
 void i2c_MS561101BA_UT_Read()
 {
     i2c_rep_start(MS561101BA_ADDRESS + 0);
     i2c_write(0);
-    i2c_rep_start(MS561101BA_ADDRESS + 1);	//I2C read direction => 1
+    i2c_rep_start(MS561101BA_ADDRESS + 1);
     ms561101ba_ctx.ut.raw[2] = i2c_readAck();
     ms561101ba_ctx.ut.raw[1] = i2c_readAck();
     ms561101ba_ctx.ut.raw[0] = i2c_readNak();
@@ -2379,11 +2372,10 @@ void i2c_MS561101BA_UT_Read()
 
 void i2c_MS561101BA_Calculate()
 {
-    // see datasheet page 7 for formulas
-    int32_t dT = ms561101ba_ctx.ut.val - ms561101ba_ctx.c5 * pow(2, 8);
-    int64_t off = ms561101ba_ctx.c2 * pow(2, 16) + (ms561101ba_ctx.c4 * dT) / pow(2, 7);
-    int64_t sens = ms561101ba_ctx.c1 * pow(2, 15) + (ms561101ba_ctx.c3 * dT) / pow(2, 8);
-    pressure = (ms561101ba_ctx.ut.val * (sens) / pow(2, 21) - off) / pow(2, 15);
+    int64_t dT   = ms561101ba_ctx.ut.val - ((uint32_t)ms561101ba_ctx.c[5] << 8);  // int32_t according to the spec, but int64_t here to avoid cast after
+    int64_t off  = ((uint32_t)ms561101ba_ctx.c[2] << 16) + ((dT * ms561101ba_ctx.c[4]) >> 7);
+    int64_t sens = ((uint32_t)ms561101ba_ctx.c[1] << 15) + ((dT * ms561101ba_ctx.c[3]) >> 8);
+    pressure     = (( (ms561101ba_ctx.up.val * sens ) >> 21) - off) >> 15;
 }
 
 void Baro_update()
@@ -2396,7 +2388,7 @@ void Baro_update()
     case 0:
 	i2c_MS561101BA_UT_Start();
 	ms561101ba_ctx.state++;
-	ms561101ba_ctx.deadline += 10000;
+	ms561101ba_ctx.deadline += 15000; // according to the specs, the pause should be at least 8.22ms
 	break;
     case 1:
 	i2c_MS561101BA_UT_Read();
@@ -2405,14 +2397,14 @@ void Baro_update()
     case 2:
 	i2c_MS561101BA_UP_Start();
 	ms561101ba_ctx.state++;
-	ms561101ba_ctx.deadline += 10000;
+	ms561101ba_ctx.deadline += 15000; // according to the specs, the pause should be at least 8.22ms
 	break;
     case 3:
 	i2c_MS561101BA_UP_Read();
 	i2c_MS561101BA_Calculate();
 	BaroAlt = (1.0f - pow(pressure / 101325.0f, 0.190295f)) * 44330.0f;
 	ms561101ba_ctx.state = 0;
-	ms561101ba_ctx.deadline += 20000;
+	ms561101ba_ctx.deadline += 30000;
 	break;
     }
 }
@@ -3184,7 +3176,7 @@ void serialCom()
 		serialize16(gyroData[i] / 8);
 	    for (i = 0; i < 3; i++)
 		serialize16(magADC[i] / 3);
-	    serialize16(EstAlt * 100.0f);
+	    serialize16(EstAlt * 10.0f);
 	    serialize16(heading);	// compass
 	    for (i = 0; i < 4; i++)
 		serialize16(servo[i]);
@@ -3220,7 +3212,7 @@ void serialCom()
 	    serialize16(intPowerMeterSum);
 	    serialize16(intPowerTrigger1);
 	    serialize8(vbat);
-	    serialize16(BaroAlt * 100.0f);	// 4 variables are here for general monitoring purpose
+	    serialize16(BaroAlt * 10.0f);	// 4 variables are here for general monitoring purpose
 	    serialize16(0);	// debug2
 	    serialize16(0);	// debug3
 	    serialize16(0);	// debug4

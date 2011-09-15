@@ -6,3 +6,7 @@ Keyword=ST7Workspace-V0.7
 [Project0]
 Filename=afrowii.stp
 Dependencies=
+[Options]
+ActiveProject=afrowii
+ActiveConfig=Debug
+AddSortedElements=0
