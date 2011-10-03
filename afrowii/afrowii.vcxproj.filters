@@ -16,6 +16,9 @@
     <Filter Include="STVD Workspace">
       <UniqueIdentifier>{3a0bfbc6-4b5f-48c6-af62-e6cf2f9b6186}</UniqueIdentifier>
     </Filter>
+    <Filter Include="FWLib">
+      <UniqueIdentifier>{e9ae7e47-faac-40f9-9101-12132fed8be0}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="config.h">
@@ -33,6 +36,42 @@
     <ClInclude Include="stm8s_conf.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="STM8S_StdPeriph_Driver\inc\stm8s.h">
+      <Filter>FWLib</Filter>
+    </ClInclude>
+    <ClInclude Include="STM8S_StdPeriph_Driver\inc\stm8s_adc1.h">
+      <Filter>FWLib</Filter>
+    </ClInclude>
+    <ClInclude Include="STM8S_StdPeriph_Driver\inc\stm8s_clk.h">
+      <Filter>FWLib</Filter>
+    </ClInclude>
+    <ClInclude Include="STM8S_StdPeriph_Driver\inc\stm8s_flash.h">
+      <Filter>FWLib</Filter>
+    </ClInclude>
+    <ClInclude Include="STM8S_StdPeriph_Driver\inc\stm8s_gpio.h">
+      <Filter>FWLib</Filter>
+    </ClInclude>
+    <ClInclude Include="STM8S_StdPeriph_Driver\inc\stm8s_i2c.h">
+      <Filter>FWLib</Filter>
+    </ClInclude>
+    <ClInclude Include="STM8S_StdPeriph_Driver\inc\stm8s_spi.h">
+      <Filter>FWLib</Filter>
+    </ClInclude>
+    <ClInclude Include="STM8S_StdPeriph_Driver\inc\stm8s_tim1.h">
+      <Filter>FWLib</Filter>
+    </ClInclude>
+    <ClInclude Include="STM8S_StdPeriph_Driver\inc\stm8s_tim2.h">
+      <Filter>FWLib</Filter>
+    </ClInclude>
+    <ClInclude Include="STM8S_StdPeriph_Driver\inc\stm8s_tim3.h">
+      <Filter>FWLib</Filter>
+    </ClInclude>
+    <ClInclude Include="STM8S_StdPeriph_Driver\inc\stm8s_tim4.h">
+      <Filter>FWLib</Filter>
+    </ClInclude>
+    <ClInclude Include="STM8S_StdPeriph_Driver\inc\stm8s_uart2.h">
+      <Filter>FWLib</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="LCD.c">
@@ -46,6 +85,42 @@
     </ClCompile>
     <ClCompile Include="stm8_interrupt_vector.c">
       <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="main.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="STM8S_StdPeriph_Driver\src\stm8s_adc1.c">
+      <Filter>FWLib</Filter>
+    </ClCompile>
+    <ClCompile Include="STM8S_StdPeriph_Driver\src\stm8s_clk.c">
+      <Filter>FWLib</Filter>
+    </ClCompile>
+    <ClCompile Include="STM8S_StdPeriph_Driver\src\stm8s_flash.c">
+      <Filter>FWLib</Filter>
+    </ClCompile>
+    <ClCompile Include="STM8S_StdPeriph_Driver\src\stm8s_gpio.c">
+      <Filter>FWLib</Filter>
+    </ClCompile>
+    <ClCompile Include="STM8S_StdPeriph_Driver\src\stm8s_i2c.c">
+      <Filter>FWLib</Filter>
+    </ClCompile>
+    <ClCompile Include="STM8S_StdPeriph_Driver\src\stm8s_spi.c">
+      <Filter>FWLib</Filter>
+    </ClCompile>
+    <ClCompile Include="STM8S_StdPeriph_Driver\src\stm8s_tim1.c">
+      <Filter>FWLib</Filter>
+    </ClCompile>
+    <ClCompile Include="STM8S_StdPeriph_Driver\src\stm8s_tim2.c">
+      <Filter>FWLib</Filter>
+    </ClCompile>
+    <ClCompile Include="STM8S_StdPeriph_Driver\src\stm8s_tim3.c">
+      <Filter>FWLib</Filter>
+    </ClCompile>
+    <ClCompile Include="STM8S_StdPeriph_Driver\src\stm8s_tim4.c">
+      <Filter>FWLib</Filter>
+    </ClCompile>
+    <ClCompile Include="STM8S_StdPeriph_Driver\src\stm8s_uart2.c">
+      <Filter>FWLib</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>

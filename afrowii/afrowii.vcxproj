@@ -36,7 +36,9 @@
     <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
   </ImportGroup>
   <PropertyGroup Label="UserMacros" />
-  <PropertyGroup />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
+    <IncludePath>STM8S_StdPeriph_Driver\inc;$(IncludePath)</IncludePath>
+  </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
       <WarningLevel>Level3</WarningLevel>
@@ -64,11 +66,35 @@
     <ClInclude Include="def.h" />
     <ClInclude Include="stm8s_conf.h" />
     <ClInclude Include="stm8s_it.h" />
+    <ClInclude Include="STM8S_StdPeriph_Driver\inc\stm8s.h" />
+    <ClInclude Include="STM8S_StdPeriph_Driver\inc\stm8s_adc1.h" />
+    <ClInclude Include="STM8S_StdPeriph_Driver\inc\stm8s_clk.h" />
+    <ClInclude Include="STM8S_StdPeriph_Driver\inc\stm8s_flash.h" />
+    <ClInclude Include="STM8S_StdPeriph_Driver\inc\stm8s_gpio.h" />
+    <ClInclude Include="STM8S_StdPeriph_Driver\inc\stm8s_i2c.h" />
+    <ClInclude Include="STM8S_StdPeriph_Driver\inc\stm8s_spi.h" />
+    <ClInclude Include="STM8S_StdPeriph_Driver\inc\stm8s_tim1.h" />
+    <ClInclude Include="STM8S_StdPeriph_Driver\inc\stm8s_tim2.h" />
+    <ClInclude Include="STM8S_StdPeriph_Driver\inc\stm8s_tim3.h" />
+    <ClInclude Include="STM8S_StdPeriph_Driver\inc\stm8s_tim4.h" />
+    <ClInclude Include="STM8S_StdPeriph_Driver\inc\stm8s_uart2.h" />
     <ClInclude Include="sysdep.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="LCD.c" />
+    <ClCompile Include="main.c" />
     <ClCompile Include="MultiWii_1_8_patch1.c" />
+    <ClCompile Include="STM8S_StdPeriph_Driver\src\stm8s_adc1.c" />
+    <ClCompile Include="STM8S_StdPeriph_Driver\src\stm8s_clk.c" />
+    <ClCompile Include="STM8S_StdPeriph_Driver\src\stm8s_flash.c" />
+    <ClCompile Include="STM8S_StdPeriph_Driver\src\stm8s_gpio.c" />
+    <ClCompile Include="STM8S_StdPeriph_Driver\src\stm8s_i2c.c" />
+    <ClCompile Include="STM8S_StdPeriph_Driver\src\stm8s_spi.c" />
+    <ClCompile Include="STM8S_StdPeriph_Driver\src\stm8s_tim1.c" />
+    <ClCompile Include="STM8S_StdPeriph_Driver\src\stm8s_tim2.c" />
+    <ClCompile Include="STM8S_StdPeriph_Driver\src\stm8s_tim3.c" />
+    <ClCompile Include="STM8S_StdPeriph_Driver\src\stm8s_tim4.c" />
+    <ClCompile Include="STM8S_StdPeriph_Driver\src\stm8s_uart2.c" />
     <ClCompile Include="stm8_interrupt_vector.c" />
     <ClCompile Include="sysdep.c" />
   </ItemGroup>
