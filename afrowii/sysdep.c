@@ -3,7 +3,7 @@
 #include "sysdep.h"
 
 /* UART */
-#define RX_BUFFER_SIZE 32
+#define RX_BUFFER_SIZE 48
 typedef struct ring_buffer
 {
   unsigned char buffer[RX_BUFFER_SIZE];

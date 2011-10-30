@@ -1,7 +1,7 @@
 /*
 MultiWiiCopter by Alexandre Dubus
 www.multiwii.com
-August  2011     V1.8
+October  2011     V1.dev
  This program is free software: you can redistribute it and/or modify
  it under the terms of the GNU General Public License as published by
  the Free Software Foundation, either version 3 of the License, or
@@ -12,7 +12,7 @@ August  2011     V1.8
 #include "def.h"
 #include "sysdep.h"
 
-#define   VERSION  18
+#define   VERSION  19
 
 /*********** RC alias *****************/
 #define ROLL       0
@@ -35,19 +35,24 @@ August  2011     V1.8
 #define BOXCAMSTAB  3
 #define BOXCAMTRIG  4
 #define BOXARM      5
+#define BOXGPSHOME  6
+#define BOXGPSHOLD  7
 
 static uint32_t currentTime = 0;
-static uint32_t previousTime = 0;
+static uint16_t previousTime = 0;
 static uint16_t cycleTime = 0;	// this is the number in micro second to achieve a full loop, it can differ a little and is taken into account in the PID loop
 static uint16_t calibratingA = 0;	// the calibration is done is the main loop. Calibrating decreases at each cycle down to 0, then we enter in a normal mode.
 static uint8_t calibratingM = 0;
 static uint16_t calibratingG;
 static uint8_t armed = 0;
-static int16_t acc_1G;		// this is the 1G measured acceleration
+static uint16_t acc_1G;             // this is the 1G measured acceleration
+static int16_t acc_25deg;
 static uint8_t nunchuk = 0;
 static uint8_t accMode = 0;	// if level mode is a activated
 static uint8_t magMode = 0;	// if compass heading hold is a activated
 static uint8_t baroMode = 0;	// if altitude hold is activated
+static uint8_t  GPSModeHome = 0;    // if GPS RTH is activated
+static uint8_t  GPSModeHold = 0;    // if GPS PH is activated
 static int16_t gyroADC[3], accADC[3], magADC[3];
 static int16_t accSmooth[3];	// projection of smoothed and normalized gravitation force vector on x/y/z axis, as measured by accelerometer
 static int16_t accTrim[2] = { 0, 0 };
@@ -56,10 +61,11 @@ static uint8_t calibratedACC = 0;
 static uint8_t vbat;		// battery voltage in 0.1V steps
 static uint8_t okToArm = 0;
 static uint8_t rcOptions;
-static int32_t pressure = 0;
-static float BaroAlt = 0.0f;
-static float EstVelocity = 0.0f;
-static float EstAlt = 0.0f;
+static int32_t pressure;
+static int32_t BaroAlt;
+static int32_t EstVelocity;
+static int32_t EstAlt;             // in cm
+static uint8_t buzzerState = 0;
 
 #ifdef STM8
 /* 0:Pitch 1:Roll 2:Yaw 3:Battery Voltage 4:AX 5:AY 6:AZ */
@@ -95,12 +101,14 @@ static uint8_t telemetry_auto = 0;
 
 volatile int16_t failsafeCnt = 0;
 
+static int16_t failsafeEvents = 0;
 static int16_t rcData[8];	// interval [1000;2000]
 static int16_t rcCommand[4];	// interval [1000;2000] for THROTTLE and [-500;+500] for ROLL/PITCH/YAW 
 
 static uint8_t rcRate8;
 static uint8_t rcExpo8;
 static int16_t lookupRX[7];	//  lookup table for expo & RC rate
+volatile uint8_t rcFrameComplete; // for serial rc receiver Spektrum
 
 // **************
 // gyro+acc IMU
@@ -110,6 +118,7 @@ static int16_t gyroZero[3] = { 0, 0, 0 };
 static int16_t accZero[3] = { 0, 0, 0 };
 static int16_t magZero[3] = { 0, 0, 0 };
 static int16_t angle[2] = { 0, 0 };	// absolute angle inclination in multiple of 0.1 degree    180 deg = 1800
+static int8_t  smallAngle18;
 
 // *************************
 // motor and servo functions
@@ -126,7 +135,7 @@ static uint8_t dynP8[3], dynI8[3], dynD8[3];
 static uint8_t rollPitchRate;
 static uint8_t yawRate;
 static uint8_t dynThrPID;
-static uint8_t activate[6];
+static uint8_t activate[8];
 
 /* prototypes */
 void serialCom(void);
@@ -178,49 +187,70 @@ void blinkLED(uint8_t num, uint8_t wait, uint8_t repeat)
     }
 }
 
+// **********************
+// GPS
+// **********************
+static int32_t  GPS_latitude,GPS_longitude;
+static int32_t  GPS_latitude_home,GPS_longitude_home;
+static uint8_t  GPS_fix , GPS_fix_home = 0;
+static uint8_t  GPS_numSat;
+static uint16_t GPS_distanceToHome;
+static int16_t  GPS_directionToHome = 0;
+static uint8_t  GPS_update = 0;
+
 void annexCode()
 {
     //this code is excetuted at each loop and won't interfere with control loop if it lasts less than 650 microseconds
-    static uint32_t serialTime = 0;
-    static uint32_t buzzerTime = 0;
-    static uint32_t calibratedAccTime;
-    static uint8_t buzzerState = 0;
-    static uint32_t vbatRaw = 0;	//used for smoothing voltage reading
-    static uint8_t buzzerFreq;	//delay between buzzer ring
-    uint8_t axis;
-    uint8_t prop1, prop2;
-
-    static uint32_t telemetryTime = 0;
-    static uint32_t telemetryAutoTime = 0;
+    static uint32_t serialTime;
+    static uint32_t buzzerTime, calibratedAccTime, telemetryTime, telemetryAutoTime, psensorTime;
+    static uint8_t  buzzerFreq;         //delay between buzzer ring
+    uint8_t axis, prop1, prop2;
     uint16_t pMeterRaw, powerValue;	//used for current reading
-    static uint32_t psensorTime = 0;
+    static uint8_t ind;
+    uint16_t vbatRaw = 0;
+    static uint16_t vbatRawArray[8];
+    uint8_t i;
 
     //PITCH & ROLL only dynamic PID adjustemnt,  depending on throttle value
     if (rcData[THROTTLE] < 1500)
 	prop2 = 100;
     else if (rcData[THROTTLE] < 2000)
-	prop2 = 100 - (rcData[THROTTLE] - 1500) / 5 * dynThrPID / 100;
+	prop2 = 100 - (uint16_t)dynThrPID * (rcData[THROTTLE] - 1500) / 500;
     else
 	prop2 = 100 - dynThrPID;
 
-    for (axis = 0; axis < 2; axis++) {
-	//PITCH & ROLL dynamic PID adjustemnt, depending on stick deviation
-	prop1 = 100 - min(abs(rcData[axis] - 1500) / 5, 100) * rollPitchRate / 100;
-	dynP8[axis] = P8[axis] * prop1 / 100 * prop2 / 100;
-	dynD8[axis] = D8[axis] * prop1 / 100 * prop2 / 100;
+    for (axis = 0; axis < 3; axis++) {
+	uint16_t tmp = min(abs(rcData[axis] - MIDRC), 500);
+#if DEADBAND
+	if (tmp > DEADBAND) { 
+	    tmp -= DEADBAND;
+	} else { 
+	    tmp=0;
+	}
+#endif
+	if (axis != 2) { // ROLL & PITCH
+	    uint16_t tmp2 = tmp / 100;
+	    rcCommand[axis] = lookupRX[tmp2] + (tmp - tmp2 * 100) * (lookupRX[tmp2 + 1] - lookupRX[tmp2]) / 100;
+	    prop1 = 100 - (uint16_t)rollPitchRate * tmp / 500;
+	    prop1 = (uint16_t)prop1 * prop2 / 100;
+	} else { // YAW
+	    rcCommand[axis] = tmp;
+	    prop1 = 100 - (uint16_t)yawRate * tmp / 500;
+	}
+	dynP8[axis] = (uint16_t)P8[axis] * prop1 / 100;
+	dynD8[axis] = (uint16_t)D8[axis] * prop1 / 100;
+	if (rcData[axis] < MIDRC) 
+	    rcCommand[axis] = -rcCommand[axis];
     }
 
-    //YAW dynamic PID adjustemnt
-    prop1 = 100 - min(abs(rcData[YAW] - 1500) / 5, 100) * yawRate / 100;
-    dynP8[YAW] = P8[YAW] * prop1 / 100;
-    dynD8[YAW] = D8[YAW] * prop1 / 100;
+    rcCommand[THROTTLE] = MINTHROTTLE + (int32_t)(MAXTHROTTLE - MINTHROTTLE) * (rcData[THROTTLE] - MINCHECK) / (2000 - MINCHECK);
 
 #if (POWERMETER == 2)
     if (micros() > psensorTime + 19977 /*20000 */ ) {	// 50Hz, but avoid bulking of timed tasks
 	pMeterRaw = analogRead(PSENSORPIN);
 	powerValue = (PSENSORNULL > pMeterRaw ? PSENSORNULL - pMeterRaw : pMeterRaw - PSENSORNULL);	// do not use abs(), it would induce implicit cast to uint and overrun
 #ifdef LOG_VALUES
-	if (powerValue < 256) {	// only accept reasonable values. 256 is empirical
+	if (powerValue < 333) {  // only accept reasonable values. 333 is empirical
 	    if (powerValue > powerMax)
 		powerMax = powerValue;
 	    powerAvg = powerValue;
@@ -232,8 +262,14 @@ void annexCode()
 #endif
 
 #if defined(VBAT)
-    vbatRaw = (vbatRaw * 15 + analogRead(V_BATPIN) * 16) >> 4;	// smoothing of vbat readings  
-    vbat = vbatRaw / VBATSCALE;	// result is Vbatt in 0.1V steps
+#ifdef STM8
+    vbatRawArray[(ind++) % 8] = sensorInputs[3]; // VBAT_ADC
+#else
+    vbatRawArray[(ind++) % 8] = analogRead(V_BATPIN);
+#endif
+    for (i = 0; i < 8; i++)
+	vbatRaw += vbatRawArray[i];
+    vbat = vbatRaw / (VBATSCALE / 2);                  // result is Vbatt in 0.1V steps
 
     if ((vbat > VBATLEVEL1_3S)
 #if defined(POWERMETER)
@@ -267,7 +303,7 @@ void annexCode()
     }
 #endif
 
-    if (((calibratingA > 0 && (ACC || nunchuk)) || (calibratingG > 0))) {	// Calibration phasis
+    if ((calibratingA > 0 && (ACC || nunchuk)) || (calibratingG > 0)) {	// Calibration phasis
 	LEDPIN_SWITCH;
     } else {
 	if (calibratedACC == 1) {
@@ -278,25 +314,34 @@ void annexCode()
 	}
     }
 
-    if (micros() > calibratedAccTime + 500000) {
-	if (abs(angle[ROLL]) > 150 || abs(angle[PITCH]) > 150) {	//more than 15 deg detection
+    if (abs(angle[ROLL]) > 180 || abs(angle[PITCH]) > 180) 
+	smallAngle18 = 0; 
+    else 
+	smallAngle18 = 1; //more than 18 deg detection
+
+    if (currentTime > calibratedAccTime) {
+	if (smallAngle18 == 0) {
 	    calibratedACC = 0;	//the multi uses ACC and is not calibrated or is too much inclinated
 	    LEDPIN_SWITCH;
-	    calibratedAccTime = micros();
+	    calibratedAccTime = currentTime + 500000;
 	} else {
 	    calibratedACC = 1;
 	}
     }
 
-    if (micros() > serialTime + 20000) {	// 50Hz
+    if (currentTime > serialTime) { // 50Hz
 	serialCom();
-	serialTime = micros();
+	serialTime = currentTime + 20000;
     }
 #ifdef LCD_TELEMETRY_AUTO
     if ((telemetry_auto) && (micros() > telemetryAutoTime + LCD_TELEMETRY_AUTO)) {	// every 2 seconds
 	telemetry++;
-	if ((telemetry < 'A') || (telemetry > 'D'))
-	    telemetry = 'A';
+	if (telemetry == 'E') 
+	    telemetry = 'Z';
+	else
+	    if ((telemetry < 'A' ) || (telemetry > 'D' ))
+		telemetry = 'A';
+
 	telemetryAutoTime = micros();	// why use micros() and not the variable currentTime ?
     }
 #endif
@@ -307,27 +352,7 @@ void annexCode()
 	telemetryTime = micros();
     }
 #endif
-    for (axis = 0; axis < 3; axis++) {
-	uint16_t tmp = abs(rcData[axis] - MIDRC);
-#if defined(DEADBAND)
-	if (tmp > DEADBAND) {
-	    tmp -= DEADBAND;
-	} else {
-	    tmp = 0;
-	}
-#endif
-	if (axis != 2) {
-	    uint16_t tmp2 = tmp / 100;
-	    rcCommand[axis] = lookupRX[tmp2] + (tmp - tmp2 * 100) * (lookupRX[tmp2 + 1] - lookupRX[tmp2]) / 100;
-	} else {
-	    rcCommand[axis] = tmp;
-	}
-	if (rcData[axis] < MIDRC)
-	    rcCommand[axis] = -rcCommand[axis];
-    }
-    rcCommand[THROTTLE] = MINTHROTTLE + (int32_t) (MAXTHROTTLE - MINTHROTTLE) * (rcData[THROTTLE] - MINCHECK) / (2000 - MINCHECK);
 }
-
 
 void setup()
 {
@@ -351,6 +376,16 @@ void setup()
     for (uint8_t i = 0; i <= PMOTOR_SUM; i++)
 	pMeter[i] = 0;
 #endif
+#if defined(GPS)
+    GPS_SERIAL.begin(GPS_BAUD);
+#endif
+#if defined(LCD_ETPP)
+    i2c_ETPP_init();
+    i2c_ETPP_set_cursor(0,0);
+    LCDprintChar("MultiWii");
+    i2c_ETPP_set_cursor(0,1);
+    LCDprintChar("Ready to Fly!");
+#endif
 }
 
 // ******** Main Loop *********
@@ -359,25 +394,30 @@ void loop()
     static uint8_t rcDelayCommand;	// this indicates the number of time (multiple of RC measurement at 50Hz) the sticks must be maintained to run or switch off motors
     uint8_t axis, i;
     int16_t error, errorAngle;
-    int16_t delta;
+    int16_t delta, deltaSum;
     int16_t PTerm, ITerm, DTerm;
     static int16_t lastGyro[3] = { 0, 0, 0 };
     static int16_t delta1[3], delta2[3];
     static int16_t errorGyroI[3] = { 0, 0, 0 };
     static int16_t errorAngleI[2] = { 0, 0 };
-    static uint8_t camCycle = 0;
-    static uint8_t camState = 0;
-    static uint32_t camTime = 0;
+
     static uint32_t rcTime = 0;
     static int16_t initialThrottleHold;
     static int16_t errorAltitudeI = 0;
     int16_t AltPID = 0;
     static int16_t lastVelError = 0;
-    static float AltHold = 0.0;
+    static int32_t AltHold;
 
-    if (currentTime > (rcTime + 20000)) {	// 50Hz
-	rcTime = currentTime;
+#ifdef SPEKTRUM
+    if (rcFrameComplete) 
 	computeRC();
+#endif
+
+    if (currentTime > rcTime ) { // 50Hz
+	rcTime = currentTime + 20000;
+#ifndef SPEKTRUM
+	computeRC();
+#endif
 	// Failsafe routine - added by MIS
 #if defined(FAILSAFE)
 	if (failsafeCnt > (5 * FAILSAVE_DELAY) && armed == 1) {	// Stabilize, and set Throttle to specified level
@@ -388,6 +428,7 @@ void loop()
 		armed = 0;	//This will prevent the copter to automatically rearm if failsafe shuts it down and prevents
 		okToArm = 0;	//to restart accidentely by just reconnect to the tx - you will have to switch off first to rearm
 	    }
+	    failsafeEvents++;
 	}
 	failsafeCnt++;
 #endif
@@ -443,14 +484,22 @@ void loop()
 	    } else if (rcData[PITCH] > MAXCHECK) {
 		accTrim[PITCH]++;
 		writeParams();
+		accTrim[PITCH] += 2;
+		writeParams();
 	    } else if (rcData[PITCH] < MINCHECK) {
 		accTrim[PITCH]--;
+		writeParams();
+		accTrim[PITCH] -= 2;
 		writeParams();
 	    } else if (rcData[ROLL] > MAXCHECK) {
 		accTrim[ROLL]++;
 		writeParams();
+		accTrim[ROLL] += 2;
+		writeParams();
 	    } else if (rcData[ROLL] < MINCHECK) {
 		accTrim[ROLL]--;
+		writeParams();
+		accTrim[ROLL] -= 2;
 		writeParams();
 	    } else {
 		rcDelayCommand = 0;
@@ -509,6 +558,18 @@ void loop()
             magMode = 0;
 #endif
     }
+
+#if GPS
+    if (rcOptions & activate[BOXGPSHOME])
+	GPSModeHome = 1;
+    else 
+	GPSModeHome = 0;
+    if (rcOptions & activate[BOXGPSHOLD]) 
+	GPSModeHold = 1;
+    else 
+	GPSModeHold = 0;
+#endif
+
 #if MAG
     Mag_getADC();
 #endif
@@ -529,8 +590,8 @@ void loop()
             dif += 360;
         if (dif >= +180)
             dif -= 360;
-        if ((abs(angle[ROLL]) < 200) && (abs(angle[PITCH]) < 200))	//20 deg
-            rcCommand[YAW] -= dif * P8[PIDMAG] / 30;
+	if (smallAngle18)
+	    rcCommand[YAW] -= dif * P8[PIDMAG] / 30;  // 18 deg
     } else
         magHold = heading;
 #endif
@@ -542,17 +603,17 @@ void loop()
             errorAltitudeI = 0;
         }
         //**** Alt. Set Point stabilization PID ****
-        error = constrain((AltHold - EstAlt) * 10, -100, 100);	//  +/-10m,  1 decimeter accuracy
+	error = constrain(AltHold - EstAlt, -1000, 1000); //  +/-10m,  1 decimeter accuracy
         errorAltitudeI += error;
-        errorAltitudeI = constrain(errorAltitudeI, -5000, 5000);
+	errorAltitudeI = constrain(errorAltitudeI, -30000, 30000);
 
         PTerm = P8[PIDALT] * error / 100;	// 16 bits is ok here
-        ITerm = (int32_t) I8[PIDALT] * errorAltitudeI / 4000;	// 
+	ITerm = (int32_t)I8[PIDALT] * errorAltitudeI / 40000;
 
         AltPID = PTerm + ITerm;
 
         //**** Velocity stabilization PD ****        
-        error = constrain(EstVelocity * 2000.0f, -30000.0f, 30000.0f);
+	error = constrain(EstVelocity * 2, -30000, 30000);
         delta = error - lastVelError;
         lastVelError = error;
 
@@ -565,72 +626,76 @@ void loop()
     //**** PITCH & ROLL & YAW PID ****    
     for (axis = 0; axis < 3; axis++) {
 	if (accMode == 1 && axis < 2) {	//LEVEL MODE
-	    errorAngle = constrain(2 * rcCommand[axis], -700, +700) - angle[axis] + accTrim[axis];	//16 bits is ok here
+	    // 50 degrees max inclination
+	    errorAngle = constrain(2 * rcCommand[axis], -500, +500) - angle[axis] + accTrim[axis]; // 16 bits is ok here
 #ifdef LEVEL_PDF
 	    PTerm = -(int32_t) angle[axis] * P8[PIDLEVEL] / 100;
 #else
 	    PTerm = (int32_t) errorAngle *P8[PIDLEVEL] / 100;	//32 bits is needed for calculation: errorAngle*P8[PIDLEVEL] could exceed 32768   16 bits is ok for result
 #endif
 
-	    errorAngleI[axis] += errorAngle;	//16 bits is ok here
-	    errorAngleI[axis] = constrain(errorAngleI[axis], -10000, +10000);	//WindUp     //16 bits is ok here
-	    ITerm = (int32_t) errorAngleI[axis] * I8[PIDLEVEL] / 4000;	//32 bits is needed for calculation:10000*I8 could exceed 32768   16 bits is ok for result
+	    errorAngleI[axis] = constrain(errorAngleI[axis] + errorAngle, -10000, +10000);    //WindUp     //16 bits is ok here
+	    ITerm = ((int32_t)errorAngleI[axis] * I8[PIDLEVEL]) >> 12;            //32 bits is needed for calculation:10000*I8 could exceed 32768   16 bits is ok for result
 	} else {		//ACRO MODE or YAW axis
-	    error = (int32_t) rcCommand[axis] * 10 * 8 / P8[axis] - gyroData[axis];	//32 bits is needed for calculation: 500*5*10*8 = 200000   16 bits is ok for result if P8>2 (P>0.2)
-	    PTerm = rcCommand[axis];
+	    if (abs(rcCommand[axis]) < 350) 
+		error = rcCommand[axis] * 10 * 8 / P8[axis]; // 16 bits is needed for calculation: 350*10*8 = 28000      16 bits is ok for result if P8>2 (P>0.2)
+	    else
+		error = (int32_t)rcCommand[axis] * 10 * 8 / P8[axis]; //32 bits is needed for calculation: 500*5*10*8 = 200000   16 bits is ok for result if P8>2 (P>0.2)
+	    error -= gyroData[axis];
 
-	    errorGyroI[axis] += error;	//16 bits is ok here
-	    errorGyroI[axis] = constrain(errorGyroI[axis], -16000, +16000);	//WindUp       //16 bits is ok here
+	    PTerm = rcCommand[axis];
+	    errorGyroI[axis] = constrain(errorGyroI[axis] + error, -16000, +16000);	//WindUp       //16 bits is ok here
 	    if (abs(gyroData[axis]) > 640)
 		errorGyroI[axis] = 0;
-	    ITerm = (int32_t) errorGyroI[axis] * I8[axis] / 1000 / 8;	//32 bits is needed for calculation: 16000*I8  16 bits is ok for result
+	    ITerm = (errorGyroI[axis] / 125 * I8[axis]) >> 6;                                   //16 bits is ok here 16000/125 = 128 ; 128*250 = 32000
 	}
-	PTerm -= (int32_t) gyroData[axis] * dynP8[axis] / 10 / 8;	//32 bits is needed for calculation            16 bits is ok for result
+
+	if (abs(gyroData[axis]) < 160)
+	    PTerm -= gyroData[axis] * dynP8[axis] / 10 / 8; //16 bits is needed for calculation   160*200 = 32000         16 bits is ok for result
+	else 
+	    PTerm -= (int32_t) gyroData[axis] * dynP8[axis] / 10 / 8; //32 bits is needed for calculation   
 
 	delta = gyroData[axis] - lastGyro[axis];	//16 bits is ok here, the dif between 2 consecutive gyro reads is limited to 800
 	lastGyro[axis] = gyroData[axis];
-	DTerm = (int32_t) (delta1[axis] + delta2[axis] + delta + 1) * dynD8[axis] / 3 / 8;	//32 bits is needed for calculation (800+800+800)*50 = 120000           16 bits is ok for result 
+	deltaSum = delta1[axis] + delta2[axis] + delta;
 	delta2[axis] = delta1[axis];
 	delta1[axis] = delta;
+
+	if (abs(deltaSum) < 640) 
+	    DTerm = (deltaSum * dynD8[axis]) >> 5;                       //16 bits is needed for calculation 640*50 = 32000           16 bits is ok for result 
+	else 
+	    DTerm = ((int32_t)deltaSum * dynD8[axis]) >> 5;              //32 bits is needed for calculation
 
 	axisPID[axis] = PTerm + ITerm - DTerm;
     }
 
-#if defined(CAMTRIG)
-    if (camCycle == 1) {
-	if (camState == 0) {
-	    servo[3] = CAM_SERVO_HIGH;
-	    camState = 1;
-	    camTime = millis();
-	} else if (camState == 1) {
-	    if ((millis() - camTime) > CAM_TIME_HIGH) {
-		servo[3] = CAM_SERVO_LOW;
-		camState = 2;
-		camTime = millis();
-	    }
-	} else {		//camState ==2
-	    if ((millis() - camTime) > CAM_TIME_LOW) {
-		camState = 0;
-		camCycle = 0;
-	    }
-	}
-    }
-    if (rcOptions & activate[BOXCAMTRIG])
-	camCycle = 1;
-#endif
-
     mixTable();
     writeServos();
     writeMotors();
-#if defined(LOG_VALUES) || (POWERMETER == 1)
-    logMotorsPower();
+
+    //GPS
+#if GPS
+    while (GPS_SERIAL.available()) {
+	if (GPS_newFrame(GPS_SERIAL.read())) {
+	    if (GPS_update == 1) 
+		GPS_update = 0; 
+	    else 
+		GPS_update = 1;
+	    if (GPS_fix == 1) {
+		if (GPS_fix_home == 0) {
+		    GPS_fix_home = 1;
+		    GPS_latitude_home = GPS_latitude;
+		    GPS_longitude_home = GPS_longitude;
+		}
+		GPS_distance(GPS_latitude_home, GPS_longitude_home, GPS_latitude, GPS_longitude, &GPS_distanceToHome, &GPS_directionToHome);
+	    }
+	}
+    }
 #endif
 }
 
-
-
 /* EEPROM --------------------------------------------------------------------- */
-static uint8_t checkNewConf = 144;
+static uint8_t checkNewConf = 146;
 
 typedef struct eep_entry_t {
     void *var;
@@ -650,12 +715,12 @@ volatile eep_entry_t eep_entry[] = {
     &rollPitchRate, sizeof(rollPitchRate),
     &yawRate, sizeof(yawRate),
     &dynThrPID, sizeof(dynThrPID),
-    &activate, sizeof(activate),
     &accZero, sizeof(accZero),
     &magZero, sizeof(magZero),
-    &accTrim, sizeof(accTrim)
+    &accTrim, sizeof(accTrim),
+    &activate, sizeof(activate),
 #if defined(POWERMETER)
-	, &powerTrigger1, sizeof(powerTrigger1)
+    &powerTrigger1, sizeof(powerTrigger1)
 #endif
 };
 #define EEBLOCK_SIZE sizeof(eep_entry)/sizeof(eep_entry_t)
@@ -727,10 +792,10 @@ void checkFirstTime()
 
     P8[ROLL] = 40;
     I8[ROLL] = 30;
-    D8[ROLL] = 17;
+    D8[ROLL] = 23;
     P8[PITCH] = 40;
     I8[PITCH] = 30;
-    D8[PITCH] = 17;
+    D8[PITCH] = 23;
     P8[YAW] = 85;
     I8[YAW] = 0;
     D8[YAW] = 0;
@@ -748,7 +813,7 @@ void checkFirstTime()
     rollPitchRate = 0;
     yawRate = 0;
     dynThrPID = 0;
-    for (i = 0; i < 6; i++)
+    for (i = 0; i < 8; i++)
 	activate[i] = 0;
     accTrim[0] = 0;
     accTrim[1] = 0;
@@ -761,8 +826,6 @@ void checkFirstTime()
 /* RX -------------------------------------------------------------------------------- */
 static uint8_t pinRcChannel[8] = { ROLLPIN, PITCHPIN, YAWPIN, THROTTLEPIN, AUX1PIN, AUX2PIN, CAM1PIN, CAM2PIN };
 volatile uint16_t rcPinValue[8] = { 1500, 1500, 1500, 1500, 1500, 1500, 1500, 1500 };	// interval [1000;2000]
-static int16_t rcData4Values[8][4];
-static int16_t rcDataMean[8];
 
 // ***PPM SUM SIGNAL***
 #ifdef SERIAL_SUM_PPM
@@ -1000,6 +1063,7 @@ uint16_t readRawRC(uint8_t chan)
 
 void computeRC()
 {
+    static int16_t rcData4Values[8][4], rcDataMean[8];
     static uint8_t rc4ValuesIndex = 0;
     uint8_t chan, a;
 
@@ -1125,11 +1189,15 @@ void logMotorsPower()
     uint32_t amp;
     uint8_t i;
     /* true cubic function; when divided by vbat_max=126 (12.6V) for 3 cell battery this gives maximum value of ~ 1000 */
-    const uint32_t amperes[16] = { 31, 246, 831, 1969, 3845, 6645, 10551, 15750, 22425, 30762, 40944, 53156, 67583, 84410, 103821, 126000 };
+    const uint32_t amperes[64] = {0,4,13,31,60,104,165,246,350,481,640,831,1056,1319,1622,1969,2361,2803,3297,3845,4451,5118,5848,6645,
+	7510,8448,9461,10551,11723,12978,14319,15750,17273,18892,20608,22425,24346,26374,28512,30762,33127,35611,
+	38215,40944,43799,46785,49903,53156,56548,60081,63759,67583,71558,75685,79968,84410,89013,93781,98716,103821,
+	109099,114553,120186,126000 };
 
     if (vbat) {			// by all means - must avoid division by zero 
 	for (i = 0; i < NUMBER_MOTOR; i++) {
-	    amp = amperes[(motor[i] - 1000) >> 6] / vbat;	// range mapped from [1000:2000] => [0:1000]; then break that up into 16 ranges; lookup amp
+	    amp = amperes[(motor[i] - 1000) >> 4] / vbat; // range mapped from [1000:2000] => [0:1000]; then break that up into 64 ranges; lookup amp
+
 #ifdef LOG_VALUES
 	    pMeter[i] += amp;	// sum up over time the mapped ESC input 
 #endif
@@ -1327,8 +1395,11 @@ ISR(TIMER0_COMPB_vect)
 
 void mixTable()
 {
-    int16_t maxMotor, a;
+    int16_t maxMotor;
     uint8_t i, axis;
+    static uint8_t camCycle = 0;
+    static uint8_t camState = 0;
+    static uint32_t camTime = 0;
 
 #define PIDMIX(X,Y,Z) rcCommand[THROTTLE] + axisPID[ROLL]*X + axisPID[PITCH]*Y + YAW_DIRECTION * axisPID[YAW]*Z
 
@@ -1439,6 +1510,29 @@ void mixTable()
     servo[2] = constrain(1500 + axisPID[PITCH] + axisPID[ROLL], 1020, 2000);	//RIGHT
 #endif
 
+#if defined(CAMTRIG)
+    if (camCycle==1) {
+	if (camState == 0) {
+	    servo[3] = CAM_SERVO_HIGH;
+	    camState = 1;
+	    camTime = millis();
+	} else if (camState == 1) {
+	    if ( (millis() - camTime) > CAM_TIME_HIGH ) {
+		servo[3] = CAM_SERVO_LOW;
+		camState = 2;
+		camTime = millis();
+	    }
+	} else { //camState ==2
+	    if ( (millis() - camTime) > CAM_TIME_LOW ) {
+		camState = 0;
+		camCycle = 0;
+	    }
+	}
+    }
+    if (rcOptions & activate[BOXCAMTRIG]) 
+	camCycle=1;
+#endif
+
     maxMotor = motor[0];
     for (i = 1; i < NUMBER_MOTOR; i++)
 	if (motor[i] > maxMotor)
@@ -1456,6 +1550,10 @@ void mixTable()
 	if (armed == 0)
 	    motor[i] = MINCOMMAND;
     }
+
+#if defined(LOG_VALUES) || (POWERMETER == 1)
+    logMotorsPower();
+#endif
 }
 
 /* IMU ------------------------------------------------------------------------------------------------- */
@@ -1467,7 +1565,7 @@ void computeIMU()
     int16_t gyroADCp[3];
     int16_t gyroADCinter[3];
     static int16_t lastAccADC[3] = { 0, 0, 0 };
-    static uint32_t timeInterleave = 0;
+    uint32_t timeInterleave = 0;
     static int16_t gyroYawSmooth = 0;
 
     //we separate the 2 situations because reading gyro values with a gyro only setup can be acchieved at a higher rate
@@ -1547,7 +1645,9 @@ void computeIMU()
 // for heading approximation.
 //
 // Last Modified: 19/04/2011
-// Version: V1.1   
+// Version: V1.1
+//
+// code size deduction and tmp vector intermediate step for vector rotation computation: October 2011 by Alex
 // **************************************************
 
 //******  advanced users settings *******************
@@ -1578,13 +1678,14 @@ void computeIMU()
 #define INV_GYR_CMPF_FACTOR   (1.0f / (GYR_CMPF_FACTOR  + 1.0f))
 #define INV_GYR_CMPFM_FACTOR  (1.0f / (GYR_CMPFM_FACTOR + 1.0f))
 #if GYRO
-#define GYRO_SCALE ((2000.0f * PI)/((32767.0f / 4.0f ) * 180.0f * 1000000.0f) * 1.155f)
-  // +-2000/sec deg scale
-// #define GYRO_SCALE ((500.0f * PI)/((32768.0f / 5.0f / 4.0f ) * 180.0f * 1000000.0f) * 1.5f)
+// #define GYRO_SCALE ((2000.0f * PI)/((32767.0f / 4.0f ) * 180.0f * 1000000.0f) * 1.155f)
+#define GYRO_SCALE ((2380 * PI)/((32767.0f / 4.0f ) * 180.0f * 1000000.0f)) //should be 2279.44 but 2380 gives better result
 
+// +-2000/sec deg scale
+// #define GYRO_SCALE ((200.0f * PI)/((32768.0f / 5.0f / 4.0f ) * 180.0f * 1000000.0f) * 1.5f)
 // +- 200/sec deg scale
-  // 1.5 is emperical, not sure what it means
-  // should be in rad/sec
+// 1.5 is emperical, not sure what it means
+// should be in rad/sec
 #else
 #define GYRO_SCALE (1.0f/200e6f)
   // empirical, depends on WMP on IDG datasheet, tied of deg/ms sensibility
@@ -1594,7 +1695,7 @@ void computeIMU()
 #define ssin(val) (val)
 #define scos(val) 1.0f
 
-typedef struct {
+typedef struct fp_vector {
     float X;
     float Y;
     float Z;
@@ -1631,37 +1732,43 @@ int16_t _atan2(float y, float x)
     return z;
 }
 
+// Rotate Estimated vector(s) with small angle approximation, according to the gyro data
+void rotateV(struct fp_vector *v, float* delta)
+{
+    struct fp_vector v_tmp = *v;
+    v->Z -= delta[ROLL] * v_tmp.X + delta[PITCH] * v_tmp.Y;
+    v->X += delta[ROLL] * v_tmp.Z - delta[YAW] * v_tmp.Y;
+    v->Y += delta[PITCH] * v_tmp.Z + delta[YAW] * v_tmp.X; 
+}
+
 void getEstimatedAttitude()
 {
     uint8_t axis;
-    uint16_t accLim, accMag = 0;
-    static t_fp_vector EstG = { 0, 0, 300 };
-    static t_fp_vector EstM = { 0, 0, 300 };
-    static t_fp_vector GEstG = { 0, 0, 200 };
-    float scale, deltaGyroAngle;
-    static int16_t mgSmooth[3];	//projection of smoothed and normalized magnetic vector on x/y/z axis, as measured by magnetometer
+    int16_t accMag = 0;
+    static t_fp_vector EstG, EstM;
+    static int16_t mgSmooth[3], accTemp[3]; // projection of smoothed and normalized magnetic vector on x/y/z axis, as measured by magnetometer
     static uint16_t previousT;
-    uint16_t currentT;
+    float scale, deltaGyroAngle[3];
+    uint8_t smallAngle25;
+    uint16_t currentT = micros();
 
-    currentT  = micros();
     scale = (currentT - previousT) * GYRO_SCALE;
     previousT = currentT;
+
+    for (axis = 0; axis < 3; axis++)
+	deltaGyroAngle[axis] = gyroADC[axis] * scale;
 
     // Initialization
     for (axis = 0; axis < 3; axis++) {
 #if defined(ACC_LPF_FACTOR)
-//      accSmooth[axis] = (accSmooth[axis] * (ACC_LPF_FACTOR - 1) + accADC[axis]) / ACC_LPF_FACTOR; // LPF for ACC values
-        accSmooth[axis] =(accSmooth[axis] * 7 + accADC[axis] + 4) >> 3;
+	accTemp[axis] = (accTemp[axis] - (accTemp[axis] >> 4)) + accADC[axis];
+	accSmooth[axis] = accTemp[axis] >> 4;
 #define ACC_VALUE accSmooth[axis]
 #else
 	accSmooth[axis] = accADC[axis];
 #define ACC_VALUE accADC[axis]
 #endif
-	{
-	    // AccMag += (ACC_VALUE * 10 / acc_1G) * (ACC_VALUE * 10 / acc_1G);
-	    short temp = (ACC_VALUE * 10 / acc_1G);	// compiler weirdness
-	    accMag += (temp * temp); // 788
-	}
+	accMag += (ACC_VALUE * 10 / (int16_t)acc_1G) * (ACC_VALUE * 10 / (int16_t)acc_1G);
 
 #if MAG
 #if defined(MG_LPF_FACTOR)
@@ -1673,50 +1780,40 @@ void getEstimatedAttitude()
 #endif
     }
 
-    // Rotate Estimated vector(s), ROLL
-    deltaGyroAngle  = gyroADC[ROLL] * scale;
-    EstG.V.Z = scos(deltaGyroAngle) * EstG.V.Z - ssin(deltaGyroAngle) * EstG.V.X;
-    EstG.V.X = ssin(deltaGyroAngle) * EstG.V.Z + scos(deltaGyroAngle) * EstG.V.X;
+    rotateV(&EstG.V, deltaGyroAngle);
 #if MAG
-    EstM.V.Z = scos(deltaGyroAngle) * EstM.V.Z - ssin(deltaGyroAngle) * EstM.V.X;
-    EstM.V.X = ssin(deltaGyroAngle) * EstM.V.Z + scos(deltaGyroAngle) * EstM.V.X;
+    rotateV(&EstM.V, deltaGyroAngle);
 #endif
-
-    // Rotate Estimated vector(s), PITCH
-    deltaGyroAngle  = gyroADC[PITCH] * scale;
-    EstG.V.Y = scos(deltaGyroAngle) * EstG.V.Y + ssin(deltaGyroAngle) * EstG.V.Z;
-    EstG.V.Z = -ssin(deltaGyroAngle) * EstG.V.Y + scos(deltaGyroAngle) * EstG.V.Z;
-#if MAG
-    EstM.V.Y = scos(deltaGyroAngle) * EstM.V.Y + ssin(deltaGyroAngle) * EstM.V.Z;
-    EstM.V.Z = -ssin(deltaGyroAngle) * EstM.V.Y + scos(deltaGyroAngle) * EstM.V.Z;
-#endif
-    // Rotate Estimated vector(s), YAW
-    deltaGyroAngle  = gyroADC[YAW] * scale;
-    EstG.V.X = scos(deltaGyroAngle) * EstG.V.X - ssin(deltaGyroAngle) * EstG.V.Y;
-    EstG.V.Y = ssin(deltaGyroAngle) * EstG.V.X + scos(deltaGyroAngle) * EstG.V.Y;
-#if MAG
-    EstM.V.X = scos(deltaGyroAngle) * EstM.V.X - ssin(deltaGyroAngle) * EstM.V.Y;
-    EstM.V.Y = ssin(deltaGyroAngle) * EstM.V.X + scos(deltaGyroAngle) * EstM.V.Y;
-#endif
+    if (abs(accSmooth[ROLL]) < acc_25deg && abs(accSmooth[PITCH]) < acc_25deg && accSmooth[YAW] > 0)
+	smallAngle25 = 1;
+    else
+	smallAngle25 = 0;
 
     // Apply complimentary filter (Gyro drift correction)
     // If accel magnitude >1.4G or <0.6G and ACC vector outside of the limit range => we neutralize the effect of accelerometers in the angle estimation.
     // To do that, we just skip filter, as EstV already rotated by Gyro
-    accLim = acc_1G * 4 / 10;
-    if ((36 < accMag && accMag < 196) || (abs(accSmooth[ROLL]) < accLim && abs(accSmooth[PITCH]) < accLim)) {
-	for (axis = 0; axis < 3; axis++)
-	    EstG.A[axis] = (EstG.A[axis] * GYR_CMPF_FACTOR + ACC_VALUE) * INV_GYR_CMPF_FACTOR;
-    }
-
-    // Attitude of the estimated vector
-    angle[ROLL] = _atan2(EstG.V.X, EstG.V.Z);
-    angle[PITCH] = _atan2(EstG.V.Y, EstG.V.Z);
+    if ((36 < accMag && accMag < 196 ) || smallAngle25)
+	for (axis = 0; axis < 3; axis++) {
+#ifndef TRUSTED_ACCZ
+	    if (smallAngle25 && axis == YAW)
+		// We consider ACCZ = acc_1G when the acc on other axis is small.
+		// It's a tweak to deal with some configs where ACC_Z tends to a value < acc_1G when high throttle is applied.
+		// This tweak applies only when the multi is not in inverted position
+		EstG.A[axis] = (EstG.A[axis] * GYR_CMPF_FACTOR + acc_1G) * INV_GYR_CMPF_FACTOR;
+	    else
+#endif
+		EstG.A[axis] = (EstG.A[axis] * GYR_CMPF_FACTOR + ACC_VALUE) * INV_GYR_CMPF_FACTOR;
+        }
 #if MAG
-    // Apply complimentary filter (Gyro drift correction)
     for (axis = 0; axis < 3; axis++)
-        EstM.A[axis] = (EstM.A[axis] * GYR_CMPFM_FACTOR - MAG_VALUE) * INV_GYR_CMPFM_FACTOR;
+	EstM.A[axis] = (EstM.A[axis] * GYR_CMPFM_FACTOR  + MAG_VALUE) * INV_GYR_CMPFM_FACTOR;
+#endif
+    // Attitude of the estimated vector
+    angle[ROLL]  =  _atan2(EstG.V.X, EstG.V.Z);
+    angle[PITCH] =  _atan2(EstG.V.Y, EstG.V.Z);
+#if MAG
     // Attitude of the cross product vector GxM
-    heading = _atan2(EstG.V.Z * EstM.V.X - EstG.V.X * EstM.V.Z, EstG.V.Y * EstM.V.Z - EstG.V.Z * EstM.V.Y) / 10;
+    heading = _atan2(EstG.V.X * EstM.V.Z - EstG.V.Z * EstM.V.X, EstG.V.Z * EstM.V.Y - EstG.V.Y * EstM.V.Z) / 10;
 #endif
 }
 
@@ -1746,33 +1843,40 @@ int32_t isq(int32_t x)
 void getEstimatedAltitude()
 {
     static uint8_t inited = 0;
-    static float AltErrorI = 0.0f;
+    static int16_t AltErrorI = 0;
     static float AccScale = 0.0f;
-    static uint32_t DeadLine = INIT_DELAY;
-    float AltError;
-    float InstAcc = 0.0f;
-    float Delta;
+    static uint32_t deadLine = INIT_DELAY;
+    int16_t AltError;
+    int16_t InstAcc;
+    int16_t Delta;
 
-    if (currentTime < DeadLine)
+    if (currentTime < deadLine)
 	return;
-    DeadLine = currentTime + UPDATE_INTERVAL;
+    deadLine = currentTime + UPDATE_INTERVAL;
     // Soft start
+
     if (!inited) {
 	inited = 1;
 	EstAlt = BaroAlt;
-	EstVelocity = 0.0f;
-	AltErrorI = 0.0f;
-	AccScale = (9.80665f / acc_1G);
+	EstVelocity = 0;
+	AltErrorI = 0;
+	AccScale = 100 * 9.80665f / acc_1G;
     }
     // Estimation Error
     AltError = BaroAlt - EstAlt;
     AltErrorI += AltError;
+    AltErrorI = constrain(AltErrorI, -25000, +25000);
     // Gravity vector correction and projection to the local Z
-    InstAcc = (accADC[YAW] * (1 - acc_1G * InvSqrt(isq(accADC[ROLL]) + isq(accADC[PITCH]) + isq(accADC[YAW])))) * AccScale + (Ki) * AltErrorI;
+    //InstAcc = (accADC[YAW] * (1 - acc_1G * InvSqrt(isq(accADC[ROLL]) + isq(accADC[PITCH]) + isq(accADC[YAW])))) * AccScale + (Ki) * AltErrorI;
+#if defined(TRUSTED_ACCZ)
+    InstAcc = (accADC[YAW] * (1 - acc_1G * InvSqrt(isq(accADC[ROLL]) + isq(accADC[PITCH]) + isq(accADC[YAW])))) * AccScale +  AltErrorI / 1000;
+#else
+    InstAcc = AltErrorI / 1000;
+#endif
     // Integrators
     Delta = InstAcc * dt + (Kp1 * dt) * AltError;
-    EstAlt += ((EstVelocity + Delta * 0.5f) * dt + (Kp2 * dt) * AltError);
-    EstVelocity += Delta;
+    EstAlt += (EstVelocity / 5 + Delta) * (dt / 2) + (Kp2 * dt) * AltError;
+    EstVelocity += Delta * 10;
 }
 
 /* SENSORS ------------------------------------------------------------------------------ */
@@ -2255,9 +2359,9 @@ void Baro_update()
     case 3:
 	i2c_BMP085_UP_Read();
 	i2c_BMP085_Calculate();
-	BaroAlt = (1.0f - pow(pressure / 101325.0f, 0.190295f)) * 44330.0f;
-	bmp085_ctx.state = 0;
-	bmp085_ctx.deadline += 20000;
+	BaroAlt = (1.0f - pow(pressure / 101325.0f, 0.190295f)) * 4433000.0f;
+	bmp085_ctx.state = 0; 
+	bmp085_ctx.deadline += 20000; 
 	break;
     }
 }
@@ -2402,7 +2506,7 @@ void Baro_update()
     case 3:
 	i2c_MS561101BA_UP_Read();
 	i2c_MS561101BA_Calculate();
-	BaroAlt = (1.0f - pow(pressure / 101325.0f, 0.190295f)) * 44330.0f;
+	BaroAlt = (1.0f - pow(pressure / 101325.0f, 0.190295f)) * 4433000.0f;
 	ms561101ba_ctx.state = 0;
 	ms561101ba_ctx.deadline += 30000;
 	break;
@@ -2621,9 +2725,6 @@ void ACC_getADC()
 //
 // 0x20    bw_tcs:   |                                           bw<3:0> |                        tcs<3:0> |
 //                   |                                             150Hz |                 !!Calibration!! |
-//
-// 0x35 offset_lsb1: |                                     offset_x<3:0> |        range<2:0> |    smp_skip |
-//                   |                                   !!Calibration!! |                2g |     IRQ 1/T |
 // ************************************************************************************************************
 #if defined(BMA180)
 void ACC_init()
@@ -2631,10 +2732,17 @@ void ACC_init()
     delay(10);
     //default range 2G: 1G = 4096 unit.
     i2c_writeReg(BMA180_ADDRESS, 0x0D, 1 << 4);	// register: ctrl_reg0  -- value: set bit ee_w to 1 to enable writing
+    delay(5);
     uint8_t control = i2c_readReg(BMA180_ADDRESS, 0x20);
     control = control & 0x0F;	// register: bw_tcs reg: bits 4-7 to set bw -- value: set low pass filter to 10Hz (bits value = 0000xxxx)
-    delay(5);
+    control = control | 0x00; 
     i2c_writeReg(BMA180_ADDRESS, 0x20, control);
+    delay(5); 
+    control = i2c_readReg(BMA180_ADDRESS, 0x30);
+    control = control & 0xFC; 
+    control = control | 0x02; 
+    i2c_writeReg(BMA180_ADDRESS, 0x30, control);
+    delay(5); 
     acc_1G = 512;
 }
 
@@ -2886,9 +2994,11 @@ void Mag_getADC()
     static int16_t magZeroTempMin[3];
     static int16_t magZeroTempMax[3];
     uint8_t axis;
-    if ((micros() - t) < 100000)
-	return;			//each read is spaced by 100ms
-    t = micros();
+
+    if (currentTime < t) 
+	return; //each read is spaced by 100ms
+    t = currentTime + 100000;
+
 #if !defined(STM8)
     TWBR = ((16000000L / 400000L) - 16) / 2;	// change the I2C clock rate to 400kHz
 #endif
@@ -3055,6 +3165,7 @@ void initSensors()
 #endif
 #if ACC
     ACC_init();
+    acc_25deg = acc_1G * 0.423;
 #endif
 #if MAG
     Mag_init();
@@ -3176,7 +3287,7 @@ void serialCom()
 		serialize16(gyroData[i] / 8);
 	    for (i = 0; i < 3; i++)
 		serialize16(magADC[i] / 3);
-	    serialize16(EstAlt * 10.0f);
+	    serialize16(EstAlt / 10);
 	    serialize16(heading);	// compass
 	    for (i = 0; i < 4; i++)
 		serialize16(servo[i]);
@@ -3184,8 +3295,8 @@ void serialCom()
 		serialize16(motor[i]);
 	    for (i = 0; i < 8; i++)
 		serialize16(rcData[i]);
-            serialize8(nunchuk | ACC << 1 | BARO << 2 | MAG << 3);
-            serialize8(accMode | baroMode << 1 | magMode << 2);
+	    serialize8(nunchuk | ACC<<1 | BARO << 2 | MAG << 3 | GPSPRESENT << 4);
+	    serialize8(accMode | baroMode << 1 | magMode << 2 | (GPSModeHome | GPSModeHold) << 3);
 	    serialize16(cycleTime);
 	    for (i = 0; i < 2; i++)
 		serialize16(angle[i] / 10);
@@ -3203,16 +3314,24 @@ void serialCom()
 	    serialize8(rollPitchRate);
 	    serialize8(yawRate);
 	    serialize8(dynThrPID);
-	    for (i = 0; i < 6; i++)
+	    for (i = 0; i < 8; i++)
 		serialize8(activate[i]);
+	    serialize16(GPS_distanceToHome);
+	    serialize16(GPS_directionToHome);
+	    serialize8(GPS_numSat);
+	    serialize8(GPS_fix);
+	    serialize8(GPS_update);
 #if defined(POWERMETER)
 	    intPowerMeterSum = (pMeter[PMOTOR_SUM] / PLEVELDIV);
 	    intPowerTrigger1 = powerTrigger1 * PLEVELSCALE;
-#endif
 	    serialize16(intPowerMeterSum);
 	    serialize16(intPowerTrigger1);
+#else
+	    serialize16(0);
+	    serialize16(0);
+#endif
 	    serialize8(vbat);
-	    serialize16(BaroAlt * 10.0f);	// 4 variables are here for general monitoring purpose
+	    serialize16(BaroAlt / 10);	// 4 variables are here for general monitoring purpose
 	    serialize16(0);	// debug2
 	    serialize16(0);	// debug3
 	    serialize16(0);	// debug4
@@ -3243,23 +3362,22 @@ void serialCom()
 	    UartSendData();
 	    break;
 	case 'W':		//GUI write params to eeprom @ arduino
-	    while (Serial_available() < 29) {
-	    }
+	    while (Serial_available() < 33) {   }
 	    for (i = 0; i < 5; i++) {
 		P8[i] = Serial_read();
 		I8[i] = Serial_read();
 		D8[i] = Serial_read();
-	    }			//9
+	    } // 15
 	    P8[PIDLEVEL] = Serial_read();
-	    I8[PIDLEVEL] = Serial_read();	//11
-	    P8[PIDMAG] = Serial_read();
+	    I8[PIDLEVEL] = Serial_read(); // 17
+	    P8[PIDMAG] = Serial_read(); // 18
 	    rcRate8 = Serial_read();
-	    rcExpo8 = Serial_read();
+	    rcExpo8 = Serial_read(); // 20
 	    rollPitchRate = Serial_read();
-	    yawRate = Serial_read();	//16
-	    dynThrPID = Serial_read();
-	    for (i = 0; i < 6; i++)
-		activate[i] = Serial_read();	//22
+	    yawRate = Serial_read();	// 22
+	    dynThrPID = Serial_read(); // 23
+	    for (i = 0; i < 8; i++)
+		activate[i] = Serial_read(); // 31
 #if defined(POWERMETER)
 	    powerTrigger1 = (Serial_read() + 256 * Serial_read()) / PLEVELSCALE;	// we rely on writeParams() to compute corresponding pAlarm value
 #else

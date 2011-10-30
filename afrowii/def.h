@@ -240,6 +240,13 @@ typedef long int32_t;
 #define V_BATPIN                   3	// Analog PIN 3
 #define PSENSORPIN                 2	// Analog PIN 2
 #endif
+
+#if defined(GPS)
+#define GPSPRESENT 1
+#else
+#define GPSPRESENT 0
+#endif
+
 #if defined(PROMINI)
 #define LEDPIN_PINMODE             pinMode (13, OUTPUT);
 #define LEDPIN_SWITCH              PINB |= 1<<5;	//switch LEDPIN state (digital PIN 13)

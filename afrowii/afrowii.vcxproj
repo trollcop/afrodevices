@@ -84,7 +84,7 @@
   <ItemGroup>
     <ClCompile Include="LCD.c" />
     <ClCompile Include="main.c" />
-    <ClCompile Include="MultiWii_1_8_patch1.c" />
+    <ClCompile Include="MultiWii_afro.c" />
     <ClCompile Include="STM8S_StdPeriph_Driver\src\stm8s_adc1.c" />
     <ClCompile Include="STM8S_StdPeriph_Driver\src\stm8s_clk.c" />
     <ClCompile Include="STM8S_StdPeriph_Driver\src\stm8s_flash.c" />

@@ -19,9 +19,9 @@
 //#define Y6
 //#define HEX6
 //#define HEX6X
-//#define OCTOX8 //beta
-//#define OCTOFLATP //beta
-//#define OCTOFLATX //beta
+//#define OCTOX8
+//#define OCTOFLATP
+//#define OCTOFLATX
 //#define FLYING_WING //experimental
 
 #define YAW_DIRECTION 1		// if you want to reverse the yaw correction direction
@@ -38,6 +38,32 @@
 #define INTERNAL_I2C_PULLUPS
 
 //****** advanced users settings   *************
+
+/* This option should be uncommented if ACC Z is accurate enough when motors are running*/
+//#define TRUSTED_ACCZ
+
+/* PIN A0 and A1 instead of PIN D5 & D6 for 6 motors config and promini config
+   This mod allow the use of a standard receiver on a pro mini
+   (no need to use a PPM sum receiver)
+*/
+//#define A0_A1_PIN_HEX
+
+/* possibility to use PIN8 or PIN12 as the AUX2 RC input
+   it deactivates in this case the POWER PIN (pin 12) or the BUZZER PIN (pin 8)
+*/
+//#define RCAUXPIN8
+//#define RCAUXPIN12
+
+/* GPS
+   only available on MEGA boards (this might be possible on 328 based boards in the future)
+   if enabled, define here the Arduino Serial port number and the UART speed
+   note: only the RX PIN is used, the GPS is not configured by multiwii
+   the GPS must be configured to output NMEA sentences (which is generally the default conf for most GPS devices)
+*/
+//#define GPS
+//#define GPS_SERIAL Serial3 // should be Serial2 for flyduino v2
+//#define GPS_BAUD   4800
+//#define GPS_BAUD   9600
 
 /* Pseudo-derivative conrtroller for level mode (experimental)
    Additional information: http://wbb.multiwii.com/viewtopic.php?f=8&t=503 */
@@ -108,7 +134,7 @@
 
 /* I2C barometer */
 //#define BMP085
-//#define MS561101BA  //non tested
+//#define MS561101BA
 
 /* I2C magnetometer */
 //#define HMC5843

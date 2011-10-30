@@ -80,9 +80,6 @@
     <ClCompile Include="LCD.c">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="MultiWii_1_8_patch1.c">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="sysdep.c">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -124,6 +121,9 @@
     </ClCompile>
     <ClCompile Include="STM8S_StdPeriph_Driver\src\stm8s_uart2.c">
       <Filter>FWLib</Filter>
+    </ClCompile>
+    <ClCompile Include="MultiWii_afro.c">
+      <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
