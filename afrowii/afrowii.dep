@@ -70,6 +70,9 @@ ExternDep= stm8s_stdperiph_driver\src\stm8s_uart2.c  C:\cxstm8\Hstm8\modsl0.h st
 [Root.FWLib.stm8s_stdperiph_driver\src\stm8s_uart2.c.Config.1]
 ExternDep= stm8s_stdperiph_driver\src\stm8s_uart2.c  C:\cxstm8\Hstm8\modsl0.h stm8s_stdperiph_driver\inc\stm8s_uart2.h  stm8s_stdperiph_driver\inc\stm8s.h stm8s_conf.h  stm8s_stdperiph_driver\inc\stm8s_adc1.h  stm8s_stdperiph_driver\inc\stm8s_clk.h  stm8s_stdperiph_driver\inc\stm8s_flash.h  stm8s_stdperiph_driver\inc\stm8s_gpio.h  stm8s_stdperiph_driver\inc\stm8s_i2c.h stm8s_stdperiph_driver\inc\stm8s_spi.h  stm8s_stdperiph_driver\inc\stm8s_tim1.h  stm8s_stdperiph_driver\inc\stm8s_tim2.h  stm8s_stdperiph_driver\inc\stm8s_tim3.h  stm8s_stdperiph_driver\inc\stm8s_tim4.h  stm8s_stdperiph_driver\inc\stm8s_wwdg.h
 
+[Root.Source Files.multiwii_afro.c.Config.0]
+ExternDep= multiwii_afro.c C:\cxstm8\Hstm8\modsl0.h config.h  def.h stm8s_stdperiph_driver\inc\stm8s.h stm8s_conf.h  stm8s_stdperiph_driver\inc\stm8s_adc1.h  stm8s_stdperiph_driver\inc\stm8s_clk.h  stm8s_stdperiph_driver\inc\stm8s_flash.h  stm8s_stdperiph_driver\inc\stm8s_gpio.h  stm8s_stdperiph_driver\inc\stm8s_i2c.h stm8s_stdperiph_driver\inc\stm8s_spi.h  stm8s_stdperiph_driver\inc\stm8s_tim1.h  stm8s_stdperiph_driver\inc\stm8s_tim2.h  stm8s_stdperiph_driver\inc\stm8s_tim3.h  stm8s_stdperiph_driver\inc\stm8s_tim4.h  stm8s_stdperiph_driver\inc\stm8s_uart2.h  stm8s_stdperiph_driver\inc\stm8s_wwdg.h C:\cxstm8\Hstm8\stdio.h  C:\cxstm8\Hstm8\stdlib.h C:\cxstm8\Hstm8\string.h C:\cxstm8\Hstm8\math.h  sysdep.h
+
 [Root.Source Files.lcd.c.Config.0]
 ExternDep= lcd.c C:\cxstm8\Hstm8\modsl0.h
 
@@ -81,12 +84,6 @@ ExternDep= main.c C:\cxstm8\Hstm8\modsl0.h config.h def.h  stm8s_stdperiph_drive
 
 [Root.Source Files.main.c.Config.1]
 ExternDep= main.c C:\cxstm8\Hstm8\modsl0.h config.h def.h  stm8s_stdperiph_driver\inc\stm8s.h stm8s_conf.h  stm8s_stdperiph_driver\inc\stm8s_adc1.h  stm8s_stdperiph_driver\inc\stm8s_clk.h  stm8s_stdperiph_driver\inc\stm8s_flash.h  stm8s_stdperiph_driver\inc\stm8s_gpio.h  stm8s_stdperiph_driver\inc\stm8s_i2c.h stm8s_stdperiph_driver\inc\stm8s_spi.h  stm8s_stdperiph_driver\inc\stm8s_tim1.h  stm8s_stdperiph_driver\inc\stm8s_tim2.h  stm8s_stdperiph_driver\inc\stm8s_tim3.h  stm8s_stdperiph_driver\inc\stm8s_tim4.h  stm8s_stdperiph_driver\inc\stm8s_uart2.h  stm8s_stdperiph_driver\inc\stm8s_wwdg.h C:\cxstm8\Hstm8\stdio.h  C:\cxstm8\Hstm8\stdlib.h C:\cxstm8\Hstm8\string.h C:\cxstm8\Hstm8\math.h  sysdep.h
-
-[Root.Source Files.multiwii_1_8_patch1.c.Config.0]
-ExternDep= multiwii_1_8_patch1.c C:\cxstm8\Hstm8\modsl0.h  config.h def.h stm8s_stdperiph_driver\inc\stm8s.h stm8s_conf.h  stm8s_stdperiph_driver\inc\stm8s_adc1.h  stm8s_stdperiph_driver\inc\stm8s_clk.h  stm8s_stdperiph_driver\inc\stm8s_flash.h  stm8s_stdperiph_driver\inc\stm8s_gpio.h  stm8s_stdperiph_driver\inc\stm8s_i2c.h stm8s_stdperiph_driver\inc\stm8s_spi.h  stm8s_stdperiph_driver\inc\stm8s_tim1.h  stm8s_stdperiph_driver\inc\stm8s_tim2.h  stm8s_stdperiph_driver\inc\stm8s_tim3.h  stm8s_stdperiph_driver\inc\stm8s_tim4.h  stm8s_stdperiph_driver\inc\stm8s_uart2.h  stm8s_stdperiph_driver\inc\stm8s_wwdg.h C:\cxstm8\Hstm8\stdio.h  C:\cxstm8\Hstm8\stdlib.h C:\cxstm8\Hstm8\string.h C:\cxstm8\Hstm8\math.h  sysdep.h
-
-[Root.Source Files.multiwii_1_8_patch1.c.Config.1]
-ExternDep= multiwii_1_8_patch1.c C:\cxstm8\Hstm8\modsl0.h  config.h def.h stm8s_stdperiph_driver\inc\stm8s.h stm8s_conf.h  stm8s_stdperiph_driver\inc\stm8s_adc1.h  stm8s_stdperiph_driver\inc\stm8s_clk.h  stm8s_stdperiph_driver\inc\stm8s_flash.h  stm8s_stdperiph_driver\inc\stm8s_gpio.h  stm8s_stdperiph_driver\inc\stm8s_i2c.h stm8s_stdperiph_driver\inc\stm8s_spi.h  stm8s_stdperiph_driver\inc\stm8s_tim1.h  stm8s_stdperiph_driver\inc\stm8s_tim2.h  stm8s_stdperiph_driver\inc\stm8s_tim3.h  stm8s_stdperiph_driver\inc\stm8s_tim4.h  stm8s_stdperiph_driver\inc\stm8s_uart2.h  stm8s_stdperiph_driver\inc\stm8s_wwdg.h C:\cxstm8\Hstm8\stdio.h  C:\cxstm8\Hstm8\stdlib.h C:\cxstm8\Hstm8\string.h C:\cxstm8\Hstm8\math.h  sysdep.h
 
 [Root.Source Files.stm8_interrupt_vector.c.Config.0]
 ExternDep= stm8_interrupt_vector.c  C:\cxstm8\Hstm8\modsl0.h stm8s_it.h
