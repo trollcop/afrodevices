@@ -54,6 +54,10 @@
 //#define RCAUXPIN8
 //#define RCAUXPIN12
 
+/* This option is here if you want to use the old level code from the verison 1.7
+   It's just to have some feedback. This will be removed in the future */
+// #define STAB_OLD_17
+
 /* GPS
    only available on MEGA boards (this might be possible on 328 based boards in the future)
    if enabled, define here the Arduino Serial port number and the UART speed
@@ -86,6 +90,12 @@
 #define FAILSAVE_OFF_DELAY 200	// Time for Landing before motors stop in 0.1sec. 1 step = 0.1sec - 20sec in example
 #define FAILSAVE_THR0TTLE  (MINTHROTTLE + 200)	// Throttle level used for landing - may be relative to MINTHROTTLE - as in this case
 
+/* EXPERIMENTAL !!
+  contribution from Luis Correia
+  see http://www.multiwii.com/forum/viewtopic.php?f=18&t=828
+  It uses a Bluetooth Serial module as the input for controlling the device via an Android application
+  As with the SPEKTRUM option, is not possible to use the configuration tool on a mini or promini. */
+//#define BTSERIAL
 
 /* The following lines apply only for a pitch/roll tilt stabilization system
    On promini board, it is not compatible with config with 6 motors or more
@@ -131,6 +141,7 @@
 //#define BMA180
 //#define NUNCHACK  // if you want to use the nunckuk as a standalone I2C ACC without WMP
 //#define LIS3LV02
+//#define LSM303DLx_ACC
 
 /* I2C barometer */
 //#define BMP085
@@ -231,6 +242,20 @@
 #define TRI_YAW_CONSTRAINT_MIN 1020
 #define TRI_YAW_CONSTRAINT_MAX 2000
 #define TRI_YAW_MIDDLE 1500
+
+/* Flying Wing: you can change change servo orientation and servo min/max values here */
+/* valid for all flight modes, even passThrough mode */
+/* need to setup servo directions here; no need to swap servos amongst channels at rx */ 
+#define PITCH_DIRECTION_L 1 // left servo - pitch orientation
+#define PITCH_DIRECTION_R -1  // right servo - pitch orientation (opposite sign to PITCH_DIRECTION_L, if servos are mounted in mirrored orientation)
+#define ROLL_DIRECTION_L 1 // left servo - roll orientation
+#define ROLL_DIRECTION_R 1  // right servo - roll orientation  (same sign as ROLL_DIRECTION_L, if servos are mounted in mirrored orientation)
+#define WING_LEFT_MID  1500 // left servo center pos. - use this for trim
+#define WING_RIGHT_MID 1500 // right servo center pos. - use this for trim
+#define WING_LEFT_MIN  1020 // limit servo travel range must be inside [1020;2000]
+#define WING_LEFT_MAX  2000 // limit servo travel range must be inside [1020;2000]
+#define WING_RIGHT_MIN 1020 // limit servo travel range must be inside [1020;2000]
+#define WING_RIGHT_MAX 2000 // limit servo travel range must be inside [1020;2000]
 
 /* enable monitoring of the power consumption from battery (think of mAh) */
 /* allows to set alarm value in GUI or via LCD */
