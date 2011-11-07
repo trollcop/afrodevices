@@ -40,7 +40,7 @@
 //****** advanced users settings   *************
 
 /* This option should be uncommented if ACC Z is accurate enough when motors are running*/
-//#define TRUSTED_ACCZ
+#define TRUSTED_ACCZ
 
 /* PIN A0 and A1 instead of PIN D5 & D6 for 6 motors config and promini config
    This mod allow the use of a standard receiver on a pro mini
