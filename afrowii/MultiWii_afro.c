@@ -118,7 +118,7 @@ static int16_t gyroZero[3] = { 0, 0, 0 };
 static int16_t accZero[3] = { 0, 0, 0 };
 static int16_t magZero[3] = { 0, 0, 0 };
 static int16_t angle[2] = { 0, 0 };     // absolute angle inclination in multiple of 0.1 degree    180 deg = 1800
-static int8_t smallAngle25;
+static int8_t smallAngle25 = 1;
 
 // *************************
 // motor and servo functions
@@ -1574,7 +1574,7 @@ void computeIMU()
     int16_t gyroADCp[3];
     int16_t gyroADCinter[3];
     static int16_t lastAccADC[3] = { 0, 0, 0 };
-    uint32_t timeInterleave = 0;
+    static uint32_t timeInterleave = 0;
     static int16_t gyroYawSmooth = 0;
 
     //we separate the 2 situations because reading gyro values with a gyro only setup can be acchieved at a higher rate
@@ -3208,6 +3208,7 @@ void WMP_init(uint8_t d)
         uint8_t i;
         uint8_t numberAccRead = 0;
         acc_1G = 200;
+        acc_25deg = acc_1G * 0.423;
         // Read from WMP 100 times, this should return alternating WMP and Nunchuk data
         for (i = 0; i < 100; i++) {
             delay(4);
