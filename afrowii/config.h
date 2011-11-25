@@ -30,9 +30,10 @@
 #define I2C_SPEED 100000L	//100kHz normal mode, this value must be used for a genuine WMP
 //#define I2C_SPEED 400000L   //400kHz fast mode, it works only with some WMP clones
 
-//#define PROMINI			//Arduino type
-//#define MEGA
 #define STM8
+#define AFROV2                  // AfroFlight rev2 (ADXL345 on SPI, Invensense Analog gyros on ADC)
+// #define AFROV3                  // AfroFlight rev3 (MPU6000 on SPI, HMC5883L behind it)
+// #define AFROI2C                 // AfroI2C converter + CSG_EU's sensor bob w/LLC
 
 //enable internal I2C pull ups
 #define INTERNAL_I2C_PULLUPS

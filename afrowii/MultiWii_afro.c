@@ -169,9 +169,17 @@ void Baro_init(void);
 void ACC_init(void);
 void Mag_init(void);
 void UartSendData(void);
-// void WMP_init(uint8_t d);
+
+// I2C Prototypes
 uint8_t i2c_read(uint8_t * buf, uint8_t size, uint8_t address, uint8_t subaddr);
 uint8_t i2c_write(uint8_t * buf, uint8_t size);
+void i2c_getSixRawADC(uint8_t add, uint8_t reg);
+void i2c_writeReg(uint8_t add, uint8_t reg, uint8_t val);
+uint8_t i2c_readReg(uint8_t add, uint8_t reg);
+// SPI Prototypes
+void spi_init(void);
+uint8_t spi_WriteByte(uint8_t Data);
+uint8_t spi_ReadByte(void);
 
 void blinkLED(uint8_t num, uint8_t wait, uint8_t repeat)
 {
@@ -354,7 +362,6 @@ void annexCode(void)
 void setup()
 {
     LEDPIN_PINMODE;
-    POWERPIN_PINMODE;
     BUZZERPIN_PINMODE;
     STABLEPIN_PINMODE;
     POWERPIN_OFF;
@@ -2040,7 +2047,6 @@ static uint32_t neutralizeTime = 0;
 // ************************************************************************************************************
 // I2C general functions
 // ************************************************************************************************************
-
 void i2c_init(void)
 {
     I2C_DeInit();
@@ -2064,7 +2070,7 @@ void i2c_writeReg(uint8_t add, uint8_t reg, uint8_t val)
 
 uint8_t i2c_readReg(uint8_t add, uint8_t reg)
 {
-    uint8_t data[2];
+    uint8_t data[1];
     i2c_read(data, 1, add, reg);
     return data[0];
 }
@@ -2081,7 +2087,7 @@ typedef enum {                  //returns I2C error/success codes
     I2C_RX_TIMEOUT
 } I2C_Returntype;
 
-uint8_t i2c_write(uint8_t * buf, uint8_t size)
+uint8_t i2c_write(uint8_t *buf, uint8_t size)
 {
     // Sets up an i2c device
     uint8_t n;
@@ -2117,7 +2123,7 @@ uint8_t i2c_write(uint8_t * buf, uint8_t size)
     return I2C_SUCCESS;         //Completed ok
 }
 
-uint8_t i2c_read(uint8_t * buf, uint8_t size, uint8_t address, uint8_t subaddr)
+uint8_t i2c_read(uint8_t *buf, uint8_t size, uint8_t address, uint8_t subaddr)
 {
     int8_t n = 0;               //0xFF as the Sub_Addr disables sub address
     uint16_t tm = 0;
@@ -2216,6 +2222,44 @@ uint8_t i2c_read(uint8_t * buf, uint8_t size, uint8_t address, uint8_t subaddr)
     buf[n] = I2C_ReceiveData(); //Clear the buffer (last byte is in it)
     I2C_AcknowledgeConfig(ENABLE);      //Re-enable ACK
     return I2C_SUCCESS;         //Exit ok
+}
+
+// ************************************************************************************************************
+// SPI general functions
+// ************************************************************************************************************
+void spi_init(void)
+{
+    // SPI
+    SPI_DeInit();
+    SPI_Init(SPI_FIRSTBIT_MSB, SPI_BAUDRATEPRESCALER_2, SPI_MODE_MASTER, SPI_CLOCKPOLARITY_HIGH, SPI_CLOCKPHASE_2EDGE, SPI_DATADIRECTION_2LINES_FULLDUPLEX, SPI_NSS_SOFT, 0x07);
+    SPI_Cmd(ENABLE);
+}
+
+uint8_t spi_WriteByte(uint8_t Data)
+{
+    /* Wait until the transmit buffer is empty */
+    while (SPI_GetFlagStatus(SPI_FLAG_TXE) == RESET);
+    /* Send the byte */
+    SPI_SendData(Data);
+    /* Wait to receive a byte */
+    while (SPI_GetFlagStatus(SPI_FLAG_RXNE) == RESET);
+    /*Return the byte read from the SPI bus */
+    return SPI_ReceiveData();
+}
+
+uint8_t spi_ReadByte(void)
+{
+    volatile uint8_t Data = 0;
+    /* Wait until the transmit buffer is empty */
+    while (SPI_GetFlagStatus(SPI_FLAG_TXE) == RESET);
+    /* Send the byte */
+    SPI_SendData(0xFF);         // Dummy Byte
+    /* Wait until a data is received */
+    while (SPI_GetFlagStatus(SPI_FLAG_RXNE) == RESET);
+    /* Get the received data */
+    Data = SPI_ReceiveData();
+    /* Return the shifted data */
+    return Data;
 }
 
 // ****************
@@ -2319,7 +2363,20 @@ static struct {
 } bmp085_ctx;
 #define OSS 3
 
-void i2c_BMP085_readCalibration()
+// read a 16 bit register
+int16_t i2c_BMP085_readIntRegister(uint8_t r)
+{
+    union {
+        int16_t val;
+        uint8_t raw[2];
+    } data;
+
+    // TODO: imminent byte swapping
+    i2c_read(data.raw, 2, BMP085_ADDRESS, r);
+    return data.val;
+}
+
+void i2c_BMP085_readCalibration(void)
 {
     delay(10);
     bmp085_ctx.ac1 = i2c_BMP085_readIntRegister(0xAA);
@@ -2335,7 +2392,50 @@ void i2c_BMP085_readCalibration()
     bmp085_ctx.md = i2c_BMP085_readIntRegister(0xBE);
 }
 
-void Baro_init()
+// read uncompensated temperature value: send command first
+void i2c_BMP085_UT_Start(void)
+{
+    i2c_writeReg(BMP085_ADDRESS, 0xf4, 0x2e);
+    // TODO: unfuck
+    // i2c_rep_start(BMP085_ADDRESS + 0);
+    // i2c_write(0xF6);
+}
+
+// read uncompensated pressure value: send command first
+void i2c_BMP085_UP_Start(void)
+{
+    i2c_writeReg(BMP085_ADDRESS, 0xf4, 0x34 + (OSS << 6));      // control register value for oversampling setting 3
+    // i2c_rep_start(BMP085_ADDRESS + 0);  //I2C write direction => 0
+    // i2c_write(0xF6);
+    // TODO: unfuck
+}
+
+// read uncompensated pressure value: read result bytes
+// the datasheet suggests a delay of 25.5 ms (oversampling settings 3) after the send command
+void i2c_BMP085_UP_Read(void)
+{
+    i2c_read(bmp085_ctx.up.raw, 3, BMP085_ADDRESS, 0); // TODO: wtf and byte swapping
+#if 0
+    i2c_rep_start(BMP085_ADDRESS + 1);  //I2C read direction => 1
+    bmp085_ctx.up.raw[2] = i2c_readAck();
+    bmp085_ctx.up.raw[1] = i2c_readAck();
+    bmp085_ctx.up.raw[0] = i2c_readNak();
+#endif
+}
+
+// read uncompensated temperature value: read result bytes
+// the datasheet suggests a delay of 4.5 ms after the send command
+void i2c_BMP085_UT_Read(void)
+{
+    i2c_read(bmp085_ctx.ut.raw, 2, BMP085_ADDRESS, 0); // TODO: wtf and byte swapping
+#if 0
+    i2c_rep_start(BMP085_ADDRESS + 1);  //I2C read direction => 1
+    bmp085_ctx.ut.raw[1] = i2c_readAck();
+    bmp085_ctx.ut.raw[0] = i2c_readNak();
+#endif
+}
+
+void Baro_init(void)
 {
     delay(10);
     i2c_BMP085_readCalibration();
@@ -2344,57 +2444,7 @@ void Baro_init()
     i2c_BMP085_UT_Read();
 }
 
-// read a 16 bit register
-int16_t i2c_BMP085_readIntRegister(uint8_t r)
-{
-    union {
-        int16_t val;
-        uint8_t raw[2];
-    } data;
-    i2c_rep_start(BMP085_ADDRESS + 0);
-    i2c_write(r);
-    i2c_rep_start(BMP085_ADDRESS + 1);  //I2C read direction => 1
-    data.raw[1] = i2c_readAck();
-    data.raw[0] = i2c_readNak();
-    return data.val;
-}
-
-// read uncompensated temperature value: send command first
-void i2c_BMP085_UT_Start()
-{
-    i2c_writeReg(BMP085_ADDRESS, 0xf4, 0x2e);
-    i2c_rep_start(BMP085_ADDRESS + 0);
-    i2c_write(0xF6);
-}
-
-// read uncompensated pressure value: send command first
-void i2c_BMP085_UP_Start()
-{
-    i2c_writeReg(BMP085_ADDRESS, 0xf4, 0x34 + (OSS << 6));      // control register value for oversampling setting 3
-    i2c_rep_start(BMP085_ADDRESS + 0);  //I2C write direction => 0
-    i2c_write(0xF6);
-}
-
-// read uncompensated pressure value: read result bytes
-// the datasheet suggests a delay of 25.5 ms (oversampling settings 3) after the send command
-void i2c_BMP085_UP_Read()
-{
-    i2c_rep_start(BMP085_ADDRESS + 1);  //I2C read direction => 1
-    bmp085_ctx.up.raw[2] = i2c_readAck();
-    bmp085_ctx.up.raw[1] = i2c_readAck();
-    bmp085_ctx.up.raw[0] = i2c_readNak();
-}
-
-// read uncompensated temperature value: read result bytes
-// the datasheet suggests a delay of 4.5 ms after the send command
-void i2c_BMP085_UT_Read()
-{
-    i2c_rep_start(BMP085_ADDRESS + 1);  //I2C read direction => 1
-    bmp085_ctx.ut.raw[1] = i2c_readAck();
-    bmp085_ctx.ut.raw[0] = i2c_readNak();
-}
-
-void i2c_BMP085_Calculate()
+void i2c_BMP085_Calculate(void)
 {
     int32_t x1, x2, x3, b3, b5, b6, p, tmp;
     uint32_t b4, b7;
@@ -2427,7 +2477,9 @@ void Baro_update()
     if (currentTime < bmp085_ctx.deadline)
         return;
     bmp085_ctx.deadline = currentTime;
+#ifndef STM8
     TWBR = ((16000000L / 400000L) - 16) / 2;    // change the I2C clock rate to 400kHz, BMP085 is ok with this speed
+#endif
     switch (bmp085_ctx.state) {
     case 0:
         i2c_BMP085_UT_Start();
@@ -2627,7 +2679,9 @@ void ACC_init()
 
 void ACC_getADC()
 {
+#ifndef STM8
     TWBR = ((16000000L / 400000L) - 16) / 2;    // change the I2C clock rate to 400kHz, ADXL435 is ok with this speed
+#endif
     i2c_getSixRawADC(ADXL345_ADDRESS, 0x32);
 
     ACC_ORIENTATION(-((rawADC[3] << 8) | rawADC[2]), ((rawADC[1] << 8) | rawADC[0]), ((rawADC[5] << 8) | rawADC[4]));
@@ -2663,58 +2717,30 @@ void ACC_getADC()
 #define ADXL_RANGE_16G     0x03
 #define ADXL_FIFO_STREAM   0x80
 
-static uint8_t ADXL_WriteByte(uint8_t Data)
-{
-    /* Wait until the transmit buffer is empty */
-    while (SPI_GetFlagStatus(SPI_FLAG_TXE) == RESET);
-    /* Send the byte */
-    SPI_SendData(Data);
-    /* Wait to receive a byte */
-    while (SPI_GetFlagStatus(SPI_FLAG_RXNE) == RESET);
-    /*Return the byte read from the SPI bus */
-    return SPI_ReceiveData();
-}
-
-static uint8_t ADXL_ReadByte(void)
-{
-    volatile uint8_t Data = 0;
-    /* Wait until the transmit buffer is empty */
-    while (SPI_GetFlagStatus(SPI_FLAG_TXE) == RESET);
-    /* Send the byte */
-    SPI_SendData(0xFF);         // Dummy Byte
-    /* Wait until a data is received */
-    while (SPI_GetFlagStatus(SPI_FLAG_RXNE) == RESET);
-    /* Get the received data */
-    Data = SPI_ReceiveData();
-    /* Return the shifted data */
-    return Data;
-}
-
 static void ADXL_Init(void)
 {
     // setup ADXL345 rate/range/start measuring
-
     // Rate 3200Hz
     ADXL_ON;
-    ADXL_WriteByte(ADXL_RATE_ADDR);
-    ADXL_WriteByte(ADXL_RATE_3200 & 0x0F);
+    spi_WriteByte(ADXL_RATE_ADDR);
+    spi_WriteByte(ADXL_RATE_3200 & 0x0F);
     ADXL_OFF;
 
     // Range 8G
     ADXL_ON;
-    ADXL_WriteByte(ADXL_FORMAT_ADDR);
-    ADXL_WriteByte((ADXL_RANGE_8G & 0x03) | ADXL_FULL_RES | ADXL_4WIRE);
+    spi_WriteByte(ADXL_FORMAT_ADDR);
+    spi_WriteByte((ADXL_RANGE_8G & 0x03) | ADXL_FULL_RES | ADXL_4WIRE);
     ADXL_OFF;
 
     // Fifo depth = 16
     ADXL_ON;
-    ADXL_WriteByte(ADXL_FIFO_ADDR);
-    ADXL_WriteByte((16 & 0x1f) | ADXL_FIFO_STREAM);
+    spi_WriteByte(ADXL_FIFO_ADDR);
+    spi_WriteByte((16 & 0x1f) | ADXL_FIFO_STREAM);
     ADXL_OFF;
 
     ADXL_ON;
-    ADXL_WriteByte(ADXL_POWER_ADDR);
-    ADXL_WriteByte(ADXL_MEASURE);
+    spi_WriteByte(ADXL_POWER_ADDR);
+    spi_WriteByte(ADXL_MEASURE);
     ADXL_OFF;
 }
 
@@ -2723,11 +2749,11 @@ static uint8_t ADXL_GetAccelValues(void)
     volatile uint8_t i;
 
     ADXL_ON;
-    ADXL_WriteByte(ADXL_X0_ADDR | ADXL_MULTI_BIT | ADXL_READ_BIT);
+    spi_WriteByte(ADXL_X0_ADDR | ADXL_MULTI_BIT | ADXL_READ_BIT);
     for (i = 0; i < 3; i++) {
         uint8_t i1, i2;
-        i1 = ADXL_ReadByte();
-        i2 = ADXL_ReadByte();
+        i1 = spi_ReadByte();
+        i2 = spi_ReadByte();
 
 #ifdef LOWPASS_ACC
         // new result = 0.95 * previous_result + 0.05 * current_data
@@ -2738,9 +2764,9 @@ static uint8_t ADXL_GetAccelValues(void)
     }
 
     // skip over this register
-    ADXL_ReadByte();
+    spi_ReadByte();
     // FIFO_STATUS register (last few bits = fifo remaining)
-    i = ADXL_ReadByte();
+    i = spi_ReadByte();
     ADXL_OFF;
 
     return i & 0x7F;            // return number of entires left in fifo
@@ -2748,11 +2774,6 @@ static uint8_t ADXL_GetAccelValues(void)
 
 void ACC_init()
 {
-    // SPI
-    SPI_DeInit();
-    SPI_Init(SPI_FIRSTBIT_MSB, SPI_BAUDRATEPRESCALER_2, SPI_MODE_MASTER, SPI_CLOCKPOLARITY_HIGH, SPI_CLOCKPHASE_2EDGE, SPI_DATADIRECTION_2LINES_FULLDUPLEX, SPI_NSS_SOFT, 0x07);
-    SPI_Cmd(ENABLE);
-
     // SPI ChipSelect for Accel
     GPIO_Init(GPIOE, GPIO_PIN_5, GPIO_MODE_OUT_PP_HIGH_FAST);
     ADXL_OFF;
@@ -2762,9 +2783,6 @@ void ACC_init()
     // Accel INT1 input tied to interrupt (TODO). Input-only for now.
     GPIO_Init(GPIOD, GPIO_PIN_0, GPIO_MODE_IN_FL_NO_IT);
 
-    // i2c_writeReg(ADXL345_ADDRESS, 0x2D, 1 << 3);     //  register: Power CTRL  -- value: Set measure bit 3 on
-    // i2c_writeReg(ADXL345_ADDRESS, 0x31, 0x0B);       //  register: DATA_FORMAT -- value: Set bits 3(full range) and 1 0 on (+/- 16g-range)
-    // i2c_writeReg(ADXL345_ADDRESS, 0x2C, 8 + 2 + 1);  // register: BW_RATE     -- value: 200Hz sampling (see table 5 of the spec)
     // Initialize SPI Accelerometer
     ADXL_Init();
     acc_1G = 256;
@@ -2797,6 +2815,167 @@ void ACC_getADC()
 }
 #endif
 
+#if defined(MPU6000SPI)
+static uint8_t mpuInitialized = 0;
+#define MPU_OFF            GPIO_WriteHigh(GPIOB, GPIO_PIN_2);
+#define MPU_ON             GPIO_WriteLow(GPIOB, GPIO_PIN_2);
+
+#define MPUREG_WHOAMI               0x75
+#define MPUREG_SMPLRT_DIV           0x19
+#define MPUREG_CONFIG               0x1A
+#define MPUREG_GYRO_CONFIG          0x1B
+#define MPUREG_ACCEL_CONFIG         0x1C
+#define MPUREG_I2C_MST_CTRL         0x24
+#define MPUREG_I2C_SLV0_ADDR        0x25
+#define MPUREG_I2C_SLV0_REG         0x26
+#define MPUREG_I2C_SLV0_CTRL        0x27
+#define MPUREG_INT_PIN_CFG          0x37
+#define MPUREG_INT_ENABLE           0x38 
+#define MPUREG_ACCEL_XOUT_H         0x3B
+#define MPUREG_ACCEL_XOUT_L         0x3C
+#define MPUREG_ACCEL_YOUT_H         0x3D
+#define MPUREG_ACCEL_YOUT_L         0x3E
+#define MPUREG_ACCEL_ZOUT_H         0x3F
+#define MPUREG_ACCEL_ZOUT_L         0x40
+#define MPUREG_TEMP_OUT_H           0x41
+#define MPUREG_TEMP_OUT_L           0x42
+#define MPUREG_GYRO_XOUT_H          0x43
+#define MPUREG_GYRO_XOUT_L          0x44
+#define MPUREG_GYRO_YOUT_H          0x45
+#define MPUREG_GYRO_YOUT_L          0x46
+#define MPUREG_GYRO_ZOUT_H          0x47
+#define MPUREG_GYRO_ZOUT_L          0x48
+#define MPUREG_I2C_SLV0_DO          0x63 // This register holds the output data written into Slave 0 when Slave 0 is set to write mode.
+#define MPUREG_USER_CTRL            0x6A
+#define MPUREG_PWR_MGMT_1           0x6B
+#define MPUREG_PWR_MGMT_2           0x6C
+
+// Configuration bits MPU 6000
+#define BIT_SLEEP                   0x40
+#define BIT_H_RESET                 0x80
+#define BITS_CLKSEL                 0x07
+#define MPU_CLK_SEL_PLLGYROX        0x01
+#define MPU_CLK_SEL_PLLGYROZ        0x03
+#define MPU_EXT_SYNC_GYROX          0x02
+#define BITS_AFS_2G                 0x00
+#define BITS_AFS_4G                 0x08
+#define BITS_AFS_8G                 0x10
+#define BITS_AFS_16G                0x18
+#define BITS_FS_250DPS              0x00
+#define BITS_FS_500DPS              0x08
+#define BITS_FS_1000DPS             0x10
+#define BITS_FS_2000DPS             0x18
+#define BITS_FS_MASK                0x18
+#define BITS_DLPF_CFG_256HZ_NOLPF2  0x00
+#define BITS_DLPF_CFG_188HZ         0x01
+#define BITS_DLPF_CFG_98HZ          0x02
+#define BITS_DLPF_CFG_42HZ          0x03
+#define BITS_DLPF_CFG_20HZ          0x04
+#define BITS_DLPF_CFG_10HZ          0x05
+#define BITS_DLPF_CFG_5HZ           0x06
+#define BITS_DLPF_CFG_2100HZ_NOLPF  0x07
+#define BITS_DLPF_CFG_MASK          0x07
+#define BIT_INT_ANYRD_2CLEAR        0x10
+#define BIT_RAW_RDY_EN              0x01
+#define BIT_I2C_IF_DIS              0x10
+
+static uint8_t MPU6000_Buffer[14];   // Sensor data ACCXYZ|TEMP|GYROXYZ
+
+static uint8_t MPU6000_ReadReg(uint8_t Address)
+{
+    uint8_t rv;
+    MPU_ON;
+    spi_WriteByte(Address | 0x80); // Address with high bit set = Read operation
+    rv = spi_ReadByte();
+    MPU_OFF;
+    return rv;
+}
+
+static void MPU6000_getSixRawADC(void)
+{
+    uint8_t i;
+    MPU_ON;
+    spi_WriteByte(MPUREG_ACCEL_XOUT_H | 0x80); // Address with high bit set = Read operation
+    // ACC X, Y, Z, TEMP, GYRO X, Y, Z
+    for (i = 0; i < 14; i++)
+        MPU6000_Buffer[i] = spi_ReadByte();
+    MPU_OFF;
+}
+
+static void MPU6000_WriteReg(uint8_t Address, uint8_t Data)
+{ 
+    MPU_ON;
+    spi_WriteByte(Address); 
+    spi_WriteByte(Data);
+    MPU_OFF;
+    delay(1);
+}
+
+void MPU6000_init(void)
+{
+    // SPI ChipSelect for MPU-6000
+    GPIO_Init(GPIOB, GPIO_PIN_2, GPIO_MODE_OUT_PP_HIGH_FAST);
+    MPU_OFF;
+
+    // MPU-6000 input tied to interrupt (TODO). Input-only for now.
+    GPIO_Init(GPIOB, GPIO_PIN_3, GPIO_MODE_IN_FL_NO_IT);
+
+    MPU6000_WriteReg(MPUREG_PWR_MGMT_1, BIT_H_RESET);
+    delay(100);
+    MPU6000_WriteReg(MPUREG_PWR_MGMT_1, MPU_CLK_SEL_PLLGYROZ);      // Set PLL source to gyro output
+    MPU6000_WriteReg(MPUREG_USER_CTRL, BIT_I2C_IF_DIS);             // Disable I2C bus
+    MPU6000_WriteReg(MPUREG_SMPLRT_DIV, 0x04);                      // Sample rate = 200Hz    Fsample = 1Khz / (4 + 1) = 200Hz   
+    MPU6000_WriteReg(MPUREG_CONFIG, BITS_DLPF_CFG_42HZ);            // Fs & DLPF Fs = 1kHz, DLPF = 42Hz (low pass filter)
+    MPU6000_WriteReg(MPUREG_GYRO_CONFIG, BITS_FS_2000DPS);          // Gyro scale 2000º/s
+    MPU6000_WriteReg(MPUREG_ACCEL_CONFIG, BITS_AFS_4G);             // Accel scale 4G
+    MPU6000_WriteReg(MPUREG_INT_ENABLE, BIT_RAW_RDY_EN);            // INT: Raw data ready
+    MPU6000_WriteReg(MPUREG_INT_PIN_CFG, BIT_INT_ANYRD_2CLEAR);     // INT: Clear on any read
+
+    mpuInitialized = 1;
+}
+
+void ACC_init()
+{
+    if (!mpuInitialized)
+        MPU6000_init();
+        
+    acc_1G = 256;
+}
+
+void ACC_getADC()
+{
+    MPU6000_getSixRawADC();
+    ACC_ORIENTATION(-(MPU6000_Buffer[0] << 8 | MPU6000_Buffer[1]) / 16, -(MPU6000_Buffer[2] << 8 | MPU6000_Buffer[3]) / 16, (MPU6000_Buffer[4] << 8 | MPU6000_Buffer[5]) / 16);
+    ACC_Common();
+}
+
+void Gyro_init(void)
+{
+    if (!mpuInitialized)
+        MPU6000_init();
+}
+
+void Gyro_getADC(void)
+{
+    // range: +/- 8192; +/- 2000 deg/sec
+    MPU6000_getSixRawADC();
+    GYRO_ORIENTATION((((MPU6000_Buffer[10] << 8) | MPU6000_Buffer[11]) / 4), -(((MPU6000_Buffer[8] << 8) | MPU6000_Buffer[9]) / 4), -(((MPU6000_Buffer[12] << 8) | MPU6000_Buffer[13]) / 4));
+    GYRO_Common();
+}
+
+void Mag_init()
+{
+    // delay(100);
+    // i2c_writeReg(0X3C, 0x02, 0x00);     //register: Mode register  --  value: Continuous-Conversion Mode
+}
+
+void Device_Mag_getADC()
+{
+    // i2c_getSixRawADC(0X3C, 0X03);
+    // MAG_ORIENTATION(((rawADC[0] << 8) | rawADC[1]), ((rawADC[2] << 8) | rawADC[3]), -((rawADC[4] << 8) | rawADC[5]));
+}
+#endif /* MPU6000SPI */
+
 // ************************************************************************************************************
 // contribution initially from opie11 (rc-groups)
 // adaptation from C2po (may 2011)
@@ -2816,11 +2995,13 @@ void ACC_getADC()
 #if defined(BMA180)
 void ACC_init()
 {
+    uint8_t control;
+    
     delay(10);
     //default range 2G: 1G = 4096 unit.
     i2c_writeReg(BMA180_ADDRESS, 0x0D, 1 << 4); // register: ctrl_reg0  -- value: set bit ee_w to 1 to enable writing
     delay(5);
-    uint8_t control = i2c_readReg(BMA180_ADDRESS, 0x20);
+    control = i2c_readReg(BMA180_ADDRESS, 0x20);
     control = control & 0x0F;   // register: bw_tcs reg: bits 4-7 to set bw -- value: set low pass filter to 10Hz (bits value = 0000xxxx)
     control = control | 0x00;
     i2c_writeReg(BMA180_ADDRESS, 0x20, control);
@@ -2835,7 +3016,9 @@ void ACC_init()
 
 void ACC_getADC()
 {
+#ifndef STM8
     TWBR = ((16000000L / 400000L) - 16) / 2;    // Optional line.  Sensor is good for it in the spec.
+#endif
     i2c_getSixRawADC(BMA180_ADDRESS, 0x02);
     //usefull info is on the 14 bits  [2-15] bits  /4 => [0-13] bits  /8 => 11 bit resolution
     ACC_ORIENTATION(-((rawADC[1] << 8) | rawADC[0]) / 32, -((rawADC[3] << 8) | rawADC[2]) / 32, ((rawADC[5] << 8) | rawADC[4]) / 32);
@@ -3259,10 +3442,8 @@ uint8_t WMP_getRawADC()
 
 void initSensors()
 {
-    delay(200);
-    POWERPIN_ON;
-    delay(100);
     i2c_init();
+    spi_init();
     delay(100);
 #if GYRO
     Gyro_init();
