@@ -2829,6 +2829,8 @@ static uint8_t mpuInitialized = 0;
 #define MPUREG_I2C_SLV0_ADDR        0x25
 #define MPUREG_I2C_SLV0_REG         0x26
 #define MPUREG_I2C_SLV0_CTRL        0x27
+
+#define MPUREG_I2C_MST_STATUS       0x36
 #define MPUREG_INT_PIN_CFG          0x37
 #define MPUREG_INT_ENABLE           0x38 
 #define MPUREG_ACCEL_XOUT_H         0x3B
@@ -2845,7 +2847,9 @@ static uint8_t mpuInitialized = 0;
 #define MPUREG_GYRO_YOUT_L          0x46
 #define MPUREG_GYRO_ZOUT_H          0x47
 #define MPUREG_GYRO_ZOUT_L          0x48
+#define MPUREG_EXT_SENS_DATA_00     0x49 // Registers 0x49 to 0x60 - External Sensor Data
 #define MPUREG_I2C_SLV0_DO          0x63 // This register holds the output data written into Slave 0 when Slave 0 is set to write mode.
+#define MPUREG_I2C_MST_DELAY_CTRL   0x67 // I2C Master Delay Control
 #define MPUREG_USER_CTRL            0x6A
 #define MPUREG_PWR_MGMT_1           0x6B
 #define MPUREG_PWR_MGMT_2           0x6C
@@ -2878,6 +2882,7 @@ static uint8_t mpuInitialized = 0;
 #define BIT_INT_ANYRD_2CLEAR        0x10
 #define BIT_RAW_RDY_EN              0x01
 #define BIT_I2C_IF_DIS              0x10
+#define BIT_I2C_SLV0_EN             0x80
 
 static uint8_t MPU6000_Buffer[14];   // Sensor data ACCXYZ|TEMP|GYROXYZ
 
@@ -2925,9 +2930,9 @@ void MPU6000_init(void)
     MPU6000_WriteReg(MPUREG_PWR_MGMT_1, MPU_CLK_SEL_PLLGYROZ);      // Set PLL source to gyro output
     MPU6000_WriteReg(MPUREG_USER_CTRL, BIT_I2C_IF_DIS);             // Disable I2C bus
     MPU6000_WriteReg(MPUREG_SMPLRT_DIV, 0x04);                      // Sample rate = 200Hz    Fsample = 1Khz / (4 + 1) = 200Hz   
-    MPU6000_WriteReg(MPUREG_CONFIG, BITS_DLPF_CFG_42HZ);            // Fs & DLPF Fs = 1kHz, DLPF = 42Hz (low pass filter)
+    MPU6000_WriteReg(MPUREG_CONFIG, 0); // BITS_DLPF_CFG_42HZ);            // Fs & DLPF Fs = 1kHz, DLPF = 42Hz (low pass filter)
     MPU6000_WriteReg(MPUREG_GYRO_CONFIG, BITS_FS_2000DPS);          // Gyro scale 2000º/s
-    MPU6000_WriteReg(MPUREG_ACCEL_CONFIG, BITS_AFS_4G);             // Accel scale 4G
+    MPU6000_WriteReg(MPUREG_ACCEL_CONFIG, BITS_AFS_8G);             // Accel scale 4G
     MPU6000_WriteReg(MPUREG_INT_ENABLE, BIT_RAW_RDY_EN);            // INT: Raw data ready
     MPU6000_WriteReg(MPUREG_INT_PIN_CFG, BIT_INT_ANYRD_2CLEAR);     // INT: Clear on any read
 
@@ -2963,10 +2968,32 @@ void Gyro_getADC(void)
     GYRO_Common();
 }
 
+#define HMC5883L_I2C_ADDRESS        0x1e
+#define HMC5883L_ID_REG_A           0x0a
+#define HMC5883L_ID_REG_B           0x0b
+#define HMC5883L_ID_REG_C           0x0c
+
 void Mag_init()
 {
-    // delay(100);
-    // i2c_writeReg(0X3C, 0x02, 0x00);     //register: Mode register  --  value: Continuous-Conversion Mode
+    volatile uint8_t i, temp;
+    
+    MPU6000_WriteReg(MPUREG_I2C_MST_CTRL, 0b01000000 | 13); // WAIT_FOR_ES=1, I2C Master Clock Speed 400kHz
+    MPU6000_WriteReg(MPUREG_I2C_MST_DELAY_CTRL, 0b10000001); //
+    
+    MPU6000_WriteReg(MPUREG_I2C_SLV0_ADDR, 0x80 | HMC5883L_I2C_ADDRESS); // High bit for read, I2C address
+    MPU6000_WriteReg(MPUREG_I2C_SLV0_REG, HMC5883L_ID_REG_A); // HMC subaddress to read from
+    MPU6000_WriteReg(MPUREG_I2C_SLV0_CTRL, BIT_I2C_SLV0_EN | 0x03); // I2C_SLV0_EN=1, read 3 bytes
+    delay(1);
+    
+    MPU6000_getSixRawADC();
+    
+    temp = MPU6000_ReadReg(MPUREG_I2C_MST_STATUS);
+    spi_WriteByte(MPUREG_EXT_SENS_DATA_00 | 0x80); // Address with high bit set = Read operation
+    // HMC ABC
+    for (i = 0; i < 14; i++)
+        MPU6000_Buffer[i] = spi_ReadByte();
+
+    delay(1);
 }
 
 void Device_Mag_getADC()
