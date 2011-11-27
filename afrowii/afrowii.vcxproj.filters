@@ -80,9 +80,6 @@
     <ClCompile Include="LCD.c">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="sysdep.c">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="stm8_interrupt_vector.c">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -123,6 +120,12 @@
       <Filter>FWLib</Filter>
     </ClCompile>
     <ClCompile Include="MultiWii_afro.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="sysdep_stm32f4.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="sysdep_stm8s.c">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>

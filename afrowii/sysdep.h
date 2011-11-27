@@ -9,17 +9,41 @@
 #define DEG_TO_RAD 0.017453292519943295769236907684886
 #define RAD_TO_DEG 57.295779513082320876798154814105
 
+/* hardware abstraction */
+
+/* this would setup clocks/timers/etc */
+void hw_init(void);
+
+/* SPI */
+void spi_init(void);
+uint8_t spi_writeByte(uint8_t Data);
+uint8_t spi_readByte(void);
+/* I2C */
+void i2c_init(void);
+uint8_t i2c_read(uint8_t *buf, uint8_t size, uint8_t address, uint8_t subaddr);
+uint8_t i2c_write(uint8_t *buf, uint8_t size);
+
+/* UART */
+void serialize8(uint8_t val);
+void serialize16(int16_t val);
+void Serial_begin(uint32_t speed);
+void Serial_reset(void);
+uint16_t Serial_available(void);
+uint8_t Serial_read(void);
+void Serial_commitBuffer(void);
+uint8_t Serial_isTxBusy(void);
+
+/* System */
 void delay(uint16_t ms);
 uint32_t micros(void);
 uint16_t analogRead(uint8_t channel);
 void analogWrite(uint8_t pin, uint16_t value);
 void pinMode(uint8_t pin, uint8_t mode);
-void Serial_begin(uint32_t speed);
-uint16_t Serial_available(void);
-uint8_t Serial_read(void);
 
-void eeprom_read_block (void *__dst, const void *__src, size_t __n);
-void eeprom_write_block (const void *__src, void *__dst, size_t __n);
+void eeprom_open(void);
+void eeprom_read_block(void *dst, const void *src, size_t n);
+void eeprom_write_block(const void *src, void *dst, size_t n);
+void eeprom_close(void);
 
 #define sei()
 #define cli()

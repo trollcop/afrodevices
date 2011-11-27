@@ -82,6 +82,7 @@
     <ClInclude Include="sysdep.h" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="sysdep_stm32f4.c" />
     <ClCompile Include="LCD.c" />
     <ClCompile Include="main.c" />
     <ClCompile Include="MultiWii_afro.c" />
@@ -97,7 +98,7 @@
     <ClCompile Include="STM8S_StdPeriph_Driver\src\stm8s_tim4.c" />
     <ClCompile Include="STM8S_StdPeriph_Driver\src\stm8s_uart2.c" />
     <ClCompile Include="stm8_interrupt_vector.c" />
-    <ClCompile Include="sysdep.c" />
+    <ClCompile Include="sysdep_stm8s.c" />
   </ItemGroup>
   <ItemGroup>
     <None Include="afrowii.dep" />

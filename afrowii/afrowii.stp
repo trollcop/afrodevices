@@ -346,7 +346,7 @@ PathName=stm8s_stdperiph_driver\src\stm8s_uart2.c
 [Root.Source Files]
 ElemType=Folder
 PathName=Source Files
-Child=Root.Source Files.multiwii_afro.c
+Child=Root.Source Files.sysdep_stm8s.c
 Next=Root.Include Files
 Config.0=Root.Source Files.Config.0
 Config.1=Root.Source Files.Config.1
@@ -417,6 +417,11 @@ String.4.0=
 String.5.0=
 String.6.0=2011,8,31,17,23,22
 
+[Root.Source Files.sysdep_stm8s.c]
+ElemType=File
+PathName=sysdep_stm8s.c
+Next=Root.Source Files.multiwii_afro.c
+
 [Root.Source Files.multiwii_afro.c]
 ElemType=File
 PathName=multiwii_afro.c
@@ -435,11 +440,6 @@ Next=Root.Source Files.stm8_interrupt_vector.c
 [Root.Source Files.stm8_interrupt_vector.c]
 ElemType=File
 PathName=stm8_interrupt_vector.c
-Next=Root.Source Files.sysdep.c
-
-[Root.Source Files.sysdep.c]
-ElemType=File
-PathName=sysdep.c
 
 [Root.Include Files]
 ElemType=Folder

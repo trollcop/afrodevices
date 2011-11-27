@@ -168,25 +168,18 @@ void Baro_init(void);
 #endif
 void ACC_init(void);
 void Mag_init(void);
-void UartSendData(void);
 
-// I2C Prototypes
-uint8_t i2c_read(uint8_t * buf, uint8_t size, uint8_t address, uint8_t subaddr);
-uint8_t i2c_write(uint8_t * buf, uint8_t size);
+/* local I2C Prototypes */
 void i2c_getSixRawADC(uint8_t add, uint8_t reg);
 void i2c_writeReg(uint8_t add, uint8_t reg, uint8_t val);
 uint8_t i2c_readReg(uint8_t add, uint8_t reg);
-// SPI Prototypes
-void spi_init(void);
-uint8_t spi_WriteByte(uint8_t Data);
-uint8_t spi_ReadByte(void);
 
 void blinkLED(uint8_t num, uint8_t wait, uint8_t repeat)
 {
     uint8_t i, r;
     for (r = 0; r < repeat; r++) {
         for (i = 0; i < num; i++) {
-            LEDPIN_TOGGLE;      //switch LEDPIN state??
+            LEDPIN_TOGGLE;
             BUZZERPIN_ON;
             delay(wait);
             BUZZERPIN_OFF;
@@ -730,25 +723,14 @@ volatile eep_entry_t eep_entry[] = {
 void readEEPROM()
 {
     uint8_t i;
-#ifdef STM8
-    uint32_t _address = FLASH_DATA_START_PHYSICAL_ADDRESS + eep_entry[0].size;
+    uint8_t _address = eep_entry[0].size;
 
-    FLASH_SetProgrammingTime(FLASH_PROGRAMTIME_STANDARD);
-    FLASH_Unlock(FLASH_MEMTYPE_DATA);
-
-    for (i = 1; i < EEBLOCK_SIZE; i++) {
-        memcpy(eep_entry[i].var, (void *) _address, eep_entry[i].size);
-        _address += eep_entry[i].size;
-    }
-
-    FLASH_Lock(FLASH_MEMTYPE_DATA);
-
-#else
+    eeprom_open();
     for (i = 1; i < EEBLOCK_SIZE; i++) {
         eeprom_read_block(eep_entry[i].var, (void *) (_address), eep_entry[i].size);
         _address += eep_entry[i].size;
     }
-#endif
+    eeprom_close();
 
 #if defined(POWERMETER)
     pAlarm = (uint32_t) powerTrigger1 *(uint32_t) PLEVELSCALE *(uint32_t) PLEVELDIV;    // need to cast before multiplying
@@ -759,21 +741,15 @@ void readEEPROM()
 
 void writeParams()
 {
-    uint8_t i, j;
-#ifdef STM8
-    uint32_t _address = FLASH_DATA_START_PHYSICAL_ADDRESS;
+    uint8_t i;
+    uint8_t _address = 0;
 
-    FLASH_SetProgrammingTime(FLASH_PROGRAMTIME_STANDARD);
-    FLASH_Unlock(FLASH_MEMTYPE_DATA);
-
+    eeprom_open();
     for (i = 0; i < EEBLOCK_SIZE; i++) {
-        uint8_t *data = (uint8_t *) (eep_entry[i].var);
-        for (j = 0; j < eep_entry[i].size; j++)
-            FLASH_ProgramByte(_address++, *data++);
+        eeprom_write_block(eep_entry[i].var, (void *)(_address), eep_entry[i].size); 
+        _address += eep_entry[i].size;
     }
-
-    FLASH_Lock(FLASH_MEMTYPE_DATA);
-#endif
+    eeprom_close();
 
     readEEPROM();
     blinkLED(15, 20, 1);
@@ -783,16 +759,12 @@ void checkFirstTime()
 {
     uint8_t test_val, i;
 
-    FLASH_SetProgrammingTime(FLASH_PROGRAMTIME_STANDARD);
-    FLASH_Unlock(FLASH_MEMTYPE_DATA);
+    eeprom_open();
+    eeprom_read_block(&test_val, (void *)0, 1);
+    eeprom_close();
 
-    test_val = FLASH_ReadByte(FLASH_DATA_START_PHYSICAL_ADDRESS);
-    FLASH_Lock(FLASH_MEMTYPE_DATA);
-
-#if 1
     if (test_val == checkNewConf)
         return;
-#endif
 
     P8[ROLL] = 40;
     I8[ROLL] = 30;
@@ -2044,16 +2016,6 @@ void getEstimatedAltitude()
 uint8_t rawADC[6];
 static uint32_t neutralizeTime = 0;
 
-// ************************************************************************************************************
-// I2C general functions
-// ************************************************************************************************************
-void i2c_init(void)
-{
-    I2C_DeInit();
-    I2C_Init(I2C_MAX_FAST_FREQ, 0xA0, I2C_DUTYCYCLE_2, I2C_ACK_CURR, I2C_ADDMODE_7BIT, I2C_MAX_INPUT_FREQ);
-    I2C_Cmd(ENABLE);
-}
-
 void i2c_getSixRawADC(uint8_t add, uint8_t reg)
 {
     i2c_read(rawADC, 6, add, reg);
@@ -2073,193 +2035,6 @@ uint8_t i2c_readReg(uint8_t add, uint8_t reg)
     uint8_t data[1];
     i2c_read(data, 1, add, reg);
     return data[0];
-}
-
-#define I2C_TIMEOUT 0x300
-
-typedef enum {                  //returns I2C error/success codes
-    I2C_SUCCESS = 0,            //theres only one sort of success
-    I2C_START_TIMEOUT,
-    I2C_RSTART_TIMEOUT,
-    I2C_SACK_FAILURE,
-    I2C_SACK_TIMEOUT,
-    I2C_TX_TIMEOUT,
-    I2C_RX_TIMEOUT
-} I2C_Returntype;
-
-uint8_t i2c_write(uint8_t *buf, uint8_t size)
-{
-    // Sets up an i2c device
-    uint8_t n;
-    uint16_t tm = 0;
-    I2C_GenerateSTART(ENABLE);
-    while (!I2C_CheckEvent(I2C_EVENT_MASTER_MODE_SELECT)) {
-        tm++;
-        if (tm > I2C_TIMEOUT)
-            return I2C_START_TIMEOUT;
-    }
-    tm = 0;
-    I2C_Send7bitAddress(buf[0], I2C_DIRECTION_TX);      //Address write
-    while (!I2C_CheckEvent(I2C_EVENT_MASTER_TRANSMITTER_MODE_SELECTED)) {
-        tm++;
-        if (tm > I2C_TIMEOUT)
-            return I2C_SACK_TIMEOUT;
-        if (SET == I2C_GetFlagStatus(I2C_FLAG_ACKNOWLEDGEFAILURE)) {
-            I2C_ClearFlag(I2C_FLAG_ACKNOWLEDGEFAILURE);
-            I2C_GenerateSTOP(ENABLE);   //Enable the STOP here - so hardware is ready again
-            return I2C_SACK_FAILURE;    //Slave did not ack
-        }
-    }
-    for (n = 1; n < size; n++) {
-        tm = 0;
-        I2C_SendData(buf[n]);   //Write rest of string (registers)
-        while (!I2C_CheckEvent(I2C_EVENT_MASTER_BYTE_TRANSMITTED)) {
-            tm++;
-            if (tm > I2C_TIMEOUT)
-                return I2C_TX_TIMEOUT;
-        }
-    }
-    I2C_GenerateSTOP(ENABLE);   //Finally send the stop bit
-    return I2C_SUCCESS;         //Completed ok
-}
-
-uint8_t i2c_read(uint8_t *buf, uint8_t size, uint8_t address, uint8_t subaddr)
-{
-    int8_t n = 0;               //0xFF as the Sub_Addr disables sub address
-    uint16_t tm = 0;
-    if (subaddr != 0xFF) {      //0xFF disables this - so we wont setup addr pointer
-        I2C_GenerateSTART(ENABLE);
-        while (!I2C_CheckEvent(I2C_EVENT_MASTER_MODE_SELECT)) {
-            tm++;
-            if (tm > I2C_TIMEOUT)
-                return I2C_START_TIMEOUT;
-        }
-        tm = 0;
-
-        I2C_Send7bitAddress(address, I2C_DIRECTION_TX); //Address write
-        while (!I2C_CheckEvent(I2C_EVENT_MASTER_TRANSMITTER_MODE_SELECTED)) {
-            tm++;
-            if (tm > I2C_TIMEOUT)
-                return I2C_SACK_TIMEOUT;        //Checks that the slave acknowledged
-            if (SET == I2C_GetFlagStatus(I2C_FLAG_ACKNOWLEDGEFAILURE)) {
-                I2C_ClearFlag(I2C_FLAG_ACKNOWLEDGEFAILURE);
-                I2C_GenerateSTOP(ENABLE);       //Enable the STOP here - so hardware is ready again
-                return I2C_SACK_FAILURE;        //Slave did not ack
-            }
-        }
-        tm = 0;
-        I2C_SendData(subaddr);  //Write sub address register
-        while (!I2C_CheckEvent(I2C_EVENT_MASTER_BYTE_TRANSMITTED)) {
-            tm++;
-            if (tm > I2C_TIMEOUT)
-                return I2C_TX_TIMEOUT;
-        }
-        //I2C_GenerateSTOP( I2C1, ENABLE ); //This code doesnt _seem_ to be needed
-        //while(I2C_GetFlagStatus(I2C1,I2C_FLAG_BUSY)==SET); //Wait for bus to go inactive
-    }
-    tm = 0;
-    I2C_GenerateSTART(ENABLE);  //Repeated start or the first start
-    while (!I2C_CheckEvent(I2C_EVENT_MASTER_MODE_SELECT)) {
-        tm++;
-        if (tm > I2C_TIMEOUT)
-            return I2C_RSTART_TIMEOUT;  //note that if we disable sub addr, then a start error
-    }                           //becomes a repeated start error
-    tm = 0;
-    I2C_Send7bitAddress(address | 0x01, I2C_DIRECTION_RX);      //Address to read
-    while (!I2C_CheckEvent(I2C_EVENT_MASTER_RECEIVER_MODE_SELECTED)) {
-        tm++;
-        if (tm > I2C_TIMEOUT)
-            return I2C_SACK_TIMEOUT;    //Checks that the slave acknowledged
-        if (SET == I2C_GetFlagStatus(I2C_FLAG_ACKNOWLEDGEFAILURE)) {
-            I2C_ClearFlag(I2C_FLAG_ACKNOWLEDGEFAILURE);
-            I2C_GenerateSTOP(ENABLE);   //Enable the STOP here - so hardware is ready again
-            return I2C_SACK_FAILURE;    //Slave did not ack
-        }
-    }                           //We now auto switch to rx mode
-    if (size > 2) {             //More than two bytes to receive
-        tm = 0;
-        while (!I2C_CheckEvent(I2C_EVENT_MASTER_BYTE_RECEIVED)) {       //Wait for the first byte
-            tm++;
-            if (tm > I2C_TIMEOUT)
-                return I2C_RX_TIMEOUT;
-        }
-        for (; n < ((int8_t) size - 3); n++) {
-            tm = 0;
-            buf[n] = I2C_ReceiveData();
-            while (!I2C_CheckEvent(I2C_EVENT_MASTER_BYTE_RECEIVED)) {
-                tm++;
-                if (tm > I2C_TIMEOUT)
-                    return I2C_RX_TIMEOUT;
-            }
-        }
-        tm = 0;
-        while (I2C_GetFlagStatus(I2C_FLAG_TRANSFERFINISHED) != SET) {   //Wait for two bytes to be received - ref man p712
-            tm++;
-            if (tm > I2C_TIMEOUT)
-                return I2C_RX_TIMEOUT;
-        }
-        I2C_AcknowledgeConfig(DISABLE); //Do not ack the last byte
-        buf[n++] = I2C_ReceiveData();   //Third to last byte
-        I2C_GenerateSTOP(ENABLE);       //Enable the STOP here
-        buf[n++] = I2C_ReceiveData();   //Read the Penultimate from buffer
-        tm = 0;
-        while (I2C_GetFlagStatus(I2C_FLAG_RXNOTEMPTY) != SET) { //Last byte received here with a NACK and STOP
-            tm++;
-            if (tm > I2C_TIMEOUT)
-                return I2C_RX_TIMEOUT;
-        }
-    } else {
-        I2C_AcknowledgeConfig(DISABLE); //Do not ack the last byte
-        tm = 0;
-        while (I2C_GetFlagStatus(I2C_FLAG_TRANSFERFINISHED) != SET) {   //Wait for two bytes to be received - ref man p713
-            tm++;
-            if (tm > I2C_TIMEOUT)
-                return I2C_RX_TIMEOUT;
-        }
-        I2C_GenerateSTOP(ENABLE);       //Enable the STOP here
-        buf[n++] = I2C_ReceiveData();   //First byte to lowest location
-    }
-    buf[n] = I2C_ReceiveData(); //Clear the buffer (last byte is in it)
-    I2C_AcknowledgeConfig(ENABLE);      //Re-enable ACK
-    return I2C_SUCCESS;         //Exit ok
-}
-
-// ************************************************************************************************************
-// SPI general functions
-// ************************************************************************************************************
-void spi_init(void)
-{
-    // SPI
-    SPI_DeInit();
-    SPI_Init(SPI_FIRSTBIT_MSB, SPI_BAUDRATEPRESCALER_2, SPI_MODE_MASTER, SPI_CLOCKPOLARITY_HIGH, SPI_CLOCKPHASE_2EDGE, SPI_DATADIRECTION_2LINES_FULLDUPLEX, SPI_NSS_SOFT, 0x07);
-    SPI_Cmd(ENABLE);
-}
-
-uint8_t spi_WriteByte(uint8_t Data)
-{
-    /* Wait until the transmit buffer is empty */
-    while (SPI_GetFlagStatus(SPI_FLAG_TXE) == RESET);
-    /* Send the byte */
-    SPI_SendData(Data);
-    /* Wait to receive a byte */
-    while (SPI_GetFlagStatus(SPI_FLAG_RXNE) == RESET);
-    /*Return the byte read from the SPI bus */
-    return SPI_ReceiveData();
-}
-
-uint8_t spi_ReadByte(void)
-{
-    volatile uint8_t Data = 0;
-    /* Wait until the transmit buffer is empty */
-    while (SPI_GetFlagStatus(SPI_FLAG_TXE) == RESET);
-    /* Send the byte */
-    SPI_SendData(0xFF);         // Dummy Byte
-    /* Wait until a data is received */
-    while (SPI_GetFlagStatus(SPI_FLAG_RXNE) == RESET);
-    /* Get the received data */
-    Data = SPI_ReceiveData();
-    /* Return the shifted data */
-    return Data;
 }
 
 // ****************
@@ -2722,25 +2497,25 @@ static void ADXL_Init(void)
     // setup ADXL345 rate/range/start measuring
     // Rate 3200Hz
     ADXL_ON;
-    spi_WriteByte(ADXL_RATE_ADDR);
-    spi_WriteByte(ADXL_RATE_3200 & 0x0F);
+    spi_writeByte(ADXL_RATE_ADDR);
+    spi_writeByte(ADXL_RATE_3200 & 0x0F);
     ADXL_OFF;
 
     // Range 8G
     ADXL_ON;
-    spi_WriteByte(ADXL_FORMAT_ADDR);
-    spi_WriteByte((ADXL_RANGE_8G & 0x03) | ADXL_FULL_RES | ADXL_4WIRE);
+    spi_writeByte(ADXL_FORMAT_ADDR);
+    spi_writeByte((ADXL_RANGE_8G & 0x03) | ADXL_FULL_RES | ADXL_4WIRE);
     ADXL_OFF;
 
     // Fifo depth = 16
     ADXL_ON;
-    spi_WriteByte(ADXL_FIFO_ADDR);
-    spi_WriteByte((16 & 0x1f) | ADXL_FIFO_STREAM);
+    spi_writeByte(ADXL_FIFO_ADDR);
+    spi_writeByte((16 & 0x1f) | ADXL_FIFO_STREAM);
     ADXL_OFF;
 
     ADXL_ON;
-    spi_WriteByte(ADXL_POWER_ADDR);
-    spi_WriteByte(ADXL_MEASURE);
+    spi_writeByte(ADXL_POWER_ADDR);
+    spi_writeByte(ADXL_MEASURE);
     ADXL_OFF;
 }
 
@@ -2749,11 +2524,11 @@ static uint8_t ADXL_GetAccelValues(void)
     volatile uint8_t i;
 
     ADXL_ON;
-    spi_WriteByte(ADXL_X0_ADDR | ADXL_MULTI_BIT | ADXL_READ_BIT);
+    spi_writeByte(ADXL_X0_ADDR | ADXL_MULTI_BIT | ADXL_READ_BIT);
     for (i = 0; i < 3; i++) {
         uint8_t i1, i2;
-        i1 = spi_ReadByte();
-        i2 = spi_ReadByte();
+        i1 = spi_readByte();
+        i2 = spi_readByte();
 
 #ifdef LOWPASS_ACC
         // new result = 0.95 * previous_result + 0.05 * current_data
@@ -2764,9 +2539,9 @@ static uint8_t ADXL_GetAccelValues(void)
     }
 
     // skip over this register
-    spi_ReadByte();
+    spi_readByte();
     // FIFO_STATUS register (last few bits = fifo remaining)
-    i = spi_ReadByte();
+    i = spi_readByte();
     ADXL_OFF;
 
     return i & 0x7F;            // return number of entires left in fifo
@@ -2894,8 +2669,8 @@ static uint8_t MPU6000_ReadReg(uint8_t Address)
 {
     uint8_t rv;
     MPU_ON;
-    spi_WriteByte(Address | 0x80); // Address with high bit set = Read operation
-    rv = spi_ReadByte();
+    spi_writeByte(Address | 0x80); // Address with high bit set = Read operation
+    rv = spi_readByte();
     MPU_OFF;
     return rv;
 }
@@ -2904,18 +2679,18 @@ static void MPU6000_getSixRawADC(void)
 {
     uint8_t i;
     MPU_ON;
-    spi_WriteByte(MPUREG_ACCEL_XOUT_H | 0x80); // Address with high bit set = Read operation
+    spi_writeByte(MPUREG_ACCEL_XOUT_H | 0x80); // Address with high bit set = Read operation
     // ACC X, Y, Z, TEMP, GYRO X, Y, Z
     for (i = 0; i < 14; i++)
-        MPU6000_Buffer[i] = spi_ReadByte();
+        MPU6000_Buffer[i] = spi_readByte();
     MPU_OFF;
 }
 
 static void MPU6000_WriteReg(uint8_t Address, uint8_t Data)
 { 
     MPU_ON;
-    spi_WriteByte(Address); 
-    spi_WriteByte(Data);
+    spi_writeByte(Address); 
+    spi_writeByte(Data);
     MPU_OFF;
     delay(1);
 }
@@ -2936,7 +2711,7 @@ void MPU6000_init(void)
     MPU6000_WriteReg(MPUREG_SMPLRT_DIV, 0x04);                      // Sample rate = 200Hz    Fsample = 1Khz / (4 + 1) = 200Hz   
     MPU6000_WriteReg(MPUREG_CONFIG, 0); // BITS_DLPF_CFG_42HZ);            // Fs & DLPF Fs = 1kHz, DLPF = 42Hz (low pass filter)
     MPU6000_WriteReg(MPUREG_GYRO_CONFIG, BITS_FS_2000DPS);          // Gyro scale 2000º/s
-    MPU6000_WriteReg(MPUREG_ACCEL_CONFIG, BITS_AFS_8G);             // Accel scale 4G
+    MPU6000_WriteReg(MPUREG_ACCEL_CONFIG, BITS_AFS_4G);             // Accel scale 4G
     MPU6000_WriteReg(MPUREG_INT_ENABLE, BIT_RAW_RDY_EN);            // INT: Raw data ready
     MPU6000_WriteReg(MPUREG_INT_PIN_CFG, BIT_INT_ANYRD_2CLEAR);     // INT: Clear on any read
 
@@ -3488,62 +3263,6 @@ void initSensors()
 }
 
 /* SERIAL ---------------------------------------------------------------- */
-static uint8_t point;
-static uint8_t s[128];
-void serialize16(int16_t a)
-{
-    s[point++] = a;
-    s[point++] = a >> 8 & 0xff;
-}
-
-void serialize8(uint8_t a)
-{
-    s[point++] = a;
-}
-
-// ***********************************
-// Interrupt driven UART transmitter for MIS_OSD
-// ***********************************
-static uint8_t tx_ptr;
-static uint8_t tx_busy = 0;
-
-#ifdef STM8
-__near __interrupt void UART2_TX_IRQHandler(void)
-{
-    UART2_SendData8(s[tx_ptr++]);
-    if (tx_ptr == point) {      /* Check if all data is transmitted */
-        UART2_ITConfig(UART2_IT_TXE, DISABLE);  /* Disable transmitter interrupt */
-        tx_busy = 0;
-    }
-}
-#else
-ISR_UART {
-    UDR0 = s[tx_ptr++];         /* Transmit next byte */
-    if (tx_ptr == point) {      /* Check if all data is transmitted */
-        UCSR0B &= ~(1 << UDRIE0);       /* Disable transmitter UDRE interrupt */
-        tx_busy = 0;
-    }
-}
-#endif
-
-void UartSendData()
-{
-#ifdef STM8
-    tx_ptr = 0;
-    UART2_SendData8(s[tx_ptr++]);       /* Start transmission */
-    UART2_ITConfig(UART2_IT_TXE, ENABLE);       /* Enable TX interrupt to continue sending */
-#else
-    // start of the data block transmission
-    cli();
-    tx_ptr = 0;
-    UCSR0A |= (1 << UDRE0);     /* Clear UDRE interrupt flag */
-    UCSR0B |= (1 << UDRIE0);    /* Enable transmitter UDRE interrupt */
-    UDR0 = s[tx_ptr++];         /* Start transmission */
-    tx_busy = 1;
-    sei();
-#endif
-}
-
 void serialCom()
 {
     int16_t a;
@@ -3551,7 +3270,7 @@ void serialCom()
 
     uint16_t intPowerMeterSum, intPowerTrigger1;
 
-    if ((!tx_busy) && Serial_available()) {
+    if ((!Serial_isTxBusy()) && Serial_available()) {
         switch (Serial_read()) {
 #ifdef BTSERIAL
         case 'K':              //receive RC data from Bluetooth Serial adapter as a remote
@@ -3602,7 +3321,7 @@ void serialCom()
             break;
 #endif
         case 'M':              // Multiwii @ arduino to GUI all data
-            point = 0;
+            Serial_reset();
             serialize8('M');
             serialize8(VERSION);        // MultiWii Firmware version
             for (i = 0; i < 3; i++)
@@ -3660,10 +3379,10 @@ void serialCom()
             serialize16(0);     // debug3
             serialize16(0);     // debug4
             serialize8('M');
-            UartSendData();     // Serial.write(s,point);
+            Serial_commitBuffer();     // Serial.write(s,point);
             break;
         case 'O':              // arduino to OSD data - contribution from MIS
-            point = 0;
+            Serial_reset();
             serialize8('O');
             for (i = 0; i < 3; i++)
                 serialize16(accSmooth[i]);
@@ -3683,7 +3402,7 @@ void serialCom()
             serialize8(vbat);   // Vbatt 47
             serialize8(VERSION);        // MultiWii Firmware version
             serialize8('O');    //49
-            UartSendData();
+            Serial_commitBuffer();
             break;
         case 'W':              //GUI write params to eeprom @ arduino
             while (Serial_available() < 33) {
