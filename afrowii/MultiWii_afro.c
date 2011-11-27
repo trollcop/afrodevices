@@ -2829,7 +2829,11 @@ static uint8_t mpuInitialized = 0;
 #define MPUREG_I2C_SLV0_ADDR        0x25
 #define MPUREG_I2C_SLV0_REG         0x26
 #define MPUREG_I2C_SLV0_CTRL        0x27
-
+#define MPUREG_I2C_SLV4_ADDR        0x31
+#define MPUREG_I2C_SLV4_REG         0x32
+#define MPUREG_I2C_SLV4_DO          0x33
+#define MPUREG_I2C_SLV4_CTRL        0x34
+#define MPUREG_I2C_SLV4_DI          0x35
 #define MPUREG_I2C_MST_STATUS       0x36
 #define MPUREG_INT_PIN_CFG          0x37
 #define MPUREG_INT_ENABLE           0x38 
@@ -2973,30 +2977,24 @@ void Gyro_getADC(void)
 #define HMC5883L_ID_REG_B           0x0b
 #define HMC5883L_ID_REG_C           0x0c
 
-void Mag_init()
+void Mag_init(void)
 {
     volatile uint8_t i, temp;
     
     MPU6000_WriteReg(MPUREG_I2C_MST_CTRL, 0b01000000 | 13); // WAIT_FOR_ES=1, I2C Master Clock Speed 400kHz
-    MPU6000_WriteReg(MPUREG_I2C_MST_DELAY_CTRL, 0b10000001); //
-    
-    MPU6000_WriteReg(MPUREG_I2C_SLV0_ADDR, 0x80 | HMC5883L_I2C_ADDRESS); // High bit for read, I2C address
-    MPU6000_WriteReg(MPUREG_I2C_SLV0_REG, HMC5883L_ID_REG_A); // HMC subaddress to read from
-    MPU6000_WriteReg(MPUREG_I2C_SLV0_CTRL, BIT_I2C_SLV0_EN | 0x03); // I2C_SLV0_EN=1, read 3 bytes
+    MPU6000_WriteReg(MPUREG_I2C_SLV4_ADDR, 0x80 | HMC5883L_I2C_ADDRESS);
+    MPU6000_WriteReg(MPUREG_I2C_SLV4_REG, HMC5883L_ID_REG_A);
+    MPU6000_WriteReg(MPUREG_I2C_SLV4_CTRL, 0b11000000); // I2C_SLV4_EN | I2C_SLV4_INT_EN
     delay(1);
     
     MPU6000_getSixRawADC();
     
     temp = MPU6000_ReadReg(MPUREG_I2C_MST_STATUS);
-    spi_WriteByte(MPUREG_EXT_SENS_DATA_00 | 0x80); // Address with high bit set = Read operation
-    // HMC ABC
-    for (i = 0; i < 14; i++)
-        MPU6000_Buffer[i] = spi_ReadByte();
-
+    temp = MPU6000_ReadReg(MPUREG_I2C_SLV4_DI);
     delay(1);
 }
 
-void Device_Mag_getADC()
+void Device_Mag_getADC(void)
 {
     // i2c_getSixRawADC(0X3C, 0X03);
     // MAG_ORIENTATION(((rawADC[0] << 8) | rawADC[1]), ((rawADC[2] << 8) | rawADC[3]), -((rawADC[4] << 8) | rawADC[5]));
