@@ -24,6 +24,8 @@
 //#define OCTOFLATX
 //#define FLYING_WING //experimental
 
+#define DIGITAL_SERVO      // If high-speed (200hz) refresh is needed on tail servo or for camera stabilization, define this. otherwise 50hz is used.
+
 #define YAW_DIRECTION 1		// if you want to reverse the yaw correction direction
 //#define YAW_DIRECTION -1
 
@@ -35,25 +37,10 @@
 // #define AFROV3                  // AfroFlight rev3 (MPU6000 on SPI, HMC5883L behind it)
 // #define AFROI2C                 // AfroI2C converter + CSG_EU's sensor bob w/LLC
 
-//enable internal I2C pull ups
-#define INTERNAL_I2C_PULLUPS
-
 //****** advanced users settings   *************
 
 /* This option should be uncommented if ACC Z is accurate enough when motors are running*/
 #define TRUSTED_ACCZ
-
-/* PIN A0 and A1 instead of PIN D5 & D6 for 6 motors config and promini config
-   This mod allow the use of a standard receiver on a pro mini
-   (no need to use a PPM sum receiver)
-*/
-//#define A0_A1_PIN_HEX
-
-/* possibility to use PIN8 or PIN12 as the AUX2 RC input
-   it deactivates in this case the POWER PIN (pin 12) or the BUZZER PIN (pin 8)
-*/
-//#define RCAUXPIN8
-//#define RCAUXPIN12
 
 /* This option is here if you want to use the old level code from the verison 1.7
    It's just to have some feedback. This will be removed in the future */
@@ -101,7 +88,7 @@
 /* The following lines apply only for a pitch/roll tilt stabilization system
    On promini board, it is not compatible with config with 6 motors or more
    Uncomment the first line to activate it */
-//#define SERVO_TILT
+// #define SERVO_TILT
 #define TILT_PITCH_MIN    1020	//servo travel min, don't set it below 1020
 #define TILT_PITCH_MAX    2000	//servo travel max, max value=2000
 #define TILT_PITCH_MIDDLE 1500	//servo neutral value

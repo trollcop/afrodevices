@@ -216,23 +216,22 @@ typedef long int32_t;
 #define STABLEPIN_PINMODE          ;
 #define STABLEPIN_ON               ;
 #define STABLEPIN_OFF              ;
-#define DIGITAL_SERVO_TRI_PINMODE  pinMode(3,OUTPUT);	//also right servo for BI COPTER
-#define DIGITAL_SERVO_TRI_HIGH     PORTD |= 1<<3;
-#define DIGITAL_SERVO_TRI_LOW      PORTD &= ~(1<<3);
-#define DIGITAL_TILT_PITCH_PINMODE pinMode(A0,OUTPUT);
-#define DIGITAL_TILT_PITCH_HIGH    PORTC |= 1<<0;
-#define DIGITAL_TILT_PITCH_LOW     PORTC &= ~(1<<0);
-#define DIGITAL_TILT_ROLL_PINMODE  pinMode(A1,OUTPUT);
-#define DIGITAL_TILT_ROLL_HIGH     PORTC |= 1<<1;
-#define DIGITAL_TILT_ROLL_LOW      PORTC &= ~(1<<1);
-#define DIGITAL_BI_LEFT_PINMODE    pinMode(11,OUTPUT);
-#define DIGITAL_BI_LEFT_HIGH       PORTB |= 1<<3;
-#define DIGITAL_BI_LEFT_LOW        PORTB &= ~(1<<3);
+#define DIGITAL_SERVO_TRI_PINMODE  ;
+#define DIGITAL_SERVO_TRI_HIGH     ;
+#define DIGITAL_SERVO_TRI_LOW      ;
+#define DIGITAL_TILT_PITCH_PINMODE ;
+#define DIGITAL_TILT_PITCH_HIGH    ;
+#define DIGITAL_TILT_PITCH_LOW     ;
+#define DIGITAL_TILT_ROLL_PINMODE  ;
+#define DIGITAL_TILT_ROLL_HIGH     ;
+#define DIGITAL_TILT_ROLL_LOW      ;
+#define DIGITAL_BI_LEFT_PINMODE    ;
+#define DIGITAL_BI_LEFT_HIGH       ;
+#define DIGITAL_BI_LEFT_LOW        ;
 #define PPM_PIN_INTERRUPT          ;
-#define MOTOR_ORDER                9,10,11,3,6,5	//for a quad+: rear,right,left,front
-#define DIGITAL_CAM_PINMODE        pinMode(A2,OUTPUT);
-#define DIGITAL_CAM_HIGH           PORTC |= 1<<2;
-#define DIGITAL_CAM_LOW            PORTC &= ~(1<<2);
+#define DIGITAL_CAM_PINMODE        ;
+#define DIGITAL_CAM_HIGH           ;
+#define DIGITAL_CAM_LOW            ;
 //RX PIN assignment inside the port //for PORTD
 #define THROTTLEPIN                2
 #define ROLLPIN                    4

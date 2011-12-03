@@ -144,6 +144,7 @@ void initSensors(void);
 void readEEPROM(void);
 void checkFirstTime(void);
 void configureReceiver(void);
+void initializeServo(void);
 void writeMotors(void);
 void computeRC(void);
 void writeServos(void);
@@ -811,24 +812,6 @@ volatile uint16_t rcValue[8] = { 1500, 1500, 1500, 1500, 1500, 1500, 1500, 1500 
 void configureReceiver()
 {
     uint8_t chan, a;
-#if !defined(SERIAL_SUM_PPM) && !defined(SPEKTRUM)
-    for (chan = 0; chan < 8; chan++)
-        for (a = 0; a < 4; a++)
-            rcData4Values[chan][a] = 1500;      //we initiate the default value of each channel. If there is no RC receiver connected, we will see those values
-#if defined(PROMINI)
-    // PCINT activated only for specific pin inside [D0-D7]  , [D2 D4 D5 D6 D7] for this multicopter
-    PORTD = (1 << 2) | (1 << 4) | (1 << 5) | (1 << 6) | (1 << 7);       //enable internal pull ups on the PINs of PORTD (no high impedence PINs)
-    PCMSK2 |= (1 << 2) | (1 << 4) | (1 << 5) | (1 << 6) | (1 << 7);
-    PCICR = 1 << 2;             // PCINT activated only for the port dealing with [D0-D7] PINs
-#endif
-#if defined(MEGA)
-    // PCINT activated only for specific pin inside [A8-A15]
-    DDRK = 0;                   // defined PORTK as a digital port ([A8-A15] are consired as digital PINs and not analogical)
-    PORTK = (1 << 0) | (1 << 1) | (1 << 2) | (1 << 3) | (1 << 4) | (1 << 5) | (1 << 6) | (1 << 7);      //enable internal pull ups on the PINs of PORTK
-    PCMSK2 |= (1 << 0) | (1 << 1) | (1 << 2) | (1 << 3) | (1 << 4) | (1 << 5) | (1 << 6) | (1 << 7);
-    PCICR = 1 << 2;             // PCINT activated only for PORTK dealing with [A8-A15] PINs
-#endif
-#endif
 #if defined(STM8)
     // Configure GPIO pin for ppm input
     GPIO_Init(GPIOD, GPIO_PIN_2, GPIO_MODE_IN_FL_NO_IT);
@@ -838,108 +821,9 @@ void configureReceiver()
     TIM3_ITConfig(TIM3_IT_CC1, ENABLE);
     TIM3_Cmd(ENABLE);
 #endif
-
-#if defined(SERIAL_SUM_PPM)
-    PPM_PIN_INTERRUPT;
-#endif
-#if defined (SPEKTRUM)
-#endif
 }
 
-#if !defined(SERIAL_SUM_PPM) && !defined(SPEKTRUM) && !defined(STM8)
-ISR(PCINT2_vect)
-{                               //this ISR is common to every receiver channel, it is call everytime a change state occurs on a digital pin [D2-D7]
-    uint8_t mask;
-    uint8_t pin;
-    uint16_t cTime, dTime;
-    static uint16_t edgeTime[8];
-    static uint8_t PCintLast;
-
-#if defined(PROMINI)
-    pin = PIND;                 // PIND indicates the state of each PIN for the arduino port dealing with [D0-D7] digital pins (8 bits variable)
-#endif
-#if defined(MEGA)
-    pin = PINK;                 // PINK indicates the state of each PIN for the arduino port dealing with [A8-A15] digital pins (8 bits variable)
-#endif
-    mask = pin ^ PCintLast;     // doing a ^ between the current interruption and the last one indicates wich pin changed
-    sei();                      // re enable other interrupts at this point, the rest of this interrupt is not so time critical and can be interrupted safely
-    PCintLast = pin;            // we memorize the current state of all PINs [D0-D7]
-
-    cTime = micros();           // micros() return a uint32_t, but it is not usefull to keep the whole bits => we keep only 16 bits
-
-    // mask is pins [D0-D7] that have changed // the principle is the same on the MEGA for PORTK and [A8-A15] PINs
-    // chan = pin sequence of the port. chan begins at D2 and ends at D7
-    if (mask & 1 << 2)          //indicates the bit 2 of the arduino port [D0-D7], that is to say digital pin 2, if 1 => this pin has just changed
-        if (!(pin & 1 << 2)) {  //indicates if the bit 2 of the arduino port [D0-D7] is not at a high state (so that we match here only descending PPM pulse)
-            dTime = cTime - edgeTime[2];
-            if (900 < dTime && dTime < 2200)
-                rcPinValue[2] = dTime;  // just a verification: the value must be in the range [1000;2000] + some margin
-        } else
-            edgeTime[2] = cTime;        // if the bit 2 of the arduino port [D0-D7] is at a high state (ascending PPM pulse), we memorize the time
-    if (mask & 1 << 4)          //same principle for other channels   // avoiding a for() is more than twice faster, and it's important to minimize execution time in ISR
-        if (!(pin & 1 << 4)) {
-            dTime = cTime - edgeTime[4];
-            if (900 < dTime && dTime < 2200)
-                rcPinValue[4] = dTime;
-        } else
-            edgeTime[4] = cTime;
-    if (mask & 1 << 5)
-        if (!(pin & 1 << 5)) {
-            dTime = cTime - edgeTime[5];
-            if (900 < dTime && dTime < 2200)
-                rcPinValue[5] = dTime;
-        } else
-            edgeTime[5] = cTime;
-    if (mask & 1 << 6)
-        if (!(pin & 1 << 6)) {
-            dTime = cTime - edgeTime[6];
-            if (900 < dTime && dTime < 2200)
-                rcPinValue[6] = dTime;
-        } else
-            edgeTime[6] = cTime;
-    if (mask & 1 << 7)
-        if (!(pin & 1 << 7)) {
-            dTime = cTime - edgeTime[7];
-            if (900 < dTime && dTime < 2200)
-                rcPinValue[7] = dTime;
-        } else
-            edgeTime[7] = cTime;
-#if defined(MEGA)
-    if (mask & 1 << 0)
-        if (!(pin & 1 << 0)) {
-            dTime = cTime - edgeTime[0];
-            if (900 < dTime && dTime < 2200)
-                rcPinValue[0] = dTime;
-        } else
-            edgeTime[0] = cTime;
-    if (mask & 1 << 1)
-        if (!(pin & 1 << 1)) {
-            dTime = cTime - edgeTime[1];
-            if (900 < dTime && dTime < 2200)
-                rcPinValue[1] = dTime;
-        } else
-            edgeTime[1] = cTime;
-    if (mask & 1 << 3)
-        if (!(pin & 1 << 3)) {
-            dTime = cTime - edgeTime[3];
-            if (900 < dTime && dTime < 2200)
-                rcPinValue[3] = dTime;
-        } else
-            edgeTime[3] = cTime;
-#endif
-#if defined(FAILSAFE)
-    if (mask & 1 << THROTTLEPIN) {      // If pulse present on THROTTLE pin (independent from ardu version), clear FailSafe counter  - added by MIS
-        if (failsafeCnt > 20)
-            failsafeCnt -= 20;
-        else
-            failsafeCnt = 0;
-    }
-#endif
-}
-#endif
-
 #if defined(SERIAL_SUM_PPM)
-#if defined(STM8)
 __near __interrupt void TIM3_CAP_COM_IRQHandler(void)
 {
     uint16_t diff;
@@ -977,33 +861,6 @@ __near __interrupt void TIM3_CAP_COM_IRQHandler(void)
         chan++;
     }
 }
-#else
-void rxInt()
-{
-    uint16_t now, diff;
-    static uint16_t last = 0;
-    static uint8_t chan = 0;
-
-    now = micros();
-
-    diff = now - last;
-    last = now;
-    if (diff > 3000)
-        chan = 0;
-    else {
-        if (900 < diff && diff < 2200 && chan < 8) {    //Only if the signal is between these values it is valid, otherwise the failsafe counter should move up
-            rcValue[chan] = diff;
-#if defined(FAILSAFE)
-            if (failsafeCnt > 20)
-                failsafeCnt -= 20;
-            else
-                failsafeCnt = 0;        // clear FailSafe counter - added by MIS  //incompatible to quadroppm
-#endif
-        }
-        chan++;
-    }
-}
-#endif
 #endif
 
 #if defined(SPEKTRUM)
@@ -1013,26 +870,8 @@ void rxInt()
 
 uint16_t readRawRC(uint8_t chan)
 {
-    uint16_t data;
-#if defined(STM8) && defined(SERIAL_SUM_PPM)
-    data = rcValue[rcChannel[chan]];
-#else
-    uint8_t oldSREG;
-    oldSREG = SREG;
-    cli();                      // Let's disable interrupts
-#ifndef SERIAL_SUM_PPM
-    data = rcPinValue[pinRcChannel[chan]];      // Let's copy the data Atomically
-#else
-    data = rcValue[rcChannel[chan]];
-#endif
-    SREG = oldSREG;
-    sei();                      // Let's enable the interrupts
-#if defined(PROMINI) && !defined(SERIAL_SUM_PPM)
-    if (chan > 4)
-        return 1500;
-#endif
-#endif                          /* STM8 */
-    return data;                // We return the value correctly copied when the IRQ's where disabled
+    // We return the value correctly copied when the IRQ's where disabled
+    return rcValue[rcChannel[chan]];                
 }
 
 void computeRC()
@@ -1062,6 +901,10 @@ void computeRC()
 #define PULSE_1MS       (2000)
 // pulse period (400Hz)
 #define PULSE_PERIOD    (5000)
+// pulse period for digital servo (200Hz)
+#define PULSE_PERIOD_SERVO_DIGITAL  (10000)
+// pulse period for analog servo (50Hz)
+#define PULSE_PERIOD_SERVO_ANALOG  (40000)
 
 /* Fixed lookup table for TIM1/2 Pulse Width registers */
 static const struct {
@@ -1099,55 +942,43 @@ static const struct {
 #define NUMBER_MOTOR 8
 #endif
 
-uint8_t PWM_PIN[8] = { MOTOR_ORDER };
-volatile uint8_t atomicServo[4] = { 125, 125, 125, 125 };
-
-//for HEX Y6 and HEX6/HEX6X flat and for promini
-volatile uint8_t atomicPWM_PIN5_lowState;
-volatile uint8_t atomicPWM_PIN5_highState;
-volatile uint8_t atomicPWM_PIN6_lowState;
-volatile uint8_t atomicPWM_PIN6_highState;
-
-
 void writeServos()
 {
+    // STM8 PWM is actually 0.5us precision, so we double it
 #if defined(SERVO)
-    atomicServo[0] = (servo[0] - 1000) / 4;
-    atomicServo[1] = (servo[1] - 1000) / 4;
-    atomicServo[2] = (servo[2] - 1000) / 4;
-    atomicServo[3] = (servo[3] - 1000) / 4;
-#endif
+    uint8_t i;
+#if defined(TRI) || defined(BI)
+    /* One servo on Motor #4 */
+    uint16_t pulse = (servo[0] << 1);       
+    *TimerAddress[4].addressH = (uint8_t) (pulse >> 8);
+    *TimerAddress[4].addressL = (uint8_t) (pulse);
+#if defined(BI)
+    pulse = (servo[1] << 1);
+    *TimerAddress[5].addressH = (uint8_t) (pulse >> 8);
+    *TimerAddress[5].addressL = (uint8_t) (pulse);
+#endif /* BI */
+#else
+    /* Two servos for camstab or FLYING_WING */
+    for (i = 0; i < 2; i++) {
+        uint16_t pulse = (servo[i + 1] << 1);
+        *TimerAddress[i + 4].addressH = (uint8_t) (pulse >> 8);
+        *TimerAddress[i + 4].addressL = (uint8_t) (pulse);
+    }
+#endif /* TRI || BI */
+#endif /* SERVO */
 }
 
-void writeMotors()
+void writeMotors(void)
 {
     uint8_t i;
 
-#if defined(STM8)
     // full scale motor control
-    // Set the Pulse value
+    // STM8 PWM is actually 0.5us precision, so we double it
     for (i = 0; i < NUMBER_MOTOR; i++) {
-        uint16_t pulse = (motor[i] << 1);       // STM8 PWM is actually 0.5us precision, so we double it
-        *TimerAddress[i].addressH = (uint8_t) (pulse >> 8);     // and write into timer regs
+        uint16_t pulse = (motor[i] << 1);       
+        *TimerAddress[i].addressH = (uint8_t) (pulse >> 8);
         *TimerAddress[i].addressL = (uint8_t) (pulse);
     }
-#else
-
-    // [1000;2000] => [125;250]
-#if defined(MEGA)
-    for (i = 0; i < NUMBER_MOTOR; i++)
-        analogWrite(PWM_PIN[i], motor[i] >> 3);
-#else
-    for (i = 0; i < min(NUMBER_MOTOR, 4); i++)
-        analogWrite(PWM_PIN[i], motor[i] >> 3);
-#if (NUMBER_MOTOR == 6)
-    atomicPWM_PIN5_highState = motor[5] / 8;
-    atomicPWM_PIN5_lowState = 255 - atomicPWM_PIN5_highState;
-    atomicPWM_PIN6_highState = motor[4] / 8;
-    atomicPWM_PIN6_lowState = 255 - atomicPWM_PIN6_highState;
-#endif                          /* NUMBER_MOTOR == 6 */
-#endif                          /* MEGA */
-#endif                          /* STM8 */
 }
 
 void writeAllMotors(int16_t mc)
@@ -1160,7 +991,7 @@ void writeAllMotors(int16_t mc)
 }
 
 #if defined(LOG_VALUES) || (POWERMETER == 1)
-void logMotorsPower()
+void logMotorsPower(void)
 {
     uint32_t amp;
     uint8_t i;
@@ -1188,10 +1019,6 @@ void logMotorsPower()
 
 void initOutput()
 {
-    uint8_t i;
-    for (i = 0; i < NUMBER_MOTOR; i++)
-        pinMode(PWM_PIN[i], OUTPUT);
-
 #if defined(STM8)
     // Motor PWM timers
     TIM1_DeInit();
@@ -1206,6 +1033,7 @@ void initOutput()
     TIM1_OC4PreloadConfig(ENABLE);
     TIM1_ARRPreloadConfig(ENABLE);
     TIM1_CtrlPWMOutputs(ENABLE);
+#ifndef SERVO
     TIM2_DeInit();
     TIM2_TimeBaseInit(TIM2_PRESCALER_8, PULSE_PERIOD);
     TIM2_OC1Init(TIM2_OCMODE_PWM2, TIM2_OUTPUTSTATE_ENABLE, PULSE_1MS, TIM2_OCPOLARITY_LOW);
@@ -1213,22 +1041,24 @@ void initOutput()
     TIM2_OC2Init(TIM2_OCMODE_PWM2, TIM2_OUTPUTSTATE_ENABLE, PULSE_1MS, TIM2_OCPOLARITY_LOW);
     TIM2_OC2PreloadConfig(ENABLE);
     TIM2_ARRPreloadConfig(ENABLE);
+#endif /* !SERVO */
 
     TIM1_Cmd(ENABLE);
+#ifndef SERVO
     TIM2_Cmd(ENABLE);
+#endif /* !SERVO */
 #endif
 
     writeAllMotors(1000);
     delay(300);
+
 #if defined(SERVO)
     initializeServo();
-#elif (NUMBER_MOTOR == 6) && defined(PROMINI)
-    initializeSoftPWM();
 #endif
 }
 
 #if defined(SERVO)
-void initializeServo()
+void initializeServo(void)
 {
 #if defined(TRI)
     DIGITAL_SERVO_TRI_PINMODE;
@@ -1244,134 +1074,22 @@ void initializeServo()
     DIGITAL_SERVO_TRI_PINMODE;
     DIGITAL_BI_LEFT_PINMODE;
 #endif
-    TCCR0A = 0;                 // normal counting mode
-    TIMSK0 |= (1 << OCIE0A);    // Enable CTC interrupt
-}
 
-// ****servo yaw with a 50Hz refresh rate****
-// prescaler is set by default to 64 on Timer0
-// Duemilanove : 16MHz / 64 => 4 us
-// 256 steps = 1 counter cycle = 1024 us
-// algorithm strategy:
-// pulse high servo 0 -> do nothing for 1000 us -> do nothing for [0 to 1000] us -> pulse down servo 0
-// pulse high servo 1 -> do nothing for 1000 us -> do nothing for [0 to 1000] us -> pulse down servo 1
-// pulse high servo 2 -> do nothing for 1000 us -> do nothing for [0 to 1000] us -> pulse down servo 2
-// pulse high servo 3 -> do nothing for 1000 us -> do nothing for [0 to 1000] us -> pulse down servo 3
-// do nothing for 14 x 1000 us
-ISR(TIMER0_COMPA_vect)
-{
-    static uint8_t state = 0;
-    static uint8_t count;
-    if (state == 0) {
-        //http://billgrundmann.wordpress.com/2009/03/03/to-use-or-not-use-writedigital/
-#if defined(TRI) || defined (BI)
-        DIGITAL_SERVO_TRI_HIGH;
+    // Enable TIM2 for output
+    TIM2_DeInit();
+#ifdef DIGITAL_SERVO
+    TIM2_TimeBaseInit(TIM2_PRESCALER_8, PULSE_PERIOD_SERVO_DIGITAL);
+#else
+    TIM2_TimeBaseInit(TIM2_PRESCALER_8, PULSE_PERIOD_SERVO_ANALOG);
 #endif
-        OCR0A += 250;           // 1000 us
-        state++;
-    } else if (state == 1) {
-        OCR0A += atomicServo[0];        // 1000 + [0-1020] us
-        state++;
-    } else if (state == 2) {
-#if defined(TRI) || defined (BI)
-        DIGITAL_SERVO_TRI_LOW;
-#endif
-#if defined(BI)
-        DIGITAL_BI_LEFT_HIGH;
-#endif
-#if defined(SERVO_TILT) || defined(GIMBAL) || defined(FLYING_WING)
-        DIGITAL_TILT_PITCH_HIGH;
-#endif
-        OCR0A += 250;           // 1000 us
-        state++;
-    } else if (state == 3) {
-        OCR0A += atomicServo[1];        // 1000 + [0-1020] us
-        state++;
-    } else if (state == 4) {
-#if defined(SERVO_TILT) || defined(GIMBAL) || defined(FLYING_WING)
-        DIGITAL_TILT_PITCH_LOW;
-        DIGITAL_TILT_ROLL_HIGH;
-#endif
-#if defined(BI)
-        DIGITAL_BI_LEFT_LOW;
-#endif
-        state++;
-        OCR0A += 250;           // 1000 us
-    } else if (state == 5) {
-        OCR0A += atomicServo[2];        // 1000 + [0-1020] us
-        state++;
-    } else if (state == 6) {
-#if defined(SERVO_TILT) || defined(GIMBAL) || defined(FLYING_WING)
-        DIGITAL_TILT_ROLL_LOW;
-#endif
-#if defined(CAMTRIG)
-        DIGITAL_CAM_HIGH;
-#endif
-        state++;
-        OCR0A += 250;           // 1000 us
-    } else if (state == 7) {
-        OCR0A += atomicServo[3];        // 1000 + [0-1020] us
-        state++;
-    } else if (state == 8) {
-#if defined(CAMTRIG)
-        DIGITAL_CAM_LOW;
-#endif
-        count = 10;             // 12 x 1000 us
-        state++;
-        OCR0A += 250;           // 1000 us
-    } else if (state == 9) {
-        if (count > 0)
-            count--;
-        else
-            state = 0;
-        OCR0A += 250;
-    }
+    TIM2_OC1Init(TIM2_OCMODE_PWM2, TIM2_OUTPUTSTATE_ENABLE, PULSE_1MS, TIM2_OCPOLARITY_LOW);
+    TIM2_OC1PreloadConfig(ENABLE);
+    TIM2_OC2Init(TIM2_OCMODE_PWM2, TIM2_OUTPUTSTATE_ENABLE, PULSE_1MS, TIM2_OCPOLARITY_LOW);
+    TIM2_OC2PreloadConfig(ENABLE);
+    TIM2_ARRPreloadConfig(ENABLE);
+    TIM2_Cmd(ENABLE);
 }
 #endif
-
-#if (NUMBER_MOTOR == 6) && defined(PROMINI)
-void initializeSoftPWM()
-{
-    TCCR0A = 0;                 // normal counting mode
-    TIMSK0 |= (1 << OCIE0A);    // Enable CTC interrupt
-    TIMSK0 |= (1 << OCIE0B);
-}
-
-ISR(TIMER0_COMPA_vect)
-{
-    static uint8_t state = 0;
-    if (state == 0) {
-        PORTD |= 1 << 5;        //digital PIN 5 high
-        OCR0A += atomicPWM_PIN5_highState;      //250 x 4 microsecons = 1ms
-        state = 1;
-    } else if (state == 1) {
-        OCR0A += atomicPWM_PIN5_highState;
-        state = 2;
-    } else if (state == 2) {
-        PORTD &= ~(1 << 5);     //digital PIN 5 low
-        OCR0A += atomicPWM_PIN5_lowState;
-        state = 0;
-    }
-}
-
-ISR(TIMER0_COMPB_vect)
-{                               //the same with digital PIN 6 and OCR0B counter
-    static uint8_t state = 0;
-    if (state == 0) {
-        PORTD |= 1 << 6;
-        OCR0B += atomicPWM_PIN6_highState;
-        state = 1;
-    } else if (state == 1) {
-        OCR0B += atomicPWM_PIN6_highState;
-        state = 2;
-    } else if (state == 2) {
-        PORTD &= ~(1 << 6);
-        OCR0B += atomicPWM_PIN6_lowState;
-        state = 0;
-    }
-}
-#endif
-
 
 void mixTable()
 {
