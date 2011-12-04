@@ -1730,19 +1730,18 @@ void ACC_Common()
 // ************************************************************************************************************
 
 #if defined(BMP085)
-#define BMP085_ADDRESS 0xEE
+#define BMP085_ADDRESS  0xEE
+#define BMP085_CTRL     0xF4
+#define BMP085_ADC      0xF6
+#define BMP085_TEMP     0x2E
+#define BMP085_DATA     0xAA
+
 static struct {
     // sensor registers from the BOSCH BMP085 datasheet
     int16_t ac1, ac2, ac3, b1, b2, mb, mc, md;
     uint16_t ac4, ac5, ac6;
-    union {
-        uint16_t val;
-        uint8_t raw[2];
-    } ut;                       //uncompensated T
-    union {
-        uint32_t val;
-        uint8_t raw[4];
-    } up;                       //uncompensated P
+    uint16_t ut;                       //uncompensated T
+    uint32_t up;                       //uncompensated P
     uint8_t state;
     uint32_t deadline;
 } bmp085_ctx;
@@ -1751,14 +1750,10 @@ static struct {
 // read a 16 bit register
 int16_t i2c_BMP085_readIntRegister(uint8_t r)
 {
-    union {
-        int16_t val;
-        uint8_t raw[2];
-    } data;
+    uint8_t raw[2];
 
-    // TODO: imminent byte swapping
-    i2c_read(data.raw, 2, BMP085_ADDRESS, r);
-    return data.val;
+    i2c_read(raw, 2, BMP085_ADDRESS, r);
+    return (int16_t)raw[0] << 8 | raw[1];
 }
 
 void i2c_BMP085_readCalibration(void)
@@ -1780,44 +1775,32 @@ void i2c_BMP085_readCalibration(void)
 // read uncompensated temperature value: send command first
 void i2c_BMP085_UT_Start(void)
 {
-    i2c_writeReg(BMP085_ADDRESS, 0xf4, 0x2e);
-    // TODO: unfuck
-    // i2c_rep_start(BMP085_ADDRESS + 0);
-    // i2c_write(0xF6);
+    i2c_writeReg(BMP085_ADDRESS, BMP085_CTRL, BMP085_TEMP);
 }
 
 // read uncompensated pressure value: send command first
 void i2c_BMP085_UP_Start(void)
 {
-    i2c_writeReg(BMP085_ADDRESS, 0xf4, 0x34 + (OSS << 6));      // control register value for oversampling setting 3
-    // i2c_rep_start(BMP085_ADDRESS + 0);  //I2C write direction => 0
-    // i2c_write(0xF6);
-    // TODO: unfuck
+    i2c_writeReg(BMP085_ADDRESS, BMP085_CTRL, 0x34 + (OSS << 6));      // control register value for oversampling setting 3
 }
 
 // read uncompensated pressure value: read result bytes
 // the datasheet suggests a delay of 25.5 ms (oversampling settings 3) after the send command
 void i2c_BMP085_UP_Read(void)
 {
-    i2c_read(bmp085_ctx.up.raw, 3, BMP085_ADDRESS, 0); // TODO: wtf and byte swapping
-#if 0
-    i2c_rep_start(BMP085_ADDRESS + 1);  //I2C read direction => 1
-    bmp085_ctx.up.raw[2] = i2c_readAck();
-    bmp085_ctx.up.raw[1] = i2c_readAck();
-    bmp085_ctx.up.raw[0] = i2c_readNak();
-#endif
+    uint8_t raw[3];
+    i2c_read(raw, 3, BMP085_ADDRESS, BMP085_ADC);
+    bmp085_ctx.up = ((((uint32_t)raw[0] << 16) | ((uint32_t)raw[1] << 8) | ((uint32_t)raw[2])) >> (8 - OSS));
 }
 
 // read uncompensated temperature value: read result bytes
 // the datasheet suggests a delay of 4.5 ms after the send command
 void i2c_BMP085_UT_Read(void)
 {
-    i2c_read(bmp085_ctx.ut.raw, 2, BMP085_ADDRESS, 0); // TODO: wtf and byte swapping
-#if 0
-    i2c_rep_start(BMP085_ADDRESS + 1);  //I2C read direction => 1
-    bmp085_ctx.ut.raw[1] = i2c_readAck();
-    bmp085_ctx.ut.raw[0] = i2c_readNak();
-#endif
+    uint8_t raw[2];
+
+    i2c_read(raw, 2, BMP085_ADDRESS, BMP085_ADC);
+    bmp085_ctx.ut = (uint16_t)raw[0] << 8 | raw[1];
 }
 
 void Baro_init(void)
@@ -1834,7 +1817,7 @@ void i2c_BMP085_Calculate(void)
     int32_t x1, x2, x3, b3, b5, b6, p, tmp;
     uint32_t b4, b7;
     // Temperature calculations
-    x1 = ((int32_t) bmp085_ctx.ut.val - bmp085_ctx.ac6) * bmp085_ctx.ac5 >> 15;
+    x1 = ((int32_t) bmp085_ctx.ut - bmp085_ctx.ac6) * bmp085_ctx.ac5 >> 15;
     x2 = ((int32_t) bmp085_ctx.mc << 11) / (x1 + bmp085_ctx.md);
     b5 = x1 + x2;
     // Pressure calculations
@@ -1849,7 +1832,7 @@ void i2c_BMP085_Calculate(void)
     x2 = (bmp085_ctx.b1 * (b6 * b6 >> 12)) >> 16;
     x3 = ((x1 + x2) + 2) >> 2;
     b4 = (bmp085_ctx.ac4 * (uint32_t) (x3 + 32768)) >> 15;
-    b7 = ((uint32_t) (bmp085_ctx.up.val >> (8 - OSS)) - b3) * (50000 >> OSS);
+    b7 = ((uint32_t) (bmp085_ctx.up >> (8 - OSS)) - b3) * (50000 >> OSS);
     p = b7 < 0x80000000 ? (b7 * 2) / b4 : (b7 / b4) * 2;
     x1 = (p >> 8) * (p >> 8);
     x1 = (x1 * 3038) >> 16;
@@ -1862,9 +1845,6 @@ void Baro_update()
     if (currentTime < bmp085_ctx.deadline)
         return;
     bmp085_ctx.deadline = currentTime;
-#ifndef STM8
-    TWBR = ((16000000L / 400000L) - 16) / 2;    // change the I2C clock rate to 400kHz, BMP085 is ok with this speed
-#endif
     switch (bmp085_ctx.state) {
     case 0:
         i2c_BMP085_UT_Start();
@@ -1930,12 +1910,12 @@ static struct {
     uint32_t deadline;
 } ms561101ba_ctx;
 
-void i2c_MS561101BA_reset()
+void i2c_MS561101BA_reset(void)
 {
     i2c_writeReg(MS561101BA_ADDRESS, MS561101BA_RESET, 0);
 }
 
-void i2c_MS561101BA_readCalibration()
+void i2c_MS561101BA_readCalibration(void)
 {
     union {
         uint16_t val;
@@ -1954,7 +1934,7 @@ void i2c_MS561101BA_readCalibration()
     }
 }
 
-void Baro_init()
+void Baro_init(void)
 {
     delay(10);
     i2c_MS561101BA_reset();
@@ -1963,21 +1943,21 @@ void Baro_init()
 }
 
 // read uncompensated temperature value: send command first
-void i2c_MS561101BA_UT_Start()
+void i2c_MS561101BA_UT_Start(void)
 {
     i2c_rep_start(MS561101BA_ADDRESS + 0);      // I2C write direction
     i2c_write(MS561101BA_TEMPERATURE + OSR);    // register selection
 }
 
 // read uncompensated pressure value: send command first
-void i2c_MS561101BA_UP_Start()
+void i2c_MS561101BA_UP_Start(void)
 {
     i2c_rep_start(MS561101BA_ADDRESS + 0);      // I2C write direction
     i2c_write(MS561101BA_PRESSURE + OSR);       // register selection
 }
 
 // read uncompensated pressure value: read result bytes
-void i2c_MS561101BA_UP_Read()
+void i2c_MS561101BA_UP_Read(void)
 {
     i2c_rep_start(MS561101BA_ADDRESS + 0);
     i2c_write(0);
@@ -1988,7 +1968,7 @@ void i2c_MS561101BA_UP_Read()
 }
 
 // read uncompensated temperature value: read result bytes
-void i2c_MS561101BA_UT_Read()
+void i2c_MS561101BA_UT_Read(void)
 {
     i2c_rep_start(MS561101BA_ADDRESS + 0);
     i2c_write(0);
@@ -1998,7 +1978,7 @@ void i2c_MS561101BA_UT_Read()
     ms561101ba_ctx.ut.raw[0] = i2c_readNak();
 }
 
-void i2c_MS561101BA_Calculate()
+void i2c_MS561101BA_Calculate(void)
 {
     int64_t dT = ms561101ba_ctx.ut.val - ((uint32_t) ms561101ba_ctx.c[5] << 8); // int32_t according to the spec, but int64_t here to avoid cast after
     int64_t off = ((uint32_t) ms561101ba_ctx.c[2] << 16) + ((dT * ms561101ba_ctx.c[4]) >> 7);
@@ -2006,7 +1986,7 @@ void i2c_MS561101BA_Calculate()
     pressure = (((ms561101ba_ctx.up.val * sens) >> 21) - off) >> 15;
 }
 
-void Baro_update()
+void Baro_update(void)
 {
     if (currentTime < ms561101ba_ctx.deadline)
         return;
