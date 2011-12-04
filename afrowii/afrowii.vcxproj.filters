@@ -128,6 +128,9 @@
     <ClCompile Include="sysdep_stm8s.c">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="STM8S_StdPeriph_Driver\src\stm8s_wwdg.c">
+      <Filter>FWLib</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <None Include="afrowii.stp">

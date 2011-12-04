@@ -82,6 +82,7 @@
     <ClInclude Include="sysdep.h" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="STM8S_StdPeriph_Driver\src\stm8s_wwdg.c" />
     <ClCompile Include="sysdep_stm32f4.c" />
     <ClCompile Include="LCD.c" />
     <ClCompile Include="main.c" />

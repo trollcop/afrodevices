@@ -39,6 +39,11 @@ uint32_t micros(void);
 uint16_t analogRead(uint8_t channel);
 void analogWrite(uint8_t pin, uint16_t value);
 void pinMode(uint8_t pin, uint8_t mode);
+void systemReboot(void);
+
+/* PWM */
+void pwmInit(void);
+void pwmWrite(uint8_t channel, uint16_t value);
 
 void eeprom_open(void);
 void eeprom_read_block(void *dst, const void *src, size_t n);

@@ -274,7 +274,9 @@ void annexCode(void)
 #endif
     for (i = 0; i < 8; i++)
         vbatRaw += vbatRawArray[i];
-    vbat = vbatRaw / (VBATSCALE / 2);   // result is Vbatt in 0.1V steps
+    vbat = (vbatRaw / (VBATSCALE / 4));   // result is Vbatt in 0.1V steps
+    if (vbat > 2)
+        vbat -= 2;
 
     if ((vbat > VBATLEVEL1_3S)
 #if defined(POWERMETER)
@@ -514,7 +516,7 @@ void loop()
 
         rcOptions = (rcData[AUX1] < 1300) + (1300 < rcData[AUX1] && rcData[AUX1] < 1700) * 2 + (rcData[AUX1] > 1700) * 4 + (rcData[AUX2] < 1300) * 8 + (1300 < rcData[AUX2] && rcData[AUX2] < 1700) * 16 + (rcData[AUX2] > 1700) * 32;
 
-        //note: if FAILSAFE is disable, failsafeCnt > 5*FAILSAVE_DELAY is always false
+        //note: if FAILSAFE is disable, failsafeCnt > 5 * FAILSAVE_DELAY is always false
         if (((rcOptions & activate[BOXACC]) || (failsafeCnt > 5 * FAILSAVE_DELAY)) && (ACC || nunchuk)) {
             // bumpless transfer to Level mode
             if (!accMode) {
@@ -863,11 +865,6 @@ __near __interrupt void TIM3_CAP_COM_IRQHandler(void)
 }
 #endif
 
-#if defined(SPEKTRUM)
-
-
-#endif
-
 uint16_t readRawRC(uint8_t chan)
 {
     // We return the value correctly copied when the IRQ's where disabled
@@ -895,33 +892,6 @@ void computeRC()
 }
 
 /* OUTPUT ------------------------------------------------------------------------------------- */
-
-#if defined(STM8)
-// 1ms pulse width (we have 0.5us precision)
-#define PULSE_1MS       (2000)
-// pulse period (400Hz)
-#define PULSE_PERIOD    (5000)
-// pulse period for digital servo (200Hz)
-#define PULSE_PERIOD_SERVO_DIGITAL  (10000)
-// pulse period for analog servo (50Hz)
-#define PULSE_PERIOD_SERVO_ANALOG  (40000)
-
-/* Fixed lookup table for TIM1/2 Pulse Width registers */
-static const struct {
-    volatile uint8_t *addressH;
-    volatile uint8_t *addressL;
-} TimerAddress[] = {
-    {
-    &(TIM1->CCR1H), &(TIM1->CCR1L)}, {
-    &(TIM1->CCR2H), &(TIM1->CCR2L)}, {
-    &(TIM1->CCR3H), &(TIM1->CCR3L)}, {
-    &(TIM1->CCR4H), &(TIM1->CCR4L)}, {
-    &(TIM2->CCR2H), &(TIM2->CCR2L)}, {
-    &(TIM2->CCR1H), &(TIM2->CCR1L)}
-};
-
-#endif
-
 #if defined(BI) || defined(TRI) || defined(SERVO_TILT) || defined(GIMBAL) || defined(FLYING_WING) || defined(CAMTRIG)
 #define SERVO
 #endif
@@ -949,21 +919,14 @@ void writeServos()
     uint8_t i;
 #if defined(TRI) || defined(BI)
     /* One servo on Motor #4 */
-    uint16_t pulse = (servo[0] << 1);       
-    *TimerAddress[4].addressH = (uint8_t) (pulse >> 8);
-    *TimerAddress[4].addressL = (uint8_t) (pulse);
+    pwmWrite(4, servo[0]);
 #if defined(BI)
-    pulse = (servo[1] << 1);
-    *TimerAddress[5].addressH = (uint8_t) (pulse >> 8);
-    *TimerAddress[5].addressL = (uint8_t) (pulse);
+    pwmWrite(5, servo[1]);
 #endif /* BI */
 #else
     /* Two servos for camstab or FLYING_WING */
-    for (i = 0; i < 2; i++) {
-        uint16_t pulse = (servo[i + 1] << 1);
-        *TimerAddress[i + 4].addressH = (uint8_t) (pulse >> 8);
-        *TimerAddress[i + 4].addressL = (uint8_t) (pulse);
-    }
+    pwmWrite(4, servo[1]);
+    pwmWrite(5, servo[2]);
 #endif /* TRI || BI */
 #endif /* SERVO */
 }
@@ -972,13 +935,8 @@ void writeMotors(void)
 {
     uint8_t i;
 
-    // full scale motor control
-    // STM8 PWM is actually 0.5us precision, so we double it
-    for (i = 0; i < NUMBER_MOTOR; i++) {
-        uint16_t pulse = (motor[i] << 1);       
-        *TimerAddress[i].addressH = (uint8_t) (pulse >> 8);
-        *TimerAddress[i].addressL = (uint8_t) (pulse);
-    }
+    for (i = 0; i < NUMBER_MOTOR; i++)
+        pwmWrite(i, motor[i]);
 }
 
 void writeAllMotors(int16_t mc)
@@ -1019,77 +977,11 @@ void logMotorsPower(void)
 
 void initOutput()
 {
-#if defined(STM8)
-    // Motor PWM timers
-    TIM1_DeInit();
-    TIM1_TimeBaseInit(7, TIM1_COUNTERMODE_UP, PULSE_PERIOD, 0);
-    TIM1_OC1Init(TIM1_OCMODE_PWM2, TIM1_OUTPUTSTATE_ENABLE, TIM1_OUTPUTNSTATE_DISABLE, PULSE_1MS, TIM1_OCPOLARITY_LOW, TIM1_OCNPOLARITY_HIGH, TIM1_OCIDLESTATE_RESET, TIM1_OCNIDLESTATE_RESET);
-    TIM1_OC1PreloadConfig(ENABLE);
-    TIM1_OC2Init(TIM1_OCMODE_PWM2, TIM1_OUTPUTSTATE_ENABLE, TIM1_OUTPUTNSTATE_DISABLE, PULSE_1MS, TIM1_OCPOLARITY_LOW, TIM1_OCNPOLARITY_HIGH, TIM1_OCIDLESTATE_RESET, TIM1_OCNIDLESTATE_RESET);
-    TIM1_OC2PreloadConfig(ENABLE);
-    TIM1_OC3Init(TIM1_OCMODE_PWM2, TIM1_OUTPUTSTATE_ENABLE, TIM1_OUTPUTNSTATE_DISABLE, PULSE_1MS, TIM1_OCPOLARITY_LOW, TIM1_OCNPOLARITY_HIGH, TIM1_OCIDLESTATE_RESET, TIM1_OCNIDLESTATE_RESET);
-    TIM1_OC3PreloadConfig(ENABLE);
-    TIM1_OC4Init(TIM1_OCMODE_PWM2, TIM1_OUTPUTSTATE_ENABLE, PULSE_1MS, TIM1_OCPOLARITY_LOW, TIM1_OCIDLESTATE_RESET);
-    TIM1_OC4PreloadConfig(ENABLE);
-    TIM1_ARRPreloadConfig(ENABLE);
-    TIM1_CtrlPWMOutputs(ENABLE);
-#ifndef SERVO
-    TIM2_DeInit();
-    TIM2_TimeBaseInit(TIM2_PRESCALER_8, PULSE_PERIOD);
-    TIM2_OC1Init(TIM2_OCMODE_PWM2, TIM2_OUTPUTSTATE_ENABLE, PULSE_1MS, TIM2_OCPOLARITY_LOW);
-    TIM2_OC1PreloadConfig(ENABLE);
-    TIM2_OC2Init(TIM2_OCMODE_PWM2, TIM2_OUTPUTSTATE_ENABLE, PULSE_1MS, TIM2_OCPOLARITY_LOW);
-    TIM2_OC2PreloadConfig(ENABLE);
-    TIM2_ARRPreloadConfig(ENABLE);
-#endif /* !SERVO */
-
-    TIM1_Cmd(ENABLE);
-#ifndef SERVO
-    TIM2_Cmd(ENABLE);
-#endif /* !SERVO */
-#endif
-
+    // This handles motor and servo initialization in one place
+    pwmInit();
     writeAllMotors(1000);
     delay(300);
-
-#if defined(SERVO)
-    initializeServo();
-#endif
 }
-
-#if defined(SERVO)
-void initializeServo(void)
-{
-#if defined(TRI)
-    DIGITAL_SERVO_TRI_PINMODE;
-#endif
-#if defined(SERVO_TILT) || defined(GIMBAL) || defined(FLYING_WING)
-    DIGITAL_TILT_ROLL_PINMODE;
-    DIGITAL_TILT_PITCH_PINMODE;
-#endif
-#if defined(CAMTRIG)
-    DIGITAL_CAM_PINMODE;
-#endif
-#if defined(BI)
-    DIGITAL_SERVO_TRI_PINMODE;
-    DIGITAL_BI_LEFT_PINMODE;
-#endif
-
-    // Enable TIM2 for output
-    TIM2_DeInit();
-#ifdef DIGITAL_SERVO
-    TIM2_TimeBaseInit(TIM2_PRESCALER_8, PULSE_PERIOD_SERVO_DIGITAL);
-#else
-    TIM2_TimeBaseInit(TIM2_PRESCALER_8, PULSE_PERIOD_SERVO_ANALOG);
-#endif
-    TIM2_OC1Init(TIM2_OCMODE_PWM2, TIM2_OUTPUTSTATE_ENABLE, PULSE_1MS, TIM2_OCPOLARITY_LOW);
-    TIM2_OC1PreloadConfig(ENABLE);
-    TIM2_OC2Init(TIM2_OCMODE_PWM2, TIM2_OUTPUTSTATE_ENABLE, PULSE_1MS, TIM2_OCPOLARITY_LOW);
-    TIM2_OC2PreloadConfig(ENABLE);
-    TIM2_ARRPreloadConfig(ENABLE);
-    TIM2_Cmd(ENABLE);
-}
-#endif
 
 void mixTable()
 {
@@ -3122,9 +3014,11 @@ void serialCom()
             serialize8('O');    //49
             Serial_commitBuffer();
             break;
+        case 'R':
+            systemReboot();
+            break;
         case 'W':              //GUI write params to eeprom @ arduino
-            while (Serial_available() < 33) {
-            }
+            while (Serial_available() < 33) { }
             for (i = 0; i < 5; i++) {
                 P8[i] = Serial_read();
                 I8[i] = Serial_read();

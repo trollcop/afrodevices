@@ -1,4 +1,5 @@
 /*******************************/
+/*******************************/
 /****CONFIGURABLE PARAMETERS****/
 /*******************************/
 
@@ -175,7 +176,7 @@
    with R1=33k and R2=51k
    vbat = [0;1023]*16/VBATSCALE */
 #define VBAT			// comment this line to suppress the vbat code
-#define VBATSCALE     131	// change this value if readed Battery voltage is different than real voltage
+#define VBATSCALE     91	// change this value if readed Battery voltage is different than real voltage
 #define VBATLEVEL1_3S 107	// 10,7V
 #define VBATLEVEL2_3S 103	// 10,3V
 #define VBATLEVEL3_3S 99	// 9.9V

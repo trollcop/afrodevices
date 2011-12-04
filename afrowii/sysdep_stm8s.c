@@ -22,6 +22,12 @@ void hw_init(void)
     enableInterrupts();
 }
 
+void systemReboot(void)
+{
+    // reboot to bootloader
+    WWDG_SWReset();
+}
+
 /* UART */
 static uint8_t uartPointer;
 static uint8_t uartBuffer[128];
@@ -200,7 +206,6 @@ void delay(uint16_t ms)
 
 uint16_t analogRead(uint8_t channel)
 {
-
     return 0;
 }
 
@@ -435,4 +440,81 @@ uint8_t i2c_read(uint8_t *buf, uint8_t size, uint8_t address, uint8_t subaddr)
     buf[n] = I2C_ReceiveData(); //Clear the buffer (last byte is in it)
     I2C_AcknowledgeConfig(ENABLE);      //Re-enable ACK
     return I2C_SUCCESS;         //Exit ok
+}
+
+/* Fixed lookup table for TIM1/2 Pulse Width registers */
+static const struct {
+    volatile uint8_t *addressH;
+    volatile uint8_t *addressL;
+} TimerAddress[] = { {
+    &(TIM1->CCR1H), &(TIM1->CCR1L)}, {
+    &(TIM1->CCR2H), &(TIM1->CCR2L)}, {
+    &(TIM1->CCR3H), &(TIM1->CCR3L)}, {
+    &(TIM1->CCR4H), &(TIM1->CCR4L)}, {
+    &(TIM2->CCR2H), &(TIM2->CCR2L)}, {
+    &(TIM2->CCR1H), &(TIM2->CCR1L)}
+};
+
+// 1ms pulse width (we have 0.5us precision)
+#define PULSE_1MS       (2000)
+// pulse period (400Hz)
+#define PULSE_PERIOD    (5000)
+// pulse period for digital servo (200Hz)
+#define PULSE_PERIOD_SERVO_DIGITAL  (10000)
+// pulse period for analog servo (50Hz)
+#define PULSE_PERIOD_SERVO_ANALOG  (40000)
+
+void pwmInit(void)
+{
+    // Motor PWM timers at 400Hz
+    TIM1_DeInit();
+    TIM1_TimeBaseInit(7, TIM1_COUNTERMODE_UP, PULSE_PERIOD, 0);
+    TIM1_OC1Init(TIM1_OCMODE_PWM2, TIM1_OUTPUTSTATE_ENABLE, TIM1_OUTPUTNSTATE_DISABLE, PULSE_1MS, TIM1_OCPOLARITY_LOW, TIM1_OCNPOLARITY_HIGH, TIM1_OCIDLESTATE_RESET, TIM1_OCNIDLESTATE_RESET);
+    TIM1_OC1PreloadConfig(ENABLE);
+    TIM1_OC2Init(TIM1_OCMODE_PWM2, TIM1_OUTPUTSTATE_ENABLE, TIM1_OUTPUTNSTATE_DISABLE, PULSE_1MS, TIM1_OCPOLARITY_LOW, TIM1_OCNPOLARITY_HIGH, TIM1_OCIDLESTATE_RESET, TIM1_OCNIDLESTATE_RESET);
+    TIM1_OC2PreloadConfig(ENABLE);
+    TIM1_OC3Init(TIM1_OCMODE_PWM2, TIM1_OUTPUTSTATE_ENABLE, TIM1_OUTPUTNSTATE_DISABLE, PULSE_1MS, TIM1_OCPOLARITY_LOW, TIM1_OCNPOLARITY_HIGH, TIM1_OCIDLESTATE_RESET, TIM1_OCNIDLESTATE_RESET);
+    TIM1_OC3PreloadConfig(ENABLE);
+    TIM1_OC4Init(TIM1_OCMODE_PWM2, TIM1_OUTPUTSTATE_ENABLE, PULSE_1MS, TIM1_OCPOLARITY_LOW, TIM1_OCIDLESTATE_RESET);
+    TIM1_OC4PreloadConfig(ENABLE);
+    TIM1_ARRPreloadConfig(ENABLE);
+    TIM1_CtrlPWMOutputs(ENABLE);
+
+#ifndef SERVO
+    // last 2 motor channels at 400Hz
+    TIM2_DeInit();
+    TIM2_TimeBaseInit(TIM2_PRESCALER_8, PULSE_PERIOD);
+    TIM2_OC1Init(TIM2_OCMODE_PWM2, TIM2_OUTPUTSTATE_ENABLE, PULSE_1MS, TIM2_OCPOLARITY_LOW);
+    TIM2_OC1PreloadConfig(ENABLE);
+    TIM2_OC2Init(TIM2_OCMODE_PWM2, TIM2_OUTPUTSTATE_ENABLE, PULSE_1MS, TIM2_OCPOLARITY_LOW);
+    TIM2_OC2PreloadConfig(ENABLE);
+    TIM2_ARRPreloadConfig(ENABLE);
+#else /* !SERVO */
+    // Enable TIM2 for servo output - slower rates
+    TIM2_DeInit();
+#ifdef DIGITAL_SERVO
+    TIM2_TimeBaseInit(TIM2_PRESCALER_8, PULSE_PERIOD_SERVO_DIGITAL);
+#else
+    TIM2_TimeBaseInit(TIM2_PRESCALER_8, PULSE_PERIOD_SERVO_ANALOG);
+#endif
+    TIM2_OC1Init(TIM2_OCMODE_PWM2, TIM2_OUTPUTSTATE_ENABLE, PULSE_1MS, TIM2_OCPOLARITY_LOW);
+    TIM2_OC1PreloadConfig(ENABLE);
+    TIM2_OC2Init(TIM2_OCMODE_PWM2, TIM2_OUTPUTSTATE_ENABLE, PULSE_1MS, TIM2_OCPOLARITY_LOW);
+    TIM2_OC2PreloadConfig(ENABLE);
+    TIM2_ARRPreloadConfig(ENABLE);
+    TIM2_Cmd(ENABLE);
+#endif /* SERVO */
+
+    TIM1_Cmd(ENABLE);
+#ifndef SERVO
+    TIM2_Cmd(ENABLE);
+#endif /* !SERVO */
+}
+
+/* PWM write */
+void pwmWrite(uint8_t channel, uint16_t value)
+{
+    uint16_t pulse = (value << 1);
+    *TimerAddress[channel].addressH = (uint8_t) (pulse >> 8);
+    *TimerAddress[channel].addressL = (uint8_t) (pulse);
 }
