@@ -6,7 +6,7 @@
 void hw_init(void)
 {
     // Clocks configuration
-    CLK_ClockSwitchConfig(CLK_SWITCHMODE_AUTO, CLK_SOURCE_HSE, DISABLE, DISABLE);
+    CLK_ClockSwitchConfig(CLK_SWITCHMODE_AUTO, CLK_SOURCE_HSE, DISABLE, CLK_CURRENTCLOCKSTATE_DISABLE);
     CLK_HSIPrescalerConfig(CLK_PRESCALER_HSIDIV1);
     CLK_PeripheralClockConfig(CLK_PERIPHERAL_ADC, ENABLE);
     CLK_PeripheralClockConfig(CLK_PERIPHERAL_SPI, ENABLE);
@@ -16,6 +16,7 @@ void hw_init(void)
     TIM4_DeInit();
     TIM4_TimeBaseInit(TIM4_PRESCALER_64, 255);
     TIM4_ITConfig(TIM4_IT_UPDATE, ENABLE);
+    TIM4_ARRPreloadConfig(ENABLE);
     TIM4_Cmd(ENABLE);
 
     // Enable interrupts to start stuff up
@@ -133,8 +134,6 @@ uint8_t Serial_read(void)
   }
 }
 
-
-
 /* TIMING */
 #define F_CPU (16000000L)
 #define clockCyclesPerMicrosecond() ( F_CPU / 1000000L )
@@ -182,12 +181,16 @@ uint32_t micros(void)
     unsigned long m;
     uint8_t t;
 
+    disableInterrupts();
     m = timer0_overflow_count;
-    t = TIM4_GetCounter();
+    t = TIM4->CNTR;
+    enableInterrupts();
 
+#if 0
     // if overflow occurred while we were here TODO
-    if ((TIM4_GetFlagStatus(TIM4_IT_UPDATE) > 0) && (t < 255))
+    if (timer0_overflow_count != m)
         m++;
+#endif
 
     return ((m << 8) + t) * (64 / clockCyclesPerMicrosecond());
 }
@@ -289,11 +292,16 @@ uint8_t spi_readByte(void)
 void i2c_init(void)
 {
     I2C_DeInit();
+#if (I2C_SPEED == 100000)
+    // retarded slow speed for broken boards
+    I2C_Init(I2C_MAX_STANDARD_FREQ, 0xA0, I2C_DUTYCYCLE_2, I2C_ACK_CURR, I2C_ADDMODE_7BIT, I2C_MAX_INPUT_FREQ);
+#else
     I2C_Init(I2C_MAX_FAST_FREQ, 0xA0, I2C_DUTYCYCLE_2, I2C_ACK_CURR, I2C_ADDMODE_7BIT, I2C_MAX_INPUT_FREQ);
+#endif
     I2C_Cmd(ENABLE);
 }
 
-#define I2C_TIMEOUT 0x300
+#define I2C_TIMEOUT 0x600
 
 typedef enum {                  //returns I2C error/success codes
     I2C_SUCCESS = 0,            //theres only one sort of success

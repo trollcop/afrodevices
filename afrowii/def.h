@@ -1,3 +1,6 @@
+#ifdef _MSC_VER
+#define __CSMC__
+#endif
 #include "stm8s.h"
 #include <stdio.h>
 #include <stdlib.h>
