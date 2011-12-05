@@ -1,4 +1,5 @@
 /*
+/*
 MultiWiiCopter by Alexandre Dubus
 www.multiwii.com
 November  2011     V1.9
@@ -66,6 +67,7 @@ static int32_t BaroAlt;
 static int32_t EstVelocity;
 static int32_t EstAlt;          // in cm
 static uint8_t buzzerState = 0;
+static uint16_t i2cErrorCounter = 0;    // number of i2c errors on bus
 
 #ifdef STM8
 /* 0:Pitch 1:Roll 2:Yaw 3:Battery Voltage 4:AX 5:AY 6:AZ */
@@ -407,7 +409,7 @@ void loop()
     int16_t AltPID = 0;
     static int16_t lastVelError = 0;
     static int32_t AltHold;
-
+    
 #ifdef SPEKTRUM
     if (rcFrameComplete)
         computeRC();
@@ -1628,22 +1630,31 @@ static uint32_t neutralizeTime = 0;
 
 void i2c_getSixRawADC(uint8_t add, uint8_t reg)
 {
-    i2c_read(rawADC, 6, add, reg);
+    uint8_t rv = 0;
+    rv = i2c_read(rawADC, 6, add, reg);
+    if (rv != 0)
+        i2cErrorCounter++;
 }
 
 void i2c_writeReg(uint8_t add, uint8_t reg, uint8_t val)
 {
     uint8_t buf[3];
+    uint8_t rv = 0;
     buf[0] = add;
     buf[1] = reg;
     buf[2] = val;
-    i2c_write(buf, 3);
+    rv = i2c_write(buf, 3);
+    if (rv != 0)
+        i2cErrorCounter++;
 }
 
 uint8_t i2c_readReg(uint8_t add, uint8_t reg)
 {
     uint8_t data[1];
-    i2c_read(data, 1, add, reg);
+    uint8_t rv = 0;
+    rv = i2c_read(data, 1, add, reg);
+    if (rv != 0)
+        i2cErrorCounter++;
     return data[0];
 }
 
@@ -1832,7 +1843,8 @@ void i2c_BMP085_Calculate(void)
     x2 = (bmp085_ctx.b1 * (b6 * b6 >> 12)) >> 16;
     x3 = ((x1 + x2) + 2) >> 2;
     b4 = (bmp085_ctx.ac4 * (uint32_t) (x3 + 32768)) >> 15;
-    b7 = ((uint32_t) (bmp085_ctx.up >> (8 - OSS)) - b3) * (50000 >> OSS);
+    // b7 = ((uint32_t) (bmp085_ctx.up >> (8 - OSS)) - b3) * (50000 >> OSS);
+    b7 = ((uint32_t)bmp085_ctx.up - b3) * (50000 >> OSS);
     p = b7 < 0x80000000 ? (b7 * 2) / b4 : (b7 / b4) * 2;
     x1 = (p >> 8) * (p >> 8);
     x1 = (x1 * 3038) >> 16;
@@ -1844,6 +1856,7 @@ void Baro_update()
 {
     if (currentTime < bmp085_ctx.deadline)
         return;
+
     bmp085_ctx.deadline = currentTime;
     switch (bmp085_ctx.state) {
     case 0:
@@ -2965,7 +2978,7 @@ void serialCom()
 #endif
             serialize8(vbat);
             serialize16(BaroAlt / 10);  // 4 variables are here for general monitoring purpose
-            serialize16(0);     // debug2
+            serialize16(i2cErrorCounter);     // debug2
             serialize16(0);     // debug3
             serialize16(0);     // debug4
             serialize8('M');
