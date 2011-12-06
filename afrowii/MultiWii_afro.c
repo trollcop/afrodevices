@@ -2101,7 +2101,7 @@ static void ADXL_Init(void)
     // Rate 3200Hz
     ADXL_ON;
     spi_writeByte(ADXL_RATE_ADDR);
-    spi_writeByte(ADXL_RATE_3200 & 0x0F);
+    spi_writeByte(ADXL_RATE_800 & 0x0F);
     ADXL_OFF;
 
     // Range 8G
@@ -2178,6 +2178,8 @@ void ACC_getADC()
         remaining = ADXL_GetAccelValues();
     } while ((count < 32) && (remaining > 0));
 
+    count++;
+
 #ifdef LOWPASS_ACC
     // commit current values to acc[]
 #else
@@ -2187,7 +2189,6 @@ void ACC_getADC()
     sensorInputs[6] = sensorInputs[6] / count;
 #endif
 
-    // i2c_getSixRawADC(ADXL345_ADDRESS, 0x32);
     ACC_ORIENTATION(sensorInputs[4], sensorInputs[5], sensorInputs[6]);
     ACC_Common();
 }
