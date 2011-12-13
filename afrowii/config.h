@@ -10,28 +10,13 @@
 //#define MINTHROTTLE 1220
 #define MINTHROTTLE 1120
 
-/* The type of multicopter */
-//#define GIMBAL
-//#define BI
-//#define TRI
-//#define QUADP
-#define QUADX
-//#define Y4
-//#define Y6
-//#define HEX6
-//#define HEX6X
-//#define OCTOX8
-//#define OCTOFLATP
-//#define OCTOFLATX
-//#define FLYING_WING //experimental
-
 #define DIGITAL_SERVO      // If high-speed (200hz) refresh is needed on tail servo or for camera stabilization, define this. otherwise 50hz is used.
 
 #define YAW_DIRECTION 1		// if you want to reverse the yaw correction direction
 //#define YAW_DIRECTION -1
 
-#define I2C_SPEED 100000L	//100kHz normal mode, this value must be used for a genuine WMP
-//#define I2C_SPEED 400000L   //400kHz fast mode, it works only with some WMP clones
+//#define I2C_SPEED 100000L	//100kHz normal mode, this value must be used for a genuine WMP
+#define I2C_SPEED 400000L   //400kHz fast mode, it works only with some WMP clones
 
 #define STM8
 #define AFROV2                  // AfroFlight rev2 (ADXL345 on SPI, Invensense Analog gyros on ADC)

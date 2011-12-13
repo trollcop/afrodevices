@@ -42,7 +42,7 @@ void pinMode(uint8_t pin, uint8_t mode);
 void systemReboot(void);
 
 /* PWM */
-void pwmInit(void);
+void pwmInit(uint8_t useServo);
 void pwmWrite(uint8_t channel, uint16_t value);
 
 void eeprom_open(void);

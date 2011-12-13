@@ -472,7 +472,7 @@ static const struct {
 // pulse period for analog servo (50Hz)
 #define PULSE_PERIOD_SERVO_ANALOG  (40000)
 
-void pwmInit(void)
+void pwmInit(uint8_t useServo)
 {
     // Motor PWM timers at 400Hz
     TIM1_DeInit();
@@ -488,35 +488,35 @@ void pwmInit(void)
     TIM1_ARRPreloadConfig(ENABLE);
     TIM1_CtrlPWMOutputs(ENABLE);
 
-#ifndef SERVO
-    // last 2 motor channels at 400Hz
-    TIM2_DeInit();
-    TIM2_TimeBaseInit(TIM2_PRESCALER_8, PULSE_PERIOD);
-    TIM2_OC1Init(TIM2_OCMODE_PWM2, TIM2_OUTPUTSTATE_ENABLE, PULSE_1MS, TIM2_OCPOLARITY_LOW);
-    TIM2_OC1PreloadConfig(ENABLE);
-    TIM2_OC2Init(TIM2_OCMODE_PWM2, TIM2_OUTPUTSTATE_ENABLE, PULSE_1MS, TIM2_OCPOLARITY_LOW);
-    TIM2_OC2PreloadConfig(ENABLE);
-    TIM2_ARRPreloadConfig(ENABLE);
-#else /* !SERVO */
-    // Enable TIM2 for servo output - slower rates
-    TIM2_DeInit();
+    if (!useServo) {
+        // last 2 motor channels at 400Hz
+        TIM2_DeInit();
+        TIM2_TimeBaseInit(TIM2_PRESCALER_8, PULSE_PERIOD);
+        TIM2_OC1Init(TIM2_OCMODE_PWM2, TIM2_OUTPUTSTATE_ENABLE, PULSE_1MS, TIM2_OCPOLARITY_LOW);
+        TIM2_OC1PreloadConfig(ENABLE);
+        TIM2_OC2Init(TIM2_OCMODE_PWM2, TIM2_OUTPUTSTATE_ENABLE, PULSE_1MS, TIM2_OCPOLARITY_LOW);
+        TIM2_OC2PreloadConfig(ENABLE);
+        TIM2_ARRPreloadConfig(ENABLE);
+    } else {
+        // Servos
+        // Enable TIM2 for servo output - slower rates
+        TIM2_DeInit();
 #ifdef DIGITAL_SERVO
-    TIM2_TimeBaseInit(TIM2_PRESCALER_8, PULSE_PERIOD_SERVO_DIGITAL);
+        TIM2_TimeBaseInit(TIM2_PRESCALER_8, PULSE_PERIOD_SERVO_DIGITAL);
 #else
-    TIM2_TimeBaseInit(TIM2_PRESCALER_8, PULSE_PERIOD_SERVO_ANALOG);
+        TIM2_TimeBaseInit(TIM2_PRESCALER_8, PULSE_PERIOD_SERVO_ANALOG);
 #endif
-    TIM2_OC1Init(TIM2_OCMODE_PWM2, TIM2_OUTPUTSTATE_ENABLE, PULSE_1MS, TIM2_OCPOLARITY_LOW);
-    TIM2_OC1PreloadConfig(ENABLE);
-    TIM2_OC2Init(TIM2_OCMODE_PWM2, TIM2_OUTPUTSTATE_ENABLE, PULSE_1MS, TIM2_OCPOLARITY_LOW);
-    TIM2_OC2PreloadConfig(ENABLE);
-    TIM2_ARRPreloadConfig(ENABLE);
-    TIM2_Cmd(ENABLE);
-#endif /* SERVO */
+        TIM2_OC1Init(TIM2_OCMODE_PWM2, TIM2_OUTPUTSTATE_ENABLE, PULSE_1MS, TIM2_OCPOLARITY_LOW);
+        TIM2_OC1PreloadConfig(ENABLE);
+        TIM2_OC2Init(TIM2_OCMODE_PWM2, TIM2_OUTPUTSTATE_ENABLE, PULSE_1MS, TIM2_OCPOLARITY_LOW);
+        TIM2_OC2PreloadConfig(ENABLE);
+        TIM2_ARRPreloadConfig(ENABLE);
+        TIM2_Cmd(ENABLE);
+    }
 
     TIM1_Cmd(ENABLE);
-#ifndef SERVO
-    TIM2_Cmd(ENABLE);
-#endif /* !SERVO */
+    if (!useServo)
+        TIM2_Cmd(ENABLE);
 }
 
 /* PWM write */

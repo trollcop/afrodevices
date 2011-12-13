@@ -22,6 +22,25 @@ typedef long int32_t;
 #define __interrupt @interrupt
 #endif
 
+// Syncronized with GUI. Only exception is mixer > 11, which is always returned as 11 during serialization.
+typedef enum MultiType
+{
+    MULTITYPE_TRI = 1,              // XA
+    MULTITYPE_QUADP = 2,            // XB
+    MULTITYPE_QUADX = 3,            // XC
+    MULTITYPE_BI = 4,               // XD
+    MULTITYPE_GIMBAL = 5,           // XE
+    MULTITYPE_Y6 = 6,               // XF
+    MULTITYPE_HEX6 = 7,             // XG
+    MULTITYPE_FLYING_WING = 8,      // XH
+    MULTITYPE_Y4 = 9,               // XI
+    MULTITYPE_HEX6X = 10,           // XJ
+    MULTITYPE_OCTOX8 = 11,          // XK
+    MULTITYPE_OCTOFLATP = 12,	    // XL the GUI is the same for all 8 motor configs
+    MULTITYPE_OCTOFLATX = 13,       // XM the GUI is the same for all 8 motor configs
+    MULTITYPE_LAST = 14
+} MultiType;
+
 // undefine stdlib's abs if encountered
 #ifdef abs
 #undef abs
@@ -315,32 +334,4 @@ typedef long int32_t;
 #ifndef LCD_TELEMETRY
 #error "to use automatic telemetry, you MUST also define and configure LCD_TELEMETRY"
 #endif
-#endif
-
-#if defined(TRI)
-#define MULTITYPE 1
-#elif defined(QUADP)
-#define MULTITYPE 2
-#elif defined(QUADX)
-#define MULTITYPE 3
-#elif defined(BI)
-#define MULTITYPE 4
-#elif defined(GIMBAL)
-#define MULTITYPE 5
-#elif defined(Y6)
-#define MULTITYPE 6
-#elif defined(HEX6)
-#define MULTITYPE 7
-#elif defined(FLYING_WING)
-#define MULTITYPE 8
-#elif defined(Y4)
-#define MULTITYPE 9
-#elif defined(HEX6X)
-#define MULTITYPE 10
-#elif defined(OCTOX8)
-#define MULTITYPE 11
-#elif defined(OCTOFLATP)
-#define MULTITYPE 11		//the GUI is the same for all 8 motor configs
-#elif defined(OCTOFLATX)
-#define MULTITYPE 11		//the GUI is the same for all 8 motor configs
 #endif

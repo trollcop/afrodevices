@@ -75,8 +75,8 @@ static volatile s16 sensorInputs[7] = { 0, };
 #endif
 
 //for log
-static uint16_t cycleTimeMax = 0;       // highest ever cycle timen
-static uint16_t cycleTimeMin = 65535;   // lowest ever cycle timen
+static uint16_t cycleTimeMax = 0;       // highest ever cycle time
+static uint16_t cycleTimeMin = 65535;   // lowest ever cycle time
 static uint16_t powerMax = 0;   // highest ever current
 static uint16_t powerAvg = 0;   // last known current
 
@@ -128,6 +128,9 @@ static int8_t smallAngle25 = 1;
 static int16_t axisPID[3];
 static int16_t motor[8];
 static int16_t servo[4] = { 1500, 1500, 1500, 1500 };
+static uint8_t mixerConfiguration = MULTITYPE_QUADX;
+static uint8_t useServo = 0;
+static uint8_t numberMotor = 4;
 
 // **********************
 // EEPROM & LCD functions
@@ -696,7 +699,7 @@ void loop()
 }
 
 /* EEPROM --------------------------------------------------------------------- */
-static uint8_t checkNewConf = 146;
+static uint8_t checkNewConf = 147;
 
 typedef struct eep_entry_t {
     void *var;
@@ -720,12 +723,13 @@ volatile eep_entry_t eep_entry[] = {
     &magZero, sizeof(magZero),
     &accTrim, sizeof(accTrim),
     &activate, sizeof(activate),
-    &powerTrigger1, sizeof(powerTrigger1)
+    &powerTrigger1, sizeof(powerTrigger1),
+    &mixerConfiguration, sizeof(mixerConfiguration),
 };
 #define EEBLOCK_SIZE sizeof(eep_entry)/sizeof(eep_entry_t)
 // ************************************************************************************************************
 
-void readEEPROM()
+void readEEPROM(void)
 {
     uint8_t i;
     uint8_t _address = eep_entry[0].size;
@@ -744,7 +748,7 @@ void readEEPROM()
         lookupRX[i] = (2500 + rcExpo8 * (i * i - 25)) * i * (int32_t) rcRate8 / 1250;
 }
 
-void writeParams()
+void writeParams(void)
 {
     uint8_t i;
     uint8_t _address = 0;
@@ -760,7 +764,7 @@ void writeParams()
     blinkLED(15, 20, 1);
 }
 
-void checkFirstTime()
+void checkFirstTime(void)
 {
     uint8_t test_val, i;
 
@@ -799,6 +803,7 @@ void checkFirstTime()
     accTrim[0] = 0;
     accTrim[1] = 0;
     powerTrigger1 = 0;
+    mixerConfiguration = MULTITYPE_QUADX;
     writeParams();
 }
 
@@ -812,8 +817,8 @@ static uint8_t rcChannel[8] = { SERIAL_SUM_PPM };
 #endif
 volatile uint16_t rcValue[8] = { 1500, 1500, 1500, 1500, 1500, 1500, 1500, 1500 };      // interval [1000;2000]
 
-// Configure each rc pin for PCINT
-void configureReceiver()
+// Configure receiver pins
+void configureReceiver(void)
 {
     uint8_t chan, a;
 #if defined(STM8)
@@ -894,50 +899,29 @@ void computeRC()
 }
 
 /* OUTPUT ------------------------------------------------------------------------------------- */
-#if defined(BI) || defined(TRI) || defined(SERVO_TILT) || defined(GIMBAL) || defined(FLYING_WING) || defined(CAMTRIG)
-#define SERVO
-#endif
-
-#if defined(GIMBAL)
-#define NUMBER_MOTOR 0
-#elif defined(FLYING_WING)
-#define NUMBER_MOTOR 1
-#elif defined(BI)
-#define NUMBER_MOTOR 2
-#elif defined(TRI)
-#define NUMBER_MOTOR 3
-#elif defined(QUADP) || defined(QUADX) || defined(Y4)
-#define NUMBER_MOTOR 4
-#elif defined(Y6) || defined(HEX6) || defined(HEX6X)
-#define NUMBER_MOTOR 6
-#elif defined(OCTOX8) || defined(OCTOFLATP) || defined(OCTOFLATX)
-#define NUMBER_MOTOR 8
-#endif
-
 void writeServos()
 {
+    if (!useServo)
+        return;
+
     // STM8 PWM is actually 0.5us precision, so we double it
-#if defined(SERVO)
-    uint8_t i;
-#if defined(TRI) || defined(BI)
-    /* One servo on Motor #4 */
-    pwmWrite(4, servo[0]);
-#if defined(BI)
-    pwmWrite(5, servo[1]);
-#endif /* BI */
-#else
-    /* Two servos for camstab or FLYING_WING */
-    pwmWrite(4, servo[1]);
-    pwmWrite(5, servo[2]);
-#endif /* TRI || BI */
-#endif /* SERVO */
+    if (mixerConfiguration == MULTITYPE_TRI || mixerConfiguration == MULTITYPE_BI) {
+        /* One servo on Motor #4 */
+        pwmWrite(4, servo[0]);
+        if (mixerConfiguration == MULTITYPE_BI)
+            pwmWrite(5, servo[1]);
+    } else {
+        /* Two servos for camstab or FLYING_WING */
+        pwmWrite(4, servo[1]);
+        pwmWrite(5, servo[2]);
+    }
 }
 
 void writeMotors(void)
 {
     uint8_t i;
 
-    for (i = 0; i < NUMBER_MOTOR; i++)
+    for (i = 0; i < numberMotor; i++)
         pwmWrite(i, motor[i]);
 }
 
@@ -945,7 +929,7 @@ void writeAllMotors(int16_t mc)
 {
     uint8_t i;
     // Sends commands to all motors
-    for (i = 0; i < NUMBER_MOTOR; i++)
+    for (i = 0; i < numberMotor; i++)
         motor[i] = mc;
     writeMotors();
 }
@@ -963,7 +947,7 @@ void logMotorsPower(void)
     };
 
     if (vbat) {                 // by all means - must avoid division by zero 
-        for (i = 0; i < NUMBER_MOTOR; i++) {
+        for (i = 0; i < numberMotor; i++) {
             amp = amperes[(motor[i] - 1000) >> 4] / vbat;       // range mapped from [1000:2000] => [0:1000]; then break that up into 64 ranges; lookup amp
 
 #ifdef LOG_VALUES
@@ -979,6 +963,46 @@ void logMotorsPower(void)
 
 void initOutput()
 {
+    if (mixerConfiguration == MULTITYPE_BI || mixerConfiguration == MULTITYPE_TRI || mixerConfiguration == MULTITYPE_GIMBAL || mixerConfiguration == MULTITYPE_FLYING_WING)
+        useServo = 1;
+
+#if defined(SERVO_TILT) || defined(CAMTRIG)
+    useServo = 1;
+#endif
+
+    switch (mixerConfiguration) {
+        case MULTITYPE_GIMBAL:
+            numberMotor = 0;
+            break;
+        case MULTITYPE_FLYING_WING:
+            numberMotor = 1;
+            break;
+        case MULTITYPE_BI:
+            numberMotor = 2;
+            break;
+        case MULTITYPE_TRI:
+            numberMotor = 3;
+            break;
+
+        case MULTITYPE_QUADP:
+        case MULTITYPE_QUADX:
+        case MULTITYPE_Y4:
+            numberMotor = 4;
+            break;
+
+        case MULTITYPE_Y6:
+        case MULTITYPE_HEX6:
+        case MULTITYPE_HEX6X:
+            numberMotor = 6;
+            break;
+
+        case MULTITYPE_OCTOX8:
+        case MULTITYPE_OCTOFLATP:
+        case MULTITYPE_OCTOFLATX:
+            numberMotor = 8;
+            break;
+    }
+
     // This handles motor and servo initialization in one place
     pwmInit();
     writeAllMotors(1000);
@@ -995,94 +1019,127 @@ void mixTable()
 
 #define PIDMIX(X,Y,Z) rcCommand[THROTTLE] + axisPID[ROLL]*X + axisPID[PITCH]*Y + YAW_DIRECTION * axisPID[YAW]*Z
 
-#if NUMBER_MOTOR > 3
-    //prevent "yaw jump" during yaw correction
-    axisPID[YAW] = constrain(axisPID[YAW], -100 - abs(rcCommand[YAW]), +100 + abs(rcCommand[YAW]));
-#endif
-#ifdef BI
-    motor[0] = PIDMIX(+1, 0, 0);        //LEFT
-    motor[1] = PIDMIX(-1, 0, 0);        //RIGHT        
-    servo[0] = constrain(1500 + YAW_DIRECTION * (axisPID[YAW] + axisPID[PITCH]), 1020, 2000);   //LEFT
-    servo[1] = constrain(1500 + YAW_DIRECTION * (axisPID[YAW] - axisPID[PITCH]), 1020, 2000);   //RIGHT
-#endif
-#ifdef TRI
-    motor[0] = PIDMIX(0, +4 / 3, 0);    //REAR
-    motor[1] = PIDMIX(-1, -2 / 3, 0);   //RIGHT
-    motor[2] = PIDMIX(+1, -2 / 3, 0);   //LEFT
-    servo[0] = constrain(TRI_YAW_MIDDLE + YAW_DIRECTION * axisPID[YAW], TRI_YAW_CONSTRAINT_MIN, TRI_YAW_CONSTRAINT_MAX);        //REAR
-#endif
-#ifdef QUADP
-    motor[0] = PIDMIX(0, +1, -1);       //REAR
-    motor[1] = PIDMIX(-1, 0, +1);       //RIGHT
-    motor[2] = PIDMIX(+1, 0, +1);       //LEFT
-    motor[3] = PIDMIX(0, -1, -1);       //FRONT
-#endif
-#ifdef QUADX
-    motor[0] = PIDMIX(-1, +1, -1);      //REAR_R
-    motor[1] = PIDMIX(-1, -1, +1);      //FRONT_R
-    motor[2] = PIDMIX(+1, +1, +1);      //REAR_L
-    motor[3] = PIDMIX(+1, -1, -1);      //FRONT_L
-#endif
-#ifdef Y4
-    motor[0] = PIDMIX(+0, +1, -1);      //REAR_1 CW
-    motor[1] = PIDMIX(-1, -1, 0);       //FRONT_R CCW
-    motor[2] = PIDMIX(+0, +1, +1);      //REAR_2 CCW
-    motor[3] = PIDMIX(+1, -1, 0);       //FRONT_L CW
-#endif
-#ifdef Y6
-    motor[0] = PIDMIX(+0, +4 / 3, +1);  //REAR
-    motor[1] = PIDMIX(-1, -2 / 3, -1);  //RIGHT
-    motor[2] = PIDMIX(+1, -2 / 3, -1);  //LEFT
-    motor[3] = PIDMIX(+0, +4 / 3, -1);  //UNDER_REAR
-    motor[4] = PIDMIX(-1, -2 / 3, +1);  //UNDER_RIGHT
-    motor[5] = PIDMIX(+1, -2 / 3, +1);  //UNDER_LEFT    
-#endif
-#ifdef HEX6
-    motor[0] = PIDMIX(-1 / 2, +1 / 2, +1);      //REAR_R
-    motor[1] = PIDMIX(-1 / 2, -1 / 2, -1);      //FRONT_R
-    motor[2] = PIDMIX(+1 / 2, +1 / 2, +1);      //REAR_L
-    motor[3] = PIDMIX(+1 / 2, -1 / 2, -1);      //FRONT_L
-    motor[4] = PIDMIX(+0, -1, +1);      //FRONT
-    motor[5] = PIDMIX(+0, +1, -1);      //REAR
-#endif
-#ifdef HEX6X
-    motor[0] = PIDMIX(-1 / 2, +1 / 2, +1);      //REAR_R
-    motor[1] = PIDMIX(-1 / 2, -1 / 2, +1);      //FRONT_R
-    motor[2] = PIDMIX(+1 / 2, +1 / 2, -1);      //REAR_L
-    motor[3] = PIDMIX(+1 / 2, -1 / 2, -1);      //FRONT_L
-    motor[4] = PIDMIX(-1, +0, -1);      //RIGHT
-    motor[5] = PIDMIX(+1, +0, +1);      //LEFT
-#endif
-#ifdef OCTOX8
-    motor[0] = PIDMIX(-1, +1, -1);      //REAR_R
-    motor[1] = PIDMIX(-1, -1, +1);      //FRONT_R
-    motor[2] = PIDMIX(+1, +1, +1);      //REAR_L
-    motor[3] = PIDMIX(+1, -1, -1);      //FRONT_L
-    motor[4] = PIDMIX(-1, +1, +1);      //UNDER_REAR_R
-    motor[5] = PIDMIX(-1, -1, -1);      //UNDER_FRONT_R
-    motor[6] = PIDMIX(+1, +1, -1);      //UNDER_REAR_L
-    motor[7] = PIDMIX(+1, -1, +1);      //UNDER_FRONT_L
-#endif
-#ifdef OCTOFLATP
-    motor[0] = PIDMIX(+7 / 10, -7 / 10, +1);    //FRONT_L
-    motor[1] = PIDMIX(-7 / 10, -7 / 10, +1);    //FRONT_R
-    motor[2] = PIDMIX(-7 / 10, +7 / 10, +1);    //REAR_R
-    motor[3] = PIDMIX(+7 / 10, +7 / 10, +1);    //REAR_L
-    motor[4] = PIDMIX(+0, -1, -1);      //FRONT
-    motor[5] = PIDMIX(-1, +0, -1);      //RIGHT
-    motor[6] = PIDMIX(+0, +1, -1);      //REAR
-    motor[7] = PIDMIX(+1, +0, -1);      //LEFT 
-#endif
-#ifdef OCTOFLATX
-    motor[0] = PIDMIX(+1, -1 / 2, +1);  //MIDFRONT_L
-    motor[1] = PIDMIX(-1 / 2, -1, +1);  //FRONT_R
-    motor[2] = PIDMIX(-1, +1 / 2, +1);  //MIDREAR_R
-    motor[3] = PIDMIX(+1 / 2, +1, +1);  //REAR_L
-    motor[4] = PIDMIX(+1 / 2, -1, -1);  //FRONT_L
-    motor[5] = PIDMIX(-1, -1 / 2, -1);  //MIDFRONT_R
-    motor[6] = PIDMIX(-1 / 2, +1, -1);  //REAR_R
-    motor[7] = PIDMIX(+1, +1 / 2, -1);  //MIDREAR_L 
-#endif
+    if (numberMotor > 3) {
+        //prevent "yaw jump" during yaw correction
+        axisPID[YAW] = constrain(axisPID[YAW], -100 - abs(rcCommand[YAW]), +100 + abs(rcCommand[YAW]));
+    }
+
+    switch (mixerConfiguration) {
+        case MULTITYPE_BI:
+            motor[0] = PIDMIX(+1, 0, 0);        //LEFT
+            motor[1] = PIDMIX(-1, 0, 0);        //RIGHT        
+            servo[0] = constrain(1500 + YAW_DIRECTION * (axisPID[YAW] + axisPID[PITCH]), 1020, 2000);   //LEFT
+            servo[1] = constrain(1500 + YAW_DIRECTION * (axisPID[YAW] - axisPID[PITCH]), 1020, 2000);   //RIGHT
+            break;
+
+        case MULTITYPE_TRI:
+            motor[0] = PIDMIX(0, +4 / 3, 0);    //REAR
+            motor[1] = PIDMIX(-1, -2 / 3, 0);   //RIGHT
+            motor[2] = PIDMIX(+1, -2 / 3, 0);   //LEFT
+            servo[0] = constrain(TRI_YAW_MIDDLE + YAW_DIRECTION * axisPID[YAW], TRI_YAW_CONSTRAINT_MIN, TRI_YAW_CONSTRAINT_MAX);        //REAR
+            break;
+
+        case MULTITYPE_QUADP:
+            motor[0] = PIDMIX(0, +1, -1);       //REAR
+            motor[1] = PIDMIX(-1, 0, +1);       //RIGHT
+            motor[2] = PIDMIX(+1, 0, +1);       //LEFT
+            motor[3] = PIDMIX(0, -1, -1);       //FRONT
+            break;
+
+        case MULTITYPE_QUADX:
+            motor[0] = PIDMIX(-1, +1, -1);      //REAR_R
+            motor[1] = PIDMIX(-1, -1, +1);      //FRONT_R
+            motor[2] = PIDMIX(+1, +1, +1);      //REAR_L
+            motor[3] = PIDMIX(+1, -1, -1);      //FRONT_L
+            break;
+
+        case MULTITYPE_Y4:
+            motor[0] = PIDMIX(+0, +1, -1);      //REAR_1 CW
+            motor[1] = PIDMIX(-1, -1, 0);       //FRONT_R CCW
+            motor[2] = PIDMIX(+0, +1, +1);      //REAR_2 CCW
+            motor[3] = PIDMIX(+1, -1, 0);       //FRONT_L CW
+            break;
+
+        case MULTITYPE_Y6:
+            motor[0] = PIDMIX(+0, +4 / 3, +1);  //REAR
+            motor[1] = PIDMIX(-1, -2 / 3, -1);  //RIGHT
+            motor[2] = PIDMIX(+1, -2 / 3, -1);  //LEFT
+            motor[3] = PIDMIX(+0, +4 / 3, -1);  //UNDER_REAR
+            motor[4] = PIDMIX(-1, -2 / 3, +1);  //UNDER_RIGHT
+            motor[5] = PIDMIX(+1, -2 / 3, +1);  //UNDER_LEFT    
+            break;
+
+        case MULTITYPE_HEX6:
+            motor[0] = PIDMIX(-1 / 2, +1 / 2, +1);      //REAR_R
+            motor[1] = PIDMIX(-1 / 2, -1 / 2, -1);      //FRONT_R
+            motor[2] = PIDMIX(+1 / 2, +1 / 2, +1);      //REAR_L
+            motor[3] = PIDMIX(+1 / 2, -1 / 2, -1);      //FRONT_L
+            motor[4] = PIDMIX(+0, -1, +1);      //FRONT
+            motor[5] = PIDMIX(+0, +1, -1);      //REAR
+            break;
+
+        case MULTITYPE_HEX6X:
+            motor[0] = PIDMIX(-1 / 2, +1 / 2, +1);      //REAR_R
+            motor[1] = PIDMIX(-1 / 2, -1 / 2, +1);      //FRONT_R
+            motor[2] = PIDMIX(+1 / 2, +1 / 2, -1);      //REAR_L
+            motor[3] = PIDMIX(+1 / 2, -1 / 2, -1);      //FRONT_L
+            motor[4] = PIDMIX(-1, +0, -1);      //RIGHT
+            motor[5] = PIDMIX(+1, +0, +1);      //LEFT
+            break;
+
+        case MULTITYPE_OCTOX8:
+            motor[0] = PIDMIX(-1, +1, -1);      //REAR_R
+            motor[1] = PIDMIX(-1, -1, +1);      //FRONT_R
+            motor[2] = PIDMIX(+1, +1, +1);      //REAR_L
+            motor[3] = PIDMIX(+1, -1, -1);      //FRONT_L
+            motor[4] = PIDMIX(-1, +1, +1);      //UNDER_REAR_R
+            motor[5] = PIDMIX(-1, -1, -1);      //UNDER_FRONT_R
+            motor[6] = PIDMIX(+1, +1, -1);      //UNDER_REAR_L
+            motor[7] = PIDMIX(+1, -1, +1);      //UNDER_FRONT_L
+            break;
+
+        case MULTITYPE_OCTOFLATP:
+            motor[0] = PIDMIX(+7 / 10, -7 / 10, +1);    //FRONT_L
+            motor[1] = PIDMIX(-7 / 10, -7 / 10, +1);    //FRONT_R
+            motor[2] = PIDMIX(-7 / 10, +7 / 10, +1);    //REAR_R
+            motor[3] = PIDMIX(+7 / 10, +7 / 10, +1);    //REAR_L
+            motor[4] = PIDMIX(+0, -1, -1);      //FRONT
+            motor[5] = PIDMIX(-1, +0, -1);      //RIGHT
+            motor[6] = PIDMIX(+0, +1, -1);      //REAR
+            motor[7] = PIDMIX(+1, +0, -1);      //LEFT 
+            break;
+
+        case MULTITYPE_OCTOFLATX:
+            motor[0] = PIDMIX(+1, -1 / 2, +1);  //MIDFRONT_L
+            motor[1] = PIDMIX(-1 / 2, -1, +1);  //FRONT_R
+            motor[2] = PIDMIX(-1, +1 / 2, +1);  //MIDREAR_R
+            motor[3] = PIDMIX(+1 / 2, +1, +1);  //REAR_L
+            motor[4] = PIDMIX(+1 / 2, -1, -1);  //FRONT_L
+            motor[5] = PIDMIX(-1, -1 / 2, -1);  //MIDFRONT_R
+            motor[6] = PIDMIX(-1 / 2, +1, -1);  //REAR_R
+            motor[7] = PIDMIX(+1, +1 / 2, -1);  //MIDREAR_L 
+            break;
+
+        case MULTITYPE_GIMBAL:
+            servo[1] = constrain(TILT_PITCH_MIDDLE + TILT_PITCH_PROP * angle[PITCH] / 16 + rcCommand[PITCH], TILT_PITCH_MIN, TILT_PITCH_MAX);
+            servo[2] = constrain(TILT_ROLL_MIDDLE + TILT_ROLL_PROP * angle[ROLL] / 16 + rcCommand[ROLL], TILT_ROLL_MIN, TILT_ROLL_MAX);
+            break;
+            
+        case MULTITYPE_FLYING_WING:
+            motor[0] = rcCommand[THROTTLE];
+            //if (passthroughMode) {// use raw stick values to drive output 
+            // follow aux1 as being three way switch **NOTE: better to implement via check boxes in GUI 
+            if (rcData[AUX1] < 1300) {
+                // passthrough
+                servo[1] = constrain(WING_LEFT_MID + PITCH_DIRECTION_L * (rcData[PITCH] - MIDRC) + ROLL_DIRECTION_L * (rcData[ROLL] - MIDRC), WING_LEFT_MIN, WING_LEFT_MAX);    //LEFT
+                servo[2] = constrain(WING_RIGHT_MID + PITCH_DIRECTION_R * (rcData[PITCH] - MIDRC) + ROLL_DIRECTION_R * (rcData[ROLL] - MIDRC), WING_RIGHT_MIN, WING_RIGHT_MAX); //RIGHT
+            } else {                    // use sensors to correct (gyro only or gyro+acc according to aux1/aux2 configuration
+                servo[1] = constrain(WING_LEFT_MID + PITCH_DIRECTION_L * axisPID[PITCH] + ROLL_DIRECTION_L * axisPID[ROLL], WING_LEFT_MIN, WING_LEFT_MAX);      //LEFT
+                servo[2] = constrain(WING_RIGHT_MID + PITCH_DIRECTION_R * axisPID[PITCH] + ROLL_DIRECTION_R * axisPID[ROLL], WING_RIGHT_MIN, WING_RIGHT_MAX);   //RIGHT
+            }
+            break;
+
+    }
 
 #ifdef SERVO_TILT
     if (rcOptions & activate[BOXCAMSTAB]) {
@@ -1093,23 +1150,7 @@ void mixTable()
         servo[2] = constrain(TILT_ROLL_MIDDLE + rcData[CAMROLL] - 1500, TILT_ROLL_MIN, TILT_ROLL_MAX);
     }
 #endif
-#ifdef GIMBAL
-    servo[1] = constrain(TILT_PITCH_MIDDLE + TILT_PITCH_PROP * angle[PITCH] / 16 + rcCommand[PITCH], TILT_PITCH_MIN, TILT_PITCH_MAX);
-    servo[2] = constrain(TILT_ROLL_MIDDLE + TILT_ROLL_PROP * angle[ROLL] / 16 + rcCommand[ROLL], TILT_ROLL_MIN, TILT_ROLL_MAX);
-#endif
-#ifdef FLYING_WING
-    motor[0] = rcCommand[THROTTLE];
-    //if (passthroughMode) {// use raw stick values to drive output 
-    // follow aux1 as being three way switch **NOTE: better to implement via check boxes in GUI 
-    if (rcData[AUX1] < 1300) {
-        // passthrough
-        servo[1] = constrain(WING_LEFT_MID + PITCH_DIRECTION_L * (rcData[PITCH] - MIDRC) + ROLL_DIRECTION_L * (rcData[ROLL] - MIDRC), WING_LEFT_MIN, WING_LEFT_MAX);    //LEFT
-        servo[2] = constrain(WING_RIGHT_MID + PITCH_DIRECTION_R * (rcData[PITCH] - MIDRC) + ROLL_DIRECTION_R * (rcData[ROLL] - MIDRC), WING_RIGHT_MIN, WING_RIGHT_MAX); //RIGHT
-    } else {                    // use sensors to correct (gyro only or gyro+acc according to aux1/aux2 configuration
-        servo[1] = constrain(WING_LEFT_MID + PITCH_DIRECTION_L * axisPID[PITCH] + ROLL_DIRECTION_L * axisPID[ROLL], WING_LEFT_MIN, WING_LEFT_MAX);      //LEFT
-        servo[2] = constrain(WING_RIGHT_MID + PITCH_DIRECTION_R * axisPID[PITCH] + ROLL_DIRECTION_R * axisPID[ROLL], WING_RIGHT_MIN, WING_RIGHT_MAX);   //RIGHT
-    }
-#endif
+
 #if defined(CAMTRIG)
     if (camCycle == 1) {
         if (camState == 0) {
@@ -1134,10 +1175,10 @@ void mixTable()
 #endif
 
     maxMotor = motor[0];
-    for (i = 1; i < NUMBER_MOTOR; i++)
+    for (i = 1; i < numberMotor; i++)
         if (motor[i] > maxMotor)
             maxMotor = motor[i];
-    for (i = 0; i < NUMBER_MOTOR; i++) {
+    for (i = 0; i < numberMotor; i++) {
         if (maxMotor > MAXTHROTTLE)     // this is a way to still have good gyro corrections if at least one motor reaches its max.
             motor[i] -= maxMotor - MAXTHROTTLE;
         motor[i] = constrain(motor[i], MINTHROTTLE, MAXTHROTTLE);
@@ -2947,7 +2988,7 @@ void serialCom()
             serialize16(cycleTime);
             for (i = 0; i < 2; i++)
                 serialize16(angle[i] / 10);
-            serialize8(MULTITYPE);
+            serialize8(mixerConfiguration > 10 ? 11 : mixerConfiguration); // hack for multiwiiConf GUI
             for (i = 0; i < 5; i++) {
                 serialize8(P8[i]);
                 serialize8(I8[i]);
@@ -3041,6 +3082,22 @@ void serialCom()
             break;
         case 'E':              //GUI to arduino MAG calibration request
             calibratingM = 1;
+            break;
+        case 'X':              // GUI to change mixer type. command is X+ascii A + MULTITYPE_XXXX index. i.e. XA for tri, XB for Quad+, XC for QuadX, etc.
+            while (Serial_available() < 1) { }
+            i = Serial_read();
+            Serial_reset();
+            if (i > 64 && i < 64 + MULTITYPE_LAST) {
+                serialize8('O');
+                serialize8('K');
+                Serial_commitBuffer();
+                mixerConfiguration = i - '@'; // A..B..C.. index
+                writeParams();
+                systemReboot();
+            }
+            serialize8('N');
+            serialize8('G');
+            Serial_commitBuffer();
             break;
         }
     }
