@@ -1004,7 +1004,7 @@ void initOutput()
     }
 
     // This handles motor and servo initialization in one place
-    pwmInit();
+    pwmInit(useServo);
     writeAllMotors(1000);
     delay(300);
 }
