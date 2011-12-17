@@ -349,6 +349,9 @@
     <ClCompile Include="usb\usb_lib\usb_regs.c">
       <Filter>USBLib\usb_lib</Filter>
     </ClCompile>
+    <ClCompile Include="sysdep_stm32f1_cc.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <None Include="afrowii.stp">

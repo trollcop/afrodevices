@@ -146,6 +146,7 @@
     <ClCompile Include="STM32F10x_StdPeriph_Driver\src\stm32f10x_wwdg.c" />
     <ClCompile Include="STM32F10x_StdPeriph_Driver\src\system_stm32f10x.c" />
     <ClCompile Include="STM8S_StdPeriph_Driver\src\stm8s_wwdg.c" />
+    <ClCompile Include="sysdep_stm32f1_cc.c" />
     <ClCompile Include="sysdep_stm32f4.c" />
     <ClCompile Include="LCD.c" />
     <ClCompile Include="main.c" />
