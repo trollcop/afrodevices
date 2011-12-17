@@ -9,15 +9,23 @@
       <UniqueIdentifier>{93995380-89BD-4b04-88EB-625FBE52EBFB}</UniqueIdentifier>
       <Extensions>h;hpp;hxx;hm;inl;inc;xsd</Extensions>
     </Filter>
-    <Filter Include="Resource Files">
-      <UniqueIdentifier>{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}</UniqueIdentifier>
-      <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav;mfcribbon-ms</Extensions>
-    </Filter>
     <Filter Include="STVD Workspace">
       <UniqueIdentifier>{3a0bfbc6-4b5f-48c6-af62-e6cf2f9b6186}</UniqueIdentifier>
     </Filter>
-    <Filter Include="FWLib">
+    <Filter Include="STM8_FWLib">
       <UniqueIdentifier>{e9ae7e47-faac-40f9-9101-12132fed8be0}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="STM32_FWLib">
+      <UniqueIdentifier>{beee79cf-6472-419e-95fb-93f6c43efd7c}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="USBLib">
+      <UniqueIdentifier>{b8a001d1-2d7e-45c2-9d13-ea77f19ed73b}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="USBLib\usb_lib">
+      <UniqueIdentifier>{f2bd90c8-510d-4ccb-973f-e45249c24d55}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="CrossWorks Workspace">
+      <UniqueIdentifier>{fa41f033-5700-4824-a68a-e994c37528aa}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
   <ItemGroup>
@@ -37,43 +45,160 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="STM8S_StdPeriph_Driver\inc\stm8s.h">
-      <Filter>FWLib</Filter>
+      <Filter>STM8_FWLib</Filter>
     </ClInclude>
     <ClInclude Include="STM8S_StdPeriph_Driver\inc\stm8s_adc1.h">
-      <Filter>FWLib</Filter>
+      <Filter>STM8_FWLib</Filter>
     </ClInclude>
     <ClInclude Include="STM8S_StdPeriph_Driver\inc\stm8s_clk.h">
-      <Filter>FWLib</Filter>
+      <Filter>STM8_FWLib</Filter>
     </ClInclude>
     <ClInclude Include="STM8S_StdPeriph_Driver\inc\stm8s_flash.h">
-      <Filter>FWLib</Filter>
+      <Filter>STM8_FWLib</Filter>
     </ClInclude>
     <ClInclude Include="STM8S_StdPeriph_Driver\inc\stm8s_gpio.h">
-      <Filter>FWLib</Filter>
+      <Filter>STM8_FWLib</Filter>
     </ClInclude>
     <ClInclude Include="STM8S_StdPeriph_Driver\inc\stm8s_i2c.h">
-      <Filter>FWLib</Filter>
+      <Filter>STM8_FWLib</Filter>
     </ClInclude>
     <ClInclude Include="STM8S_StdPeriph_Driver\inc\stm8s_spi.h">
-      <Filter>FWLib</Filter>
+      <Filter>STM8_FWLib</Filter>
     </ClInclude>
     <ClInclude Include="STM8S_StdPeriph_Driver\inc\stm8s_tim1.h">
-      <Filter>FWLib</Filter>
+      <Filter>STM8_FWLib</Filter>
     </ClInclude>
     <ClInclude Include="STM8S_StdPeriph_Driver\inc\stm8s_tim2.h">
-      <Filter>FWLib</Filter>
+      <Filter>STM8_FWLib</Filter>
     </ClInclude>
     <ClInclude Include="STM8S_StdPeriph_Driver\inc\stm8s_tim3.h">
-      <Filter>FWLib</Filter>
+      <Filter>STM8_FWLib</Filter>
     </ClInclude>
     <ClInclude Include="STM8S_StdPeriph_Driver\inc\stm8s_tim4.h">
-      <Filter>FWLib</Filter>
+      <Filter>STM8_FWLib</Filter>
     </ClInclude>
     <ClInclude Include="STM8S_StdPeriph_Driver\inc\stm8s_uart2.h">
-      <Filter>FWLib</Filter>
+      <Filter>STM8_FWLib</Filter>
     </ClInclude>
     <ClInclude Include="STM8S_StdPeriph_Driver\inc\stm8s_wwdg.h">
-      <Filter>FWLib</Filter>
+      <Filter>STM8_FWLib</Filter>
+    </ClInclude>
+    <ClInclude Include="board.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="STM32F10x_StdPeriph_Driver\inc\misc.h">
+      <Filter>STM32_FWLib</Filter>
+    </ClInclude>
+    <ClInclude Include="STM32F10x_StdPeriph_Driver\inc\stm32f10x_adc.h">
+      <Filter>STM32_FWLib</Filter>
+    </ClInclude>
+    <ClInclude Include="STM32F10x_StdPeriph_Driver\inc\stm32f10x_bkp.h">
+      <Filter>STM32_FWLib</Filter>
+    </ClInclude>
+    <ClInclude Include="STM32F10x_StdPeriph_Driver\inc\stm32f10x_can.h">
+      <Filter>STM32_FWLib</Filter>
+    </ClInclude>
+    <ClInclude Include="STM32F10x_StdPeriph_Driver\inc\stm32f10x_cec.h">
+      <Filter>STM32_FWLib</Filter>
+    </ClInclude>
+    <ClInclude Include="STM32F10x_StdPeriph_Driver\inc\stm32f10x_crc.h">
+      <Filter>STM32_FWLib</Filter>
+    </ClInclude>
+    <ClInclude Include="STM32F10x_StdPeriph_Driver\inc\stm32f10x_dac.h">
+      <Filter>STM32_FWLib</Filter>
+    </ClInclude>
+    <ClInclude Include="STM32F10x_StdPeriph_Driver\inc\stm32f10x_dbgmcu.h">
+      <Filter>STM32_FWLib</Filter>
+    </ClInclude>
+    <ClInclude Include="STM32F10x_StdPeriph_Driver\inc\stm32f10x_dma.h">
+      <Filter>STM32_FWLib</Filter>
+    </ClInclude>
+    <ClInclude Include="STM32F10x_StdPeriph_Driver\inc\stm32f10x_exti.h">
+      <Filter>STM32_FWLib</Filter>
+    </ClInclude>
+    <ClInclude Include="STM32F10x_StdPeriph_Driver\inc\stm32f10x_flash.h">
+      <Filter>STM32_FWLib</Filter>
+    </ClInclude>
+    <ClInclude Include="STM32F10x_StdPeriph_Driver\inc\stm32f10x_fsmc.h">
+      <Filter>STM32_FWLib</Filter>
+    </ClInclude>
+    <ClInclude Include="STM32F10x_StdPeriph_Driver\inc\stm32f10x_gpio.h">
+      <Filter>STM32_FWLib</Filter>
+    </ClInclude>
+    <ClInclude Include="STM32F10x_StdPeriph_Driver\inc\stm32f10x_i2c.h">
+      <Filter>STM32_FWLib</Filter>
+    </ClInclude>
+    <ClInclude Include="STM32F10x_StdPeriph_Driver\inc\stm32f10x_iwdg.h">
+      <Filter>STM32_FWLib</Filter>
+    </ClInclude>
+    <ClInclude Include="STM32F10x_StdPeriph_Driver\inc\stm32f10x_pwr.h">
+      <Filter>STM32_FWLib</Filter>
+    </ClInclude>
+    <ClInclude Include="STM32F10x_StdPeriph_Driver\inc\stm32f10x_rcc.h">
+      <Filter>STM32_FWLib</Filter>
+    </ClInclude>
+    <ClInclude Include="STM32F10x_StdPeriph_Driver\inc\stm32f10x_rtc.h">
+      <Filter>STM32_FWLib</Filter>
+    </ClInclude>
+    <ClInclude Include="STM32F10x_StdPeriph_Driver\inc\stm32f10x_sdio.h">
+      <Filter>STM32_FWLib</Filter>
+    </ClInclude>
+    <ClInclude Include="STM32F10x_StdPeriph_Driver\inc\stm32f10x_spi.h">
+      <Filter>STM32_FWLib</Filter>
+    </ClInclude>
+    <ClInclude Include="STM32F10x_StdPeriph_Driver\inc\stm32f10x_tim.h">
+      <Filter>STM32_FWLib</Filter>
+    </ClInclude>
+    <ClInclude Include="STM32F10x_StdPeriph_Driver\inc\stm32f10x_usart.h">
+      <Filter>STM32_FWLib</Filter>
+    </ClInclude>
+    <ClInclude Include="STM32F10x_StdPeriph_Driver\inc\stm32f10x_wwdg.h">
+      <Filter>STM32_FWLib</Filter>
+    </ClInclude>
+    <ClInclude Include="STM32F10x_StdPeriph_Driver\inc\stm32f10x.h">
+      <Filter>STM32_FWLib</Filter>
+    </ClInclude>
+    <ClInclude Include="STM32F10x_StdPeriph_Driver\inc\stm32f10x_conf.h">
+      <Filter>STM32_FWLib</Filter>
+    </ClInclude>
+    <ClInclude Include="usb\descriptors.h">
+      <Filter>USBLib</Filter>
+    </ClInclude>
+    <ClInclude Include="usb\libmaple_types.h">
+      <Filter>USBLib</Filter>
+    </ClInclude>
+    <ClInclude Include="usb\usb.h">
+      <Filter>USBLib</Filter>
+    </ClInclude>
+    <ClInclude Include="usb\usb_cdcacm.h">
+      <Filter>USBLib</Filter>
+    </ClInclude>
+    <ClInclude Include="usb\usb_lib_globals.h">
+      <Filter>USBLib</Filter>
+    </ClInclude>
+    <ClInclude Include="usb\usb_reg_map.h">
+      <Filter>USBLib</Filter>
+    </ClInclude>
+    <ClInclude Include="usb\usb_lib\usb_core.h">
+      <Filter>USBLib\usb_lib</Filter>
+    </ClInclude>
+    <ClInclude Include="usb\usb_lib\usb_def.h">
+      <Filter>USBLib\usb_lib</Filter>
+    </ClInclude>
+    <ClInclude Include="usb\usb_lib\usb_init.h">
+      <Filter>USBLib\usb_lib</Filter>
+    </ClInclude>
+    <ClInclude Include="usb\usb_lib\usb_lib.h">
+      <Filter>USBLib\usb_lib</Filter>
+    </ClInclude>
+    <ClInclude Include="usb\usb_lib\usb_mem.h">
+      <Filter>USBLib\usb_lib</Filter>
+    </ClInclude>
+    <ClInclude Include="usb\usb_lib\usb_regs.h">
+      <Filter>USBLib\usb_lib</Filter>
+    </ClInclude>
+    <ClInclude Include="usb\usb_lib\usb_type.h">
+      <Filter>USBLib\usb_lib</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
@@ -87,37 +212,37 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="STM8S_StdPeriph_Driver\src\stm8s_adc1.c">
-      <Filter>FWLib</Filter>
+      <Filter>STM8_FWLib</Filter>
     </ClCompile>
     <ClCompile Include="STM8S_StdPeriph_Driver\src\stm8s_clk.c">
-      <Filter>FWLib</Filter>
+      <Filter>STM8_FWLib</Filter>
     </ClCompile>
     <ClCompile Include="STM8S_StdPeriph_Driver\src\stm8s_flash.c">
-      <Filter>FWLib</Filter>
+      <Filter>STM8_FWLib</Filter>
     </ClCompile>
     <ClCompile Include="STM8S_StdPeriph_Driver\src\stm8s_gpio.c">
-      <Filter>FWLib</Filter>
+      <Filter>STM8_FWLib</Filter>
     </ClCompile>
     <ClCompile Include="STM8S_StdPeriph_Driver\src\stm8s_i2c.c">
-      <Filter>FWLib</Filter>
+      <Filter>STM8_FWLib</Filter>
     </ClCompile>
     <ClCompile Include="STM8S_StdPeriph_Driver\src\stm8s_spi.c">
-      <Filter>FWLib</Filter>
+      <Filter>STM8_FWLib</Filter>
     </ClCompile>
     <ClCompile Include="STM8S_StdPeriph_Driver\src\stm8s_tim1.c">
-      <Filter>FWLib</Filter>
+      <Filter>STM8_FWLib</Filter>
     </ClCompile>
     <ClCompile Include="STM8S_StdPeriph_Driver\src\stm8s_tim2.c">
-      <Filter>FWLib</Filter>
+      <Filter>STM8_FWLib</Filter>
     </ClCompile>
     <ClCompile Include="STM8S_StdPeriph_Driver\src\stm8s_tim3.c">
-      <Filter>FWLib</Filter>
+      <Filter>STM8_FWLib</Filter>
     </ClCompile>
     <ClCompile Include="STM8S_StdPeriph_Driver\src\stm8s_tim4.c">
-      <Filter>FWLib</Filter>
+      <Filter>STM8_FWLib</Filter>
     </ClCompile>
     <ClCompile Include="STM8S_StdPeriph_Driver\src\stm8s_uart2.c">
-      <Filter>FWLib</Filter>
+      <Filter>STM8_FWLib</Filter>
     </ClCompile>
     <ClCompile Include="MultiWii_afro.c">
       <Filter>Source Files</Filter>
@@ -129,24 +254,111 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="STM8S_StdPeriph_Driver\src\stm8s_wwdg.c">
-      <Filter>FWLib</Filter>
+      <Filter>STM8_FWLib</Filter>
+    </ClCompile>
+    <ClCompile Include="STM32F10x_StdPeriph_Driver\src\misc.c">
+      <Filter>STM32_FWLib</Filter>
+    </ClCompile>
+    <ClCompile Include="STM32F10x_StdPeriph_Driver\src\stm32f10x_adc.c">
+      <Filter>STM32_FWLib</Filter>
+    </ClCompile>
+    <ClCompile Include="STM32F10x_StdPeriph_Driver\src\stm32f10x_bkp.c">
+      <Filter>STM32_FWLib</Filter>
+    </ClCompile>
+    <ClCompile Include="STM32F10x_StdPeriph_Driver\src\stm32f10x_can.c">
+      <Filter>STM32_FWLib</Filter>
+    </ClCompile>
+    <ClCompile Include="STM32F10x_StdPeriph_Driver\src\stm32f10x_cec.c">
+      <Filter>STM32_FWLib</Filter>
+    </ClCompile>
+    <ClCompile Include="STM32F10x_StdPeriph_Driver\src\stm32f10x_crc.c">
+      <Filter>STM32_FWLib</Filter>
+    </ClCompile>
+    <ClCompile Include="STM32F10x_StdPeriph_Driver\src\stm32f10x_dac.c">
+      <Filter>STM32_FWLib</Filter>
+    </ClCompile>
+    <ClCompile Include="STM32F10x_StdPeriph_Driver\src\stm32f10x_dbgmcu.c">
+      <Filter>STM32_FWLib</Filter>
+    </ClCompile>
+    <ClCompile Include="STM32F10x_StdPeriph_Driver\src\stm32f10x_dma.c">
+      <Filter>STM32_FWLib</Filter>
+    </ClCompile>
+    <ClCompile Include="STM32F10x_StdPeriph_Driver\src\stm32f10x_exti.c">
+      <Filter>STM32_FWLib</Filter>
+    </ClCompile>
+    <ClCompile Include="STM32F10x_StdPeriph_Driver\src\stm32f10x_flash.c">
+      <Filter>STM32_FWLib</Filter>
+    </ClCompile>
+    <ClCompile Include="STM32F10x_StdPeriph_Driver\src\stm32f10x_fsmc.c">
+      <Filter>STM32_FWLib</Filter>
+    </ClCompile>
+    <ClCompile Include="STM32F10x_StdPeriph_Driver\src\stm32f10x_i2c.c">
+      <Filter>STM32_FWLib</Filter>
+    </ClCompile>
+    <ClCompile Include="STM32F10x_StdPeriph_Driver\src\stm32f10x_iwdg.c">
+      <Filter>STM32_FWLib</Filter>
+    </ClCompile>
+    <ClCompile Include="STM32F10x_StdPeriph_Driver\src\stm32f10x_pwr.c">
+      <Filter>STM32_FWLib</Filter>
+    </ClCompile>
+    <ClCompile Include="STM32F10x_StdPeriph_Driver\src\stm32f10x_rcc.c">
+      <Filter>STM32_FWLib</Filter>
+    </ClCompile>
+    <ClCompile Include="STM32F10x_StdPeriph_Driver\src\stm32f10x_rtc.c">
+      <Filter>STM32_FWLib</Filter>
+    </ClCompile>
+    <ClCompile Include="STM32F10x_StdPeriph_Driver\src\stm32f10x_sdio.c">
+      <Filter>STM32_FWLib</Filter>
+    </ClCompile>
+    <ClCompile Include="STM32F10x_StdPeriph_Driver\src\stm32f10x_spi.c">
+      <Filter>STM32_FWLib</Filter>
+    </ClCompile>
+    <ClCompile Include="STM32F10x_StdPeriph_Driver\src\stm32f10x_tim.c">
+      <Filter>STM32_FWLib</Filter>
+    </ClCompile>
+    <ClCompile Include="STM32F10x_StdPeriph_Driver\src\stm32f10x_usart.c">
+      <Filter>STM32_FWLib</Filter>
+    </ClCompile>
+    <ClCompile Include="STM32F10x_StdPeriph_Driver\src\stm32f10x_wwdg.c">
+      <Filter>STM32_FWLib</Filter>
+    </ClCompile>
+    <ClCompile Include="STM32F10x_StdPeriph_Driver\src\stm32f10x_gpio.c">
+      <Filter>STM32_FWLib</Filter>
+    </ClCompile>
+    <ClCompile Include="STM32F10x_StdPeriph_Driver\src\system_stm32f10x.c">
+      <Filter>STM32_FWLib</Filter>
+    </ClCompile>
+    <ClCompile Include="usb\usb.c">
+      <Filter>USBLib</Filter>
+    </ClCompile>
+    <ClCompile Include="usb\usb_cdcacm.c">
+      <Filter>USBLib</Filter>
+    </ClCompile>
+    <ClCompile Include="usb\usb_reg_map.c">
+      <Filter>USBLib</Filter>
+    </ClCompile>
+    <ClCompile Include="usb\usb_lib\usb_core.c">
+      <Filter>USBLib\usb_lib</Filter>
+    </ClCompile>
+    <ClCompile Include="usb\usb_lib\usb_init.c">
+      <Filter>USBLib\usb_lib</Filter>
+    </ClCompile>
+    <ClCompile Include="usb\usb_lib\usb_mem.c">
+      <Filter>USBLib\usb_lib</Filter>
+    </ClCompile>
+    <ClCompile Include="usb\usb_lib\usb_regs.c">
+      <Filter>USBLib\usb_lib</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <None Include="afrowii.stp">
       <Filter>STVD Workspace</Filter>
     </None>
-    <None Include="afrowii.wdb">
-      <Filter>STVD Workspace</Filter>
-    </None>
-    <None Include="afrowii.dep">
-      <Filter>STVD Workspace</Filter>
-    </None>
     <None Include="afrowii.stw">
       <Filter>STVD Workspace</Filter>
     </None>
-    <None Include="afrowii.wed">
-      <Filter>STVD Workspace</Filter>
+    <None Include="afrowii.hzp">
+      <Filter>CrossWorks Workspace</Filter>
     </None>
   </ItemGroup>
 </Project>

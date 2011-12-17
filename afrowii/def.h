@@ -1,7 +1,7 @@
 #ifdef _MSC_VER
 #define __CSMC__
 #endif
-#include "stm8s.h"
+#include "board.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -220,6 +220,54 @@ typedef enum MultiType
 #define BARO 0
 #endif
 
+#if defined(STM32F1)
+#define LEDPIN_PINMODE             // GPIO_Init(GPIOD, GPIO_PIN_7, GPIO_MODE_OUT_PP_LOW_FAST);    // LED
+#define LEDPIN_TOGGLE              // GPIO_WriteReverse(GPIOD, GPIO_PIN_7);
+#define LEDPIN_OFF                 // GPIO_WriteHigh(GPIOD, GPIO_PIN_7);
+#define LEDPIN_ON                  // GPIO_WriteLow(GPIOD, GPIO_PIN_7);
+#define BUZZERPIN_PINMODE          // GPIO_Init(GPIOF, GPIO_PIN_4, GPIO_MODE_OUT_PP_LOW_FAST);
+#define BUZZERPIN_ON               // GPIO_WriteHigh(GPIOF, GPIO_PIN_4);
+#define BUZZERPIN_OFF              // GPIO_WriteLow(GPIOF, GPIO_PIN_4);
+#define POWERPIN_PINMODE           ;
+#define POWERPIN_ON                ;
+#define POWERPIN_OFF               ;
+#define I2C_PULLUPS_ENABLE         ;
+#define I2C_PULLUPS_DISABLE        ;
+#define PINMODE_LCD                ;
+#define LCDPIN_OFF                 ;
+#define LCDPIN_ON                  ;
+#define STABLEPIN_PINMODE          ;
+#define STABLEPIN_ON               ;
+#define STABLEPIN_OFF              ;
+#define DIGITAL_SERVO_TRI_PINMODE  ;
+#define DIGITAL_SERVO_TRI_HIGH     ;
+#define DIGITAL_SERVO_TRI_LOW      ;
+#define DIGITAL_TILT_PITCH_PINMODE ;
+#define DIGITAL_TILT_PITCH_HIGH    ;
+#define DIGITAL_TILT_PITCH_LOW     ;
+#define DIGITAL_TILT_ROLL_PINMODE  ;
+#define DIGITAL_TILT_ROLL_HIGH     ;
+#define DIGITAL_TILT_ROLL_LOW      ;
+#define DIGITAL_BI_LEFT_PINMODE    ;
+#define DIGITAL_BI_LEFT_HIGH       ;
+#define DIGITAL_BI_LEFT_LOW        ;
+#define PPM_PIN_INTERRUPT          ;
+#define DIGITAL_CAM_PINMODE        ;
+#define DIGITAL_CAM_HIGH           ;
+#define DIGITAL_CAM_LOW            ;
+//RX PIN assignment inside the port //for PORTD
+#define THROTTLEPIN                2
+#define ROLLPIN                    4
+#define PITCHPIN                   5
+#define YAWPIN                     6
+#define AUX1PIN                    7
+#define AUX2PIN                    7	//unused just for compatibility with MEGA
+#define CAM1PIN                    7	//unused just for compatibility with MEGA
+#define CAM2PIN                    7	//unused just for compatibility with MEGA
+#define ISR_UART                   ISR(USART_UDRE_vect)
+#define V_BATPIN                   3	// Analog PIN 3
+#define PSENSORPIN                 2	// Analog PIN 2
+#endif
 #if defined(STM8)
 #ifndef AFROI2C
 #define LEDPIN_PINMODE             GPIO_Init(GPIOD, GPIO_PIN_7, GPIO_MODE_OUT_PP_LOW_FAST);    // LED

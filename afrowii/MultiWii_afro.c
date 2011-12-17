@@ -9,6 +9,7 @@ November  2011     V1.9
  any later version. see <http://www.gnu.org/licenses/>
 */
 
+#include "board.h"
 #include "config.h"
 #include "def.h"
 #include "sysdep.h"
@@ -832,7 +833,7 @@ void configureReceiver(void)
 #endif
 }
 
-#if defined(SERIAL_SUM_PPM)
+#if defined(STM8) && defined(SERIAL_SUM_PPM)
 __near __interrupt void TIM3_CAP_COM_IRQHandler(void)
 {
     uint16_t diff;
@@ -2506,10 +2507,6 @@ void ACC_init()
 
 void ACC_getADC()
 {
-#if !defined(STM8)
-    TWBR = ((16000000L / 400000L) - 16) / 2;
-#endif
-
     i2c_getSixRawADC(0x70, 0x02);
     ACC_ORIENTATION(((rawADC[1] << 8) | rawADC[0]) / 64, ((rawADC[3] << 8) | rawADC[2]) / 64, ((rawADC[5] << 8) | rawADC[4]) / 64);
     ACC_Common();
@@ -2708,9 +2705,6 @@ void Gyro_init()
 
 void Gyro_getADC()
 {
-#if !defined(STM8)
-    TWBR = ((16000000L / 400000L) - 16) / 2;    // change the I2C clock rate to 400kHz
-#endif
     i2c_getSixRawADC(ITG3200_ADDRESS, 0X1D);
     GYRO_ORIENTATION(+(((rawADC[2] << 8) | rawADC[3]) / 4),     // range: +/- 8192; +/- 2000 deg/sec
                      -(((rawADC[0] << 8) | rawADC[1]) / 4), -(((rawADC[4] << 8) | rawADC[5]) / 4));
@@ -2735,9 +2729,6 @@ void Mag_getADC()
         return;                 //each read is spaced by 100ms
     t = currentTime + 100000;
 
-#if !defined(STM8)
-    TWBR = ((16000000L / 400000L) - 16) / 2;    // change the I2C clock rate to 400kHz
-#endif
     Device_Mag_getADC();
     if (calibratingM == 1) {
         tCal = t;
