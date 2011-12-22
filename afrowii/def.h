@@ -202,7 +202,7 @@ typedef enum MultiType
 #define ACC 0
 #endif
 
-#if defined(HMC5883) || defined(HMC5843) || defined(AK8975) // || defined(MPU6000SPI)
+#if defined(HMC5883) || defined(HMC5843) || defined(AK8975) || defined(MPU6000SPI)
 #define MAG 1
 #else
 #define MAG 0

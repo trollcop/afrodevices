@@ -2309,7 +2309,7 @@ static uint8_t mpuInitialized = 0;
 #define BIT_I2C_IF_DIS              0x10
 #define BIT_I2C_SLV0_EN             0x80
 
-static uint8_t MPU6000_Buffer[14];   // Sensor data ACCXYZ|TEMP|GYROXYZ
+static uint8_t MPU6000_Buffer[14 + 6];   // Sensor data ACCXYZ|TEMP|GYROXYZ | Magnetometer data
 
 static uint8_t MPU6000_ReadReg(uint8_t Address)
 {
@@ -2326,8 +2326,8 @@ static void MPU6000_getSixRawADC(void)
     uint8_t i;
     MPU_ON;
     spi_writeByte(MPUREG_ACCEL_XOUT_H | 0x80); // Address with high bit set = Read operation
-    // ACC X, Y, Z, TEMP, GYRO X, Y, Z
-    for (i = 0; i < 14; i++)
+    // ACC X, Y, Z, TEMP, GYRO X, Y, Z, MagData[6]
+    for (i = 0; i < 14 + 6; i++)
         MPU6000_Buffer[i] = spi_readByte();
     MPU_OFF;
 }
@@ -2353,7 +2353,8 @@ void MPU6000_init(void)
     MPU6000_WriteReg(MPUREG_PWR_MGMT_1, BIT_H_RESET);
     delay(100);
     MPU6000_WriteReg(MPUREG_PWR_MGMT_1, MPU_CLK_SEL_PLLGYROZ);      // Set PLL source to gyro output
-    MPU6000_WriteReg(MPUREG_USER_CTRL, BIT_I2C_IF_DIS);             // Disable I2C bus
+    MPU6000_WriteReg(MPUREG_USER_CTRL, 0b00110000);                 // I2C_MST_EN
+    // MPU6000_WriteReg(MPUREG_USER_CTRL, BIT_I2C_IF_DIS);             // Disable I2C bus
     MPU6000_WriteReg(MPUREG_SMPLRT_DIV, 0x04);                      // Sample rate = 200Hz    Fsample = 1Khz / (4 + 1) = 200Hz   
     MPU6000_WriteReg(MPUREG_CONFIG, 0); // BITS_DLPF_CFG_42HZ);            // Fs & DLPF Fs = 1kHz, DLPF = 42Hz (low pass filter)
     MPU6000_WriteReg(MPUREG_GYRO_CONFIG, BITS_FS_2000DPS);          // Gyro scale 2000º/s
@@ -2397,28 +2398,34 @@ void Gyro_getADC(void)
 #define HMC5883L_ID_REG_A           0x0a
 #define HMC5883L_ID_REG_B           0x0b
 #define HMC5883L_ID_REG_C           0x0c
+#define HMC5883L_MODE_REG           0x02
+#define HMC5883L_DATA_OUTPUT_X      0x03
 
 void Mag_init(void)
 {
     volatile uint8_t i, temp;
     
+    // Initialize compass for continous measurement mode
     MPU6000_WriteReg(MPUREG_I2C_MST_CTRL, 0b01000000 | 13); // WAIT_FOR_ES=1, I2C Master Clock Speed 400kHz
-    MPU6000_WriteReg(MPUREG_I2C_SLV4_ADDR, 0x80 | HMC5883L_I2C_ADDRESS);
-    MPU6000_WriteReg(MPUREG_I2C_SLV4_REG, HMC5883L_ID_REG_A);
+    MPU6000_WriteReg(MPUREG_I2C_SLV4_ADDR, HMC5883L_I2C_ADDRESS); // Write to 5883
+    MPU6000_WriteReg(MPUREG_I2C_SLV4_REG, HMC5883L_MODE_REG);
+    MPU6000_WriteReg(MPUREG_I2C_SLV4_DO, 0x00); // Mode register  --  value: Continuous-Conversion Mode
     MPU6000_WriteReg(MPUREG_I2C_SLV4_CTRL, 0b11000000); // I2C_SLV4_EN | I2C_SLV4_INT_EN
     delay(1);
-    
-    MPU6000_getSixRawADC();
-    
-    temp = MPU6000_ReadReg(MPUREG_I2C_MST_STATUS);
-    temp = MPU6000_ReadReg(MPUREG_I2C_SLV4_DI);
+
+    // temp = MPU6000_ReadReg(MPUREG_I2C_MST_STATUS);
+    // temp = MPU6000_ReadReg(MPUREG_I2C_SLV4_DI);
+
+    // Prepare I2C Slave 0 for reading out mag data
+    MPU6000_WriteReg(MPUREG_I2C_SLV0_ADDR, 0x80 | HMC5883L_I2C_ADDRESS); // Read from 5883
+    MPU6000_WriteReg(MPUREG_I2C_SLV0_REG, HMC5883L_DATA_OUTPUT_X);
+    MPU6000_WriteReg(MPUREG_I2C_SLV0_CTRL, 0b10000110); // I2C_SLV0_EN | 6 bytes from mag
     delay(1);
 }
 
 void Device_Mag_getADC(void)
 {
-    // i2c_getSixRawADC(0X3C, 0X03);
-    // MAG_ORIENTATION(((rawADC[0] << 8) | rawADC[1]), ((rawADC[2] << 8) | rawADC[3]), -((rawADC[4] << 8) | rawADC[5]));
+    MAG_ORIENTATION(((MPU6000_Buffer[18] << 8) | MPU6000_Buffer[19]), -((MPU6000_Buffer[14] << 8) | MPU6000_Buffer[15]), -((MPU6000_Buffer[16] << 8) | MPU6000_Buffer[17]));
 }
 #endif /* MPU6000SPI */
 
