@@ -49,5 +49,6 @@
 
 #define digitalHi(p, i)    { p->BSRR = i; }
 #define digitalLo(p, i)    { p->BRR = i; }
+#define digitalToggle(p, i) { p->ODR ^= i; }
 
 #endif

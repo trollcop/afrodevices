@@ -4,6 +4,8 @@
 #include "def.h"
 #include "sysdep.h"
 
+static void systick_init(void);
+
 /* HW init */
 void hw_init(void)
 {
@@ -45,15 +47,18 @@ void hw_init(void)
     GPIO_InitStructure.GPIO_Mode = GPIO_Mode_Out_PP;
     GPIO_Init(GPIOA, &GPIO_InitStructure);
     
-    digitalHi(GPIOA, GPIO_Pin_6);
-    digitalLo(GPIOA, GPIO_Pin_6);
+    // systick
+    systick_init();
 
     usb_cdcacm_enable();
+
+    LEDPIN_ON;
+    LEDPIN_OFF;
 }
 
 /* UART */
 static uint8_t uartPointer;
-static uint8_t uartBuffer[128];
+static uint8_t uartBuffer[256];
 static uint8_t tx_ptr;
 static uint8_t tx_busy = 0;
 
@@ -68,13 +73,25 @@ void serialize8(uint8_t a)
     uartBuffer[uartPointer++] = a;
 }
 
+#define USB_TIMEOUT 50
+
 void Serial_commitBuffer(void)
 {
     if (!(usbIsConnected() && usbIsConfigured()))
         return;
 
     uint32_t txed = 0;
-    txed += usb_cdcacm_tx((const uint8_t *)uartBuffer, uartPointer);
+    uint32_t old_txed = 0;
+    uint32_t start = millis();
+    uint32_t len = uartPointer;
+
+    while (txed < len && (millis() - start < USB_TIMEOUT)) {
+        txed += usb_cdcacm_tx((const uint8*)uartBuffer + txed, len - txed);
+        if (old_txed != txed) {
+            start = millis();
+        }
+        old_txed = txed;
+    }
 }
 
 uint8_t Serial_isTxBusy(void)
@@ -85,30 +102,6 @@ uint8_t Serial_isTxBusy(void)
 void Serial_reset(void)
 {
     uartPointer = 0;
-}
-
-#define RX_BUFFER_SIZE 48
-typedef struct ring_buffer
-{
-    unsigned char buffer[RX_BUFFER_SIZE];
-    int head;
-    int tail;
-} ring_buffer;
-
-static ring_buffer rx_buffer  =  { { 0, }, 0, 0 };
-
-/* __inline */ void store_char(unsigned char c, ring_buffer *rx_buffer)
-{
-    int i = (unsigned int)(rx_buffer->head + 1) % RX_BUFFER_SIZE;
-
-    // if we should be storing the received character into the location
-    // just before the tail (meaning that the head would advance to the
-    // current location of the tail), we're about to overflow the buffer
-    // and so we don't write the character or advance the head.
-    if (i != rx_buffer->tail) {
-        rx_buffer->buffer[rx_buffer->head] = c;
-        rx_buffer->head = i;
-    }
 }
 
 void Serial_begin(uint32_t speed)
@@ -123,7 +116,7 @@ uint16_t Serial_available(void)
 
 uint8_t Serial_read(void)
 {
-    uint8_t buf[4];
+    uint8_t buf[1];
     uint32_t remaining = 0;
     uint32_t len = 1;
 
@@ -134,15 +127,74 @@ uint8_t Serial_read(void)
     return buf[0];
 }
 
-/* TIMING - TODO Systick */
+uint32_t runMillis = 0;
+
+/* TIMING */
+#define CYCLES_PER_MICROSECOND  72
+#define SYSTICK_RELOAD_VAL      71999 /* takes a cycle to reload */
+#define US_PER_MS               1000
+#define STM32_DELAY_US_MULT     12
+
+#define SYSTICK_CSR_ENABLE              BIT(0)
+#define SYSTICK_CSR_CLKSOURCE_CORE      BIT(2)
+#define SYSTICK_CSR_TICKINT_PEND        BIT(1)
+
+static void systick_init(void)
+{
+    volatile unsigned int *SYSTICK_CSR = (int *)0xE000E010;
+    volatile unsigned int *SYSTICK_RVR = (int *)0xE000E014;
+    
+    *SYSTICK_CSR = (SYSTICK_CSR_CLKSOURCE_CORE | SYSTICK_CSR_ENABLE | SYSTICK_CSR_TICKINT_PEND);
+    *SYSTICK_RVR = SYSTICK_RELOAD_VAL;
+    NVIC_SetPriority(SysTick_IRQn, 2);	    // lower priority
+}
+
+void SysTick_Handler(void)
+{
+    runMillis++;
+}
+
+uint32_t millis(void)
+{
+    return runMillis;
+}
+
 uint32_t micros(void)
 {
+    volatile unsigned int *SYSTICK_CNT = (int *)0xE000E018;
+    uint32_t cycle_cnt;
+    uint32_t ms;
+    uint32_t res;
 
+    do {
+        ms = millis();
+        cycle_cnt = *SYSTICK_CNT;
+    } while (ms != millis());
+
+    res = (ms * US_PER_MS) + (SYSTICK_RELOAD_VAL + 1 - cycle_cnt) / CYCLES_PER_MICROSECOND;
+
+    return res;
+}
+
+static inline void delay_us(uint32_t us)
+{
+    us *= STM32_DELAY_US_MULT;
+
+    /* fudge for function call overhead  */
+    us--;
+    __asm volatile("   mov r0, %[us]          \n\t"
+        "1: subs r0, #1            \n\t"
+        "   bhi 1b                 \n\t"
+        :
+    : [us] "r" (us)
+        : "r0");
 }
 
 void delay(uint16_t ms)
 {
-
+    uint32_t i;
+    for (i = 0; i < ms; i++)
+        delay_us(1000);
 }
 
 uint16_t analogRead(uint8_t channel)

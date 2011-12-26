@@ -395,7 +395,7 @@ void setup()
 }
 
 // ******** Main Loop *********
-void loop()
+void loop(void)
 {
     static uint8_t rcDelayCommand;      // this indicates the number of time (multiple of RC measurement at 50Hz) the sticks must be maintained to run or switch off motors
     uint8_t axis, i;
@@ -636,7 +636,7 @@ void loop()
 #ifdef LEVEL_PDF
             PTerm = -(int32_t) angle[axis] * P8[PIDLEVEL] / 100;
 #else
-            PTerm = (int32_t) errorAngle *P8[PIDLEVEL] / 100;   //32 bits is needed for calculation: errorAngle*P8[PIDLEVEL] could exceed 32768   16 bits is ok for result
+            PTerm = (int32_t) errorAngle * P8[PIDLEVEL] / 100;   //32 bits is needed for calculation: errorAngle*P8[PIDLEVEL] could exceed 32768   16 bits is ok for result
 #endif
 
             errorAngleI[axis] = constrain(errorAngleI[axis] + errorAngle, -10000, +10000);      //WindUp     //16 bits is ok here
@@ -1213,8 +1213,7 @@ void computeIMU()
     //we separate the 2 situations because reading gyro values with a gyro only setup can be acchieved at a higher rate
     //gyro+nunchuk: we must wait for a quite high delay betwwen 2 reads to get both WM+ and Nunchuk data. It works with 3ms
     //gyro only: the delay to read 2 consecutive values can be reduced to only 0.65ms
-#if !ACC
-    if (nunchuk) {
+    if (!ACC && nunchuk) {
         annexCode();
         while ((micros() - timeInterleave) < INTERLEAVING_DELAY);       //interleaving delay between 2 consecutive reads
         timeInterleave = micros();
@@ -1233,43 +1232,45 @@ void computeIMU()
             gyroData[axis] = (gyroADC[axis] * 3 + gyroADCprevious[axis] + 2) / 4;
             gyroADCprevious[axis] = gyroADC[axis];
         }
-    }
-#else                           /* !ACC */
-    ACC_getADC();
-    getEstimatedAttitude();
+    } else {
+        if (ACC) {
+            ACC_getADC();
+            getEstimatedAttitude();
 #if BARO
-    getEstimatedAltitude();
+        getEstimatedAltitude();
 #endif                          /* BARO */
+        }
 #if GYRO
-    Gyro_getADC();
+        Gyro_getADC();
 #else
-    WMP_getRawADC();
+        WMP_getRawADC();
 #endif                          /* GYRO */
-    for (axis = 0; axis < 3; axis++)
-        gyroADCp[axis] = gyroADC[axis];
-    timeInterleave = micros();
-    annexCode();
-    while ((micros() - timeInterleave) < 650);  //empirical, interleaving delay between 2 consecutive reads
-#if GYRO
-    Gyro_getADC();
-#else
-    WMP_getRawADC();
-#endif
-    for (axis = 0; axis < 3; axis++) {
-        gyroADCinter[axis] = gyroADC[axis] + gyroADCp[axis];
-        // empirical, we take a weighted value of the current and the previous values
-        gyroData[axis] = (gyroADCinter[axis] + gyroADCprevious[axis] + 1) / 3;
-        gyroADCprevious[axis] = gyroADCinter[axis] / 2;
-        if (!ACC)
-            accADC[axis] = 0;
-    }
-#endif                          /* !ACC */
-#if defined(TRI)
-    gyroData[YAW] = (gyroYawSmooth * 2 + gyroData[YAW] + 1) / 3;
-    gyroYawSmooth = gyroData[YAW];
-#endif
-}
 
+        for (axis = 0; axis < 3; axis++)
+            gyroADCp[axis] = gyroADC[axis];
+        timeInterleave = micros();
+        annexCode();
+        while ((micros() - timeInterleave) < 650);  //empirical, interleaving delay between 2 consecutive reads
+#if GYRO
+        Gyro_getADC();
+#else
+        WMP_getRawADC();
+#endif
+        for (axis = 0; axis < 3; axis++) {
+            gyroADCinter[axis] = gyroADC[axis] + gyroADCp[axis];
+            // empirical, we take a weighted value of the current and the previous values
+            gyroData[axis] = (gyroADCinter[axis] + gyroADCprevious[axis] + 1) / 3;
+            gyroADCprevious[axis] = gyroADCinter[axis] / 2;
+            if (!ACC)
+                accADC[axis] = 0;
+        }
+    }
+
+    if (mixerConfiguration == MULTITYPE_TRI) { 
+        gyroData[YAW] = (gyroYawSmooth * 2 + gyroData[YAW] + 1) / 3;
+        gyroYawSmooth = gyroData[YAW];
+    }
+}
 
 #if defined(STAB_OLD_17)
 /// OLD CODE from 1.7 ////
@@ -2425,7 +2426,7 @@ void Mag_init(void)
 
 void Device_Mag_getADC(void)
 {
-    MAG_ORIENTATION(((MPU6000_Buffer[18] << 8) | MPU6000_Buffer[19]), -((MPU6000_Buffer[14] << 8) | MPU6000_Buffer[15]), -((MPU6000_Buffer[16] << 8) | MPU6000_Buffer[17]));
+    MAG_ORIENTATION( ((MPU6000_Buffer[18] << 8) | MPU6000_Buffer[19]),  ((MPU6000_Buffer[14] << 8) | MPU6000_Buffer[15]),   ((MPU6000_Buffer[16] << 8) | MPU6000_Buffer[17])    );
 }
 #endif /* MPU6000SPI */
 
@@ -2532,7 +2533,7 @@ void ACC_init()
     acc_1G = 200;
 }
 
-void ACC_getADC()
+void ACC_getADC(void)
 {
     TWBR = ((16000000L / I2C_SPEED) - 16) / 2;  // change the I2C clock rate. !! you must check if the nunchuk is ok with this freq
     i2c_getSixRawADC(0xA4, 0x00);
@@ -2549,14 +2550,14 @@ void ACC_getADC()
 #if defined(LIS3LV02)
 #define LIS3A  0x3A             // I2C adress: 0x3A (8bit)
 
-void i2c_ACC_init()
+void i2c_ACC_init(void)
 {
     i2c_writeReg(LIS3A, 0x20, 0xD7);    // CTRL_REG1   1101 0111 Pwr on, 160Hz 
     i2c_writeReg(LIS3A, 0x21, 0x50);    // CTRL_REG2   0100 0000 Littl endian, 12 Bit, Boot
     acc_1G = 256;
 }
 
-void i2c_ACC_getADC()
+void i2c_ACC_getADC(void)
 {
     TWBR = ((16000000L / 400000L) - 16) / 2;    // change the I2C clock rate to 400kHz
     i2c_getSixRawADC(LIS3A, 0x28 + 0x80);
@@ -2592,7 +2593,7 @@ void ACC_getADC()
 // ADC ACC
 // ************************************************************************************************************
 #if defined(ADCACC)
-void ACC_init()
+void ACC_init(void)
 {
     pinMode(A1, INPUT);
     pinMode(A2, INPUT);
@@ -2600,7 +2601,7 @@ void ACC_init()
     acc_1G = 75;
 }
 
-void ACC_getADC()
+void ACC_getADC(void)
 {
     ACC_ORIENTATION(-analogRead(A1), -analogRead(A2), analogRead(A3));
     ACC_Common();
@@ -2697,7 +2698,7 @@ void Gyro_getADC()
 // 3) sample rate = 1000Hz ( 1kHz/(div+1) )
 // ************************************************************************************************************
 #if defined(ITG3200)
-void Gyro_init()
+void Gyro_init(void)
 {
     delay(100);
     i2c_writeReg(ITG3200_ADDRESS, 0x3E, 0x80);  //register: Power Management  --  value: reset device
@@ -2710,7 +2711,7 @@ void Gyro_init()
     delay(100);
 }
 
-void Gyro_getADC()
+void Gyro_getADC(void)
 {
     i2c_getSixRawADC(ITG3200_ADDRESS, 0X1D);
     GYRO_ORIENTATION(+(((rawADC[2] << 8) | rawADC[3]) / 4),     // range: +/- 8192; +/- 2000 deg/sec
@@ -2725,7 +2726,7 @@ void Gyro_getADC()
 // I2C Compass common function
 // ************************************************************************************************************
 #if MAG
-void Mag_getADC()
+void Mag_getADC(void)
 {
     static uint32_t t, tCal = 0;
     static int16_t magZeroTempMin[3];
@@ -2774,13 +2775,13 @@ void Mag_getADC()
 // I2C adress: 0x3C (8bit)   0x1E (7bit)
 // ************************************************************************************************************
 #if defined(HMC5843) || defined(HMC5883)
-void Mag_init()
+void Mag_init(void)
 {
     delay(100);
     i2c_writeReg(0X3C, 0x02, 0x00);     //register: Mode register  --  value: Continuous-Conversion Mode
 }
 
-void Device_Mag_getADC()
+void Device_Mag_getADC(void)
 {
     i2c_getSixRawADC(0X3C, 0X03);
 #if defined(HMC5843)
@@ -2798,14 +2799,14 @@ void Device_Mag_getADC()
 // I2C adress: 0x18 (8bit)   0x0C (7bit)
 // ************************************************************************************************************
 #if defined(AK8975)
-void Mag_init()
+void Mag_init(void)
 {
     delay(100);
     i2c_writeReg(0x18, 0x0a, 0x01);     //Start the first conversion
     delay(100);
 }
 
-void Device_Mag_getADC()
+void Device_Mag_getADC(void)
 {
     i2c_getSixRawADC(0x18, 0x03);
     MAG_ORIENTATION(((rawADC[3] << 8) | rawADC[2]), ((rawADC[1] << 8) | rawADC[0]), -((rawADC[5] << 8) | rawADC[4]));
@@ -2848,10 +2849,12 @@ void WMP_init(uint8_t d)
     }
 }
 
-uint8_t WMP_getRawADC()
+uint8_t WMP_getRawADC(void)
 {
     uint8_t axis;
+#if 0
     TWBR = ((16000000L / I2C_SPEED) - 16) / 2;  // change the I2C clock rate
+#endif
     i2c_getSixRawADC(0xA4, 0x00);
 
     if (micros() < (neutralizeTime + NEUTRALIZE_DELAY)) {       //we neutralize data in case of blocking+hard reset state
@@ -2883,7 +2886,7 @@ uint8_t WMP_getRawADC()
 }
 #endif                          /* !GYRO */
 
-void initSensors()
+void initSensors(void)
 {
     i2c_init();
     spi_init();
@@ -2906,7 +2909,7 @@ void initSensors()
 }
 
 /* SERIAL ---------------------------------------------------------------- */
-void serialCom()
+void serialCom(void)
 {
     int16_t a;
     uint8_t i;
@@ -3092,6 +3095,7 @@ void serialCom()
                 mixerConfiguration = i - '@'; // A..B..C.. index
                 writeParams();
                 systemReboot();
+                break;
             }
             serialize8('N');
             serialize8('G');

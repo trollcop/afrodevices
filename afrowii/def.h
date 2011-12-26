@@ -222,9 +222,9 @@ typedef enum MultiType
 
 #if defined(STM32F1)
 #define LEDPIN_PINMODE             // GPIO_Init(GPIOD, GPIO_PIN_7, GPIO_MODE_OUT_PP_LOW_FAST);    // LED
-#define LEDPIN_TOGGLE              // GPIO_WriteReverse(GPIOD, GPIO_PIN_7);
-#define LEDPIN_OFF                 // GPIO_WriteHigh(GPIOD, GPIO_PIN_7);
-#define LEDPIN_ON                  // GPIO_WriteLow(GPIOD, GPIO_PIN_7);
+#define LEDPIN_TOGGLE              digitalToggle(GPIOA, GPIO_Pin_6);
+#define LEDPIN_OFF                 digitalHi(GPIOA, GPIO_Pin_6);
+#define LEDPIN_ON                  digitalLo(GPIOA, GPIO_Pin_6);
 #define BUZZERPIN_PINMODE          // GPIO_Init(GPIOF, GPIO_PIN_4, GPIO_MODE_OUT_PP_LOW_FAST);
 #define BUZZERPIN_ON               // GPIO_WriteHigh(GPIOF, GPIO_PIN_4);
 #define BUZZERPIN_OFF              // GPIO_WriteLow(GPIOF, GPIO_PIN_4);

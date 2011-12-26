@@ -36,6 +36,7 @@ uint8_t Serial_isTxBusy(void);
 /* System */
 void delay(uint16_t ms);
 uint32_t micros(void);
+uint32_t millis(void);
 uint16_t analogRead(uint8_t channel);
 void analogWrite(uint8_t pin, uint16_t value);
 void pinMode(uint8_t pin, uint8_t mode);
