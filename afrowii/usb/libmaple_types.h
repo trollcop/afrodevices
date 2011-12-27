@@ -33,36 +33,14 @@
 #ifndef _LIBMAPLE_TYPES_H_
 #define _LIBMAPLE_TYPES_H_
 
-typedef unsigned char uint8;
-typedef unsigned short uint16;
-typedef unsigned int uint32;
-typedef unsigned long long uint64;
+typedef void (*voidFuncPtr) (void);
 
-typedef signed char int8;
-typedef short int16;
-typedef int int32;
-typedef long long int64;
-
-typedef void (*voidFuncPtr)(void);
-
-#define __io volatile
 #define __attr_flash __attribute__((section (".USER_FLASH")))
 #define __packed __attribute__((__packed__))
 
 #ifndef NULL
 #define NULL 0
 #endif
-    
-/*
- * Bit manipulation
- */
 
-/** 1 << the bit number */
-#define BIT(shift)                     (1UL << (shift))
-/** Mask shifted left by 'shift' */
-#define BIT_MASK_SHIFT(mask, shift)    ((mask) << (shift))
-/** Bits m to n of x */
-#define GET_BITS(x, m, n) ((((uint32)x) << (31 - (n))) >> ((31 - (n)) + (m)))
 
 #endif
-
