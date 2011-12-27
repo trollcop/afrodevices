@@ -450,7 +450,7 @@ PathName=stm8_interrupt_vector.c
 [Root.Include Files]
 ElemType=Folder
 PathName=Include Files
-Child=Root.Include Files.config.h
+Child=Root.Include Files.board.h
 Config.0=Root.Include Files.Config.0
 Config.1=Root.Include Files.Config.1
 
@@ -519,6 +519,11 @@ String.3.0=
 String.4.0=
 String.5.0=
 String.6.0=2011,8,31,17,23,22
+
+[Root.Include Files.board.h]
+ElemType=File
+PathName=board.h
+Next=Root.Include Files.config.h
 
 [Root.Include Files.config.h]
 ElemType=File
