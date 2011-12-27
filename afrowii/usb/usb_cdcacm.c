@@ -32,42 +32,27 @@
  */
 
 #include "usb_cdcacm.h"
-
 #include "misc.h"
-
 #include "usb.h"
 #include "descriptors.h"
 #include "usb_lib_globals.h"
 #include "usb_reg_map.h"
-
 #include "usb_type.h"
 #include "usb_core.h"
 #include "usb_def.h"
 
-/******************************************************************************
- ******************************************************************************
- ***
- ***   HACK ALERT! FIXME FIXME FIXME FIXME!
- ***
- ***   A bunch of LeafLabs-specific configuration lives in here for
- ***   now.  This mess REALLY needs to get teased apart, with
- ***   appropriate pieces moved into Wirish.
- ***
- ******************************************************************************
- *****************************************************************************/
-
 static void vcomDataTxCb(void);
 static void vcomDataRxCb(void);
-static uint8* vcomGetSetLineCoding(uint16);
+static uint8_t *vcomGetSetLineCoding(uint16_t);
 
 static void usbInit(void);
 static void usbReset(void);
-static RESULT usbDataSetup(uint8 request);
-static RESULT usbNoDataSetup(uint8 request);
-static RESULT usbGetInterfaceSetting(uint8 interface, uint8 alt_setting);
-static uint8* usbGetDeviceDescriptor(uint16 length);
-static uint8* usbGetConfigDescriptor(uint16 length);
-static uint8* usbGetStringDescriptor(uint16 length);
+static RESULT usbDataSetup(uint8_t request);
+static RESULT usbNoDataSetup(uint8_t request);
+static RESULT usbGetInterfaceSetting(uint8_t interface, uint8_t alt_setting);
+static uint8_t *usbGetDeviceDescriptor(uint16_t length);
+static uint8_t *usbGetConfigDescriptor(uint16_t length);
+static uint8_t *usbGetStringDescriptor(uint16_t length);
 static void usbSetConfiguration(void);
 static void usbSetDeviceAddress(void);
 
@@ -113,152 +98,155 @@ static void usbSetDeviceAddress(void);
 
 #define USB_DEVICE_CLASS_CDC              0x02
 #define USB_DEVICE_SUBCLASS_CDC           0x00
-#define LEAFLABS_ID_VENDOR                0x0483
-#define MAPLE_ID_PRODUCT                  0xFEAD
+#define STMICRO_ID_VENDOR                0x0483
+#define VCOM_ID_PRODUCT                  0xFEAD
 const USB_Descriptor_Device usbVcomDescriptor_Device = {
-    .bLength            = sizeof(USB_Descriptor_Device),
-    .bDescriptorType    = USB_DESCRIPTOR_TYPE_DEVICE,
-    .bcdUSB             = 0x0200,
-    .bDeviceClass       = USB_DEVICE_CLASS_CDC,
-    .bDeviceSubClass    = USB_DEVICE_SUBCLASS_CDC,
-    .bDeviceProtocol    = 0x00,
-    .bMaxPacketSize0    = 0x40,
-    .idVendor           = LEAFLABS_ID_VENDOR,
-    .idProduct          = MAPLE_ID_PRODUCT,
-    .bcdDevice          = 0x0200,
-    .iManufacturer      = 0x01,
-    .iProduct           = 0x02,
-    .iSerialNumber      = 0x00,
+    .bLength = sizeof(USB_Descriptor_Device),
+    .bDescriptorType = USB_DESCRIPTOR_TYPE_DEVICE,
+    .bcdUSB = 0x0200,
+    .bDeviceClass = USB_DEVICE_CLASS_CDC,
+    .bDeviceSubClass = USB_DEVICE_SUBCLASS_CDC,
+    .bDeviceProtocol = 0x00,
+    .bMaxPacketSize0 = 0x40,
+    .idVendor = STMICRO_ID_VENDOR,
+    .idProduct = VCOM_ID_PRODUCT,
+    .bcdDevice = 0x0200,
+    .iManufacturer = 0x01,
+    .iProduct = 0x02,
+    .iSerialNumber = 0x00,
     .bNumConfigurations = 0x01,
 };
 
 #define MAX_POWER (100 >> 1)
 const USB_Descriptor_Config usbVcomDescriptor_Config = {
     .Config_Header = {
-        .bLength              = sizeof(USB_Descriptor_Config_Header),
-        .bDescriptorType      = USB_DESCRIPTOR_TYPE_CONFIGURATION,
-        .wTotalLength         = sizeof(USB_Descriptor_Config),
-        .bNumInterfaces       = 0x02,
-        .bConfigurationValue  = 0x01,
-        .iConfiguration       = 0x00,
-        .bmAttributes         = (USB_CONFIG_ATTR_BUSPOWERED |
-                                 USB_CONFIG_ATTR_SELF_POWERED),
-        .bMaxPower            = MAX_POWER,
-    },
+                      .bLength = sizeof(USB_Descriptor_Config_Header),
+                      .bDescriptorType = USB_DESCRIPTOR_TYPE_CONFIGURATION,
+                      .wTotalLength = sizeof(USB_Descriptor_Config),
+                      .bNumInterfaces = 0x02,
+                      .bConfigurationValue = 0x01,
+                      .iConfiguration = 0x00,
+                      .bmAttributes = (USB_CONFIG_ATTR_BUSPOWERED | USB_CONFIG_ATTR_SELF_POWERED),
+                      .bMaxPower = MAX_POWER,
+                      }
+    ,
 
     .CCI_Interface = {
-        .bLength            = sizeof(USB_Descriptor_Interface),
-        .bDescriptorType    = USB_DESCRIPTOR_TYPE_INTERFACE,
-        .bInterfaceNumber   = 0x00,
-        .bAlternateSetting  = 0x00,
-        .bNumEndpoints      = 0x01,
-        .bInterfaceClass    = USB_INTERFACE_CLASS_CDC,
-        .bInterfaceSubClass = USB_INTERFACE_SUBCLASS_CDC_ACM,
-        .bInterfaceProtocol = 0x01, /* Common AT Commands */
-        .iInterface         = 0x00,
-    },
+                      .bLength = sizeof(USB_Descriptor_Interface),
+                      .bDescriptorType = USB_DESCRIPTOR_TYPE_INTERFACE,
+                      .bInterfaceNumber = 0x00,
+                      .bAlternateSetting = 0x00,
+                      .bNumEndpoints = 0x01,
+                      .bInterfaceClass = USB_INTERFACE_CLASS_CDC,
+                      .bInterfaceSubClass = USB_INTERFACE_SUBCLASS_CDC_ACM,
+                      .bInterfaceProtocol = 0x01,       /* Common AT Commands */
+                      .iInterface = 0x00,
+                      }
+    ,
 
     .CDC_Functional_IntHeader = {
-        .bLength         = CDC_FUNCTIONAL_DESCRIPTOR_SIZE(2),
-        .bDescriptorType = 0x24,
-        .SubType         = 0x00,
-        .Data            = {0x01, 0x10},
-    },
+                                 .bLength = CDC_FUNCTIONAL_DESCRIPTOR_SIZE(2),
+                                 .bDescriptorType = 0x24,
+                                 .SubType = 0x00,
+                                 .Data = {0x01, 0x10}
+                                 ,
+                                 }
+    ,
 
     .CDC_Functional_CallManagement = {
-        .bLength         = CDC_FUNCTIONAL_DESCRIPTOR_SIZE(2),
-        .bDescriptorType = 0x24,
-        .SubType         = 0x01,
-        .Data            = {0x03, 0x01},
-    },
+                                      .bLength = CDC_FUNCTIONAL_DESCRIPTOR_SIZE(2),
+                                      .bDescriptorType = 0x24,
+                                      .SubType = 0x01,
+                                      .Data = {0x03, 0x01}
+                                      ,
+                                      }
+    ,
 
     .CDC_Functional_ACM = {
-        .bLength         = CDC_FUNCTIONAL_DESCRIPTOR_SIZE(1),
-        .bDescriptorType = 0x24,
-        .SubType         = 0x02,
-        .Data            = {0x06},
-    },
+                           .bLength = CDC_FUNCTIONAL_DESCRIPTOR_SIZE(1),
+                           .bDescriptorType = 0x24,
+                           .SubType = 0x02,
+                           .Data = {0x06}
+                           ,
+                           }
+    ,
 
     .CDC_Functional_Union = {
-        .bLength         = CDC_FUNCTIONAL_DESCRIPTOR_SIZE(2),
-        .bDescriptorType = 0x24,
-        .SubType         = 0x06,
-        .Data            = {0x00, 0x01},
-    },
+                             .bLength = CDC_FUNCTIONAL_DESCRIPTOR_SIZE(2),
+                             .bDescriptorType = 0x24,
+                             .SubType = 0x06,
+                             .Data = {0x00, 0x01}
+                             ,
+                             }
+    ,
 
     .ManagementEndpoint = {
-        .bLength          = sizeof(USB_Descriptor_Endpoint),
-        .bDescriptorType  = USB_DESCRIPTOR_TYPE_ENDPOINT,
-        .bEndpointAddress = (USB_DESCRIPTOR_ENDPOINT_IN |
-                             VCOM_NOTIFICATION_EPNUM),
-        .bmAttributes     = EP_TYPE_INTERRUPT,
-        .wMaxPacketSize   = VCOM_NOTIFICATION_EPSIZE,
-        .bInterval        = 0xFF,
-    },
+                           .bLength = sizeof(USB_Descriptor_Endpoint),
+                           .bDescriptorType = USB_DESCRIPTOR_TYPE_ENDPOINT,
+                           .bEndpointAddress = (USB_DESCRIPTOR_ENDPOINT_IN | VCOM_NOTIFICATION_EPNUM),
+                           .bmAttributes = EP_TYPE_INTERRUPT,
+                           .wMaxPacketSize = VCOM_NOTIFICATION_EPSIZE,
+                           .bInterval = 0xFF,
+                           }
+    ,
 
     .DCI_Interface = {
-        .bLength            = sizeof(USB_Descriptor_Interface),
-        .bDescriptorType    = USB_DESCRIPTOR_TYPE_INTERFACE,
-        .bInterfaceNumber   = 0x01,
-        .bAlternateSetting  = 0x00,
-        .bNumEndpoints      = 0x02,
-        .bInterfaceClass    = USB_INTERFACE_CLASS_DIC,
-        .bInterfaceSubClass = 0x00, /* None */
-        .bInterfaceProtocol = 0x00, /* None */
-        .iInterface         = 0x00,
-    },
+                      .bLength = sizeof(USB_Descriptor_Interface),
+                      .bDescriptorType = USB_DESCRIPTOR_TYPE_INTERFACE,
+                      .bInterfaceNumber = 0x01,
+                      .bAlternateSetting = 0x00,
+                      .bNumEndpoints = 0x02,
+                      .bInterfaceClass = USB_INTERFACE_CLASS_DIC,
+                      .bInterfaceSubClass = 0x00,       /* None */
+                      .bInterfaceProtocol = 0x00,       /* None */
+                      .iInterface = 0x00,
+                      }
+    ,
 
     .DataOutEndpoint = {
-        .bLength          = sizeof(USB_Descriptor_Endpoint),
-        .bDescriptorType  = USB_DESCRIPTOR_TYPE_ENDPOINT,
-        .bEndpointAddress = (USB_DESCRIPTOR_ENDPOINT_OUT | VCOM_RX_EPNUM),
-        .bmAttributes     = EP_TYPE_BULK,
-        .wMaxPacketSize   = VCOM_RX_EPSIZE,
-        .bInterval        = 0x00,
-    },
+                        .bLength = sizeof(USB_Descriptor_Endpoint),
+                        .bDescriptorType = USB_DESCRIPTOR_TYPE_ENDPOINT,
+                        .bEndpointAddress = (USB_DESCRIPTOR_ENDPOINT_OUT | VCOM_RX_EPNUM),
+                        .bmAttributes = EP_TYPE_BULK,
+                        .wMaxPacketSize = VCOM_RX_EPSIZE,
+                        .bInterval = 0x00,
+                        }
+    ,
 
     .DataInEndpoint = {
-        .bLength          = sizeof(USB_Descriptor_Endpoint),
-        .bDescriptorType  = USB_DESCRIPTOR_TYPE_ENDPOINT,
-        .bEndpointAddress = (USB_DESCRIPTOR_ENDPOINT_IN | VCOM_TX_EPNUM),
-        .bmAttributes     = EP_TYPE_BULK,
-        .wMaxPacketSize   = VCOM_TX_EPSIZE,
-        .bInterval        = 0x00,
-    },
+                       .bLength = sizeof(USB_Descriptor_Endpoint),
+                       .bDescriptorType = USB_DESCRIPTOR_TYPE_ENDPOINT,
+                       .bEndpointAddress = (USB_DESCRIPTOR_ENDPOINT_IN | VCOM_TX_EPNUM),
+                       .bmAttributes = EP_TYPE_BULK,
+                       .wMaxPacketSize = VCOM_TX_EPSIZE,
+                       .bInterval = 0x00,
+                       }
+    ,
 };
 
 /*
-  String Identifiers:
-
-  we may choose to specify any or none of the following string
-  identifiers:
-
-  iManufacturer:    LeafLabs
-  iProduct:         Maple
-  iSerialNumber:    NONE
-  iConfiguration:   NONE
-  iInterface(CCI):  NONE
-  iInterface(DCI):  NONE
+  String Identifiers
 
   additionally we must provide the unicode language identifier,
   which is 0x0409 for US English
 */
 
-const uint8 usbVcomDescriptor_LangID[USB_DESCRIPTOR_STRING_LEN(1)] = {
+const uint8_t usbVcomDescriptor_LangID[USB_DESCRIPTOR_STRING_LEN(1)] = {
     USB_DESCRIPTOR_STRING_LEN(1),
     USB_DESCRIPTOR_TYPE_STRING,
     0x09,
     0x04,
 };
 
-const uint8 usbVcomDescriptor_iManufacturer[USB_DESCRIPTOR_STRING_LEN(8)] = {
+const uint8_t usbVcomDescriptor_iManufacturer[USB_DESCRIPTOR_STRING_LEN(8)]
+    = {
     USB_DESCRIPTOR_STRING_LEN(8),
     USB_DESCRIPTOR_TYPE_STRING,
     'M', 0, 'u', 0, 'l', 0, 't', 0,
     'i', 0, 'W', 0, 'i', 0, 'i', 0,
 };
 
-const uint8 usbVcomDescriptor_iProduct[USB_DESCRIPTOR_STRING_LEN(10)] = {
+const uint8_t usbVcomDescriptor_iProduct[USB_DESCRIPTOR_STRING_LEN(10)] = {
     USB_DESCRIPTOR_STRING_LEN(10),
     USB_DESCRIPTOR_TYPE_STRING,
     'U', 0, 'S', 0, 'B', 0, ' ', 0,
@@ -267,19 +255,23 @@ const uint8 usbVcomDescriptor_iProduct[USB_DESCRIPTOR_STRING_LEN(10)] = {
 };
 
 ONE_DESCRIPTOR Device_Descriptor = {
-    (uint8*)&usbVcomDescriptor_Device,
+    (uint8_t *) & usbVcomDescriptor_Device,
     sizeof(USB_Descriptor_Device)
 };
 
 ONE_DESCRIPTOR Config_Descriptor = {
-    (uint8*)&usbVcomDescriptor_Config,
+    (uint8_t *) & usbVcomDescriptor_Config,
     sizeof(USB_Descriptor_Config)
 };
 
 ONE_DESCRIPTOR String_Descriptor[3] = {
-    {(uint8*)&usbVcomDescriptor_LangID,       USB_DESCRIPTOR_STRING_LEN(1)},
-    {(uint8*)&usbVcomDescriptor_iManufacturer,USB_DESCRIPTOR_STRING_LEN(8)},
-    {(uint8*)&usbVcomDescriptor_iProduct,     USB_DESCRIPTOR_STRING_LEN(10)}
+    {(uint8_t *) & usbVcomDescriptor_LangID, USB_DESCRIPTOR_STRING_LEN(1)}
+    ,
+    {(uint8_t *) & usbVcomDescriptor_iManufacturer,
+     USB_DESCRIPTOR_STRING_LEN(8)}
+    ,
+    {(uint8_t *) & usbVcomDescriptor_iProduct,
+     USB_DESCRIPTOR_STRING_LEN(10)}
 };
 
 /*
@@ -287,56 +279,44 @@ ONE_DESCRIPTOR String_Descriptor[3] = {
  */
 
 typedef enum {
-  DTR_UNSET,
-  DTR_HIGH,
-  DTR_NEGEDGE,
-  DTR_LOW
+    DTR_UNSET,
+    DTR_HIGH,
+    DTR_NEGEDGE,
+    DTR_LOW
 } RESET_STATE;
 
 typedef struct {
-  uint32 bitrate;
-  uint8  format;
-  uint8  paritytype;
-  uint8  datatype;
+    uint32_t bitrate;
+    uint8_t format;
+    uint8_t paritytype;
+    uint8_t datatype;
 } USB_Line_Coding;
 
-uint8 last_request = 0;
+uint8_t last_request = 0;
 USB_Line_Coding line_coding = {
     .bitrate = 115200,
-    .format = 0x00, /* stop bits-1 */
+    .format = 0x00,             /* stop bits-1 */
     .paritytype = 0x00,
     .datatype = 0x08
 };
-uint8 vcomBufferRx[VCOM_RX_BUFLEN];
-volatile uint32 countTx    = 0;
-volatile uint32 recvBufIn  = 0;
-volatile uint32 recvBufOut = 0;
-volatile uint32 maxNewBytes   = VCOM_RX_BUFLEN;
-volatile uint32 newBytes = 0;
+uint8_t vcomBufferRx[VCOM_RX_BUFLEN];
+volatile uint32_t countTx = 0;
+volatile uint32_t recvBufIn = 0;
+volatile uint32_t recvBufOut = 0;
+volatile uint32_t maxNewBytes = VCOM_RX_BUFLEN;
+volatile uint32_t newBytes = 0;
 RESET_STATE reset_state = DTR_UNSET;
-uint8       line_dtr_rts = 0;
+uint8_t line_dtr_rts = 0;
 
 /*
  * Endpoint callbacks
  */
 
-static void (*ep_int_in[7])(void) =
-    {vcomDataTxCb,
-     NOP_Process,
-     NOP_Process,
-     NOP_Process,
-     NOP_Process,
-     NOP_Process,
-     NOP_Process};
+static void (*ep_int_in[7]) (void) = {
+vcomDataTxCb, NOP_Process, NOP_Process, NOP_Process, NOP_Process, NOP_Process, NOP_Process};
 
-static void (*ep_int_out[7])(void) =
-    {NOP_Process,
-     NOP_Process,
-     vcomDataRxCb,
-     NOP_Process,
-     NOP_Process,
-     NOP_Process,
-     NOP_Process};
+static void (*ep_int_out[7]) (void) = {
+NOP_Process, NOP_Process, vcomDataRxCb, NOP_Process, NOP_Process, NOP_Process, NOP_Process};
 
 /*
  * Globals required by usb_lib/
@@ -344,36 +324,36 @@ static void (*ep_int_out[7])(void) =
 
 #define NUM_ENDPTS                0x04
 DEVICE Device_Table = {
-    .Total_Endpoint      = NUM_ENDPTS,
+    .Total_Endpoint = NUM_ENDPTS,
     .Total_Configuration = 1
 };
 
-#define MAX_PACKET_SIZE            0x40  /* 64B, maximum for USB FS Devices */
+#define MAX_PACKET_SIZE            0x40 /* 64B, maximum for USB FS Devices */
 DEVICE_PROP Device_Property = {
-    .Init                        = usbInit,
-    .Reset                       = usbReset,
-    .Process_Status_IN           = NOP_Process,
-    .Process_Status_OUT          = NOP_Process,
-    .Class_Data_Setup            = usbDataSetup,
-    .Class_NoData_Setup          = usbNoDataSetup,
+    .Init = usbInit,
+    .Reset = usbReset,
+    .Process_Status_IN = NOP_Process,
+    .Process_Status_OUT = NOP_Process,
+    .Class_Data_Setup = usbDataSetup,
+    .Class_NoData_Setup = usbNoDataSetup,
     .Class_Get_Interface_Setting = usbGetInterfaceSetting,
-    .GetDeviceDescriptor         = usbGetDeviceDescriptor,
-    .GetConfigDescriptor         = usbGetConfigDescriptor,
-    .GetStringDescriptor         = usbGetStringDescriptor,
-    .RxEP_buffer                 = NULL,
-    .MaxPacketSize               = MAX_PACKET_SIZE
+    .GetDeviceDescriptor = usbGetDeviceDescriptor,
+    .GetConfigDescriptor = usbGetConfigDescriptor,
+    .GetStringDescriptor = usbGetStringDescriptor,
+    .RxEP_buffer = NULL,
+    .MaxPacketSize = MAX_PACKET_SIZE
 };
 
 USER_STANDARD_REQUESTS User_Standard_Requests = {
-    .User_GetConfiguration   = NOP_Process,
-    .User_SetConfiguration   = usbSetConfiguration,
-    .User_GetInterface       = NOP_Process,
-    .User_SetInterface       = NOP_Process,
-    .User_GetStatus          = NOP_Process,
-    .User_ClearFeature       = NOP_Process,
+    .User_GetConfiguration = NOP_Process,
+    .User_SetConfiguration = usbSetConfiguration,
+    .User_GetInterface = NOP_Process,
+    .User_SetInterface = NOP_Process,
+    .User_GetStatus = NOP_Process,
+    .User_ClearFeature = NOP_Process,
     .User_SetEndPointFeature = NOP_Process,
-    .User_SetDeviceFeature   = NOP_Process,
-    .User_SetDeviceAddress   = usbSetDeviceAddress
+    .User_SetDeviceFeature = NOP_Process,
+    .User_SetDeviceAddress = usbSetDeviceAddress
 };
 
 /*
@@ -382,10 +362,6 @@ USER_STANDARD_REQUESTS User_Standard_Requests = {
 
 void usb_cdcacm_enable(void)
 {
-    /* Present ourselves to the host */
-    // gpio_set_mode(disc_dev, disc_bit, GPIO_OUTPUT_PP);
-    // gpio_write_bit(disc_dev, disc_bit, 0); // presents us to the host
-
     /* initialize USB peripheral */
     usb_init_usblib(ep_int_in, ep_int_out);
 }
@@ -398,9 +374,9 @@ void usb_cdcacm_disable(void)
     // gpio_write_bit(disc_dev, disc_bit, 1);
 }
 
-void usb_cdcacm_putc(char ch) {
-    while (!usb_cdcacm_tx((uint8*)&ch, 1))
-        ;
+void usb_cdcacm_putc(char ch)
+{
+    while (!usb_cdcacm_tx((uint8_t *) & ch, 1));
 }
 
 /* This function is non-blocking.
@@ -408,18 +384,17 @@ void usb_cdcacm_putc(char ch) {
  * It copies data from a usercode buffer into the USB peripheral TX
  * buffer and return the number placed in that buffer.
  */
-uint32 usb_cdcacm_tx(const uint8* buf, uint32 len) {
+uint32_t usb_cdcacm_tx(const uint8_t * buf, uint32_t len)
+{
     /* Last transmission hasn't finished, abort */
     if (countTx) {
         return 0;
     }
-
     // We can only put VCOM_TX_EPSIZE bytes in the buffer
     /* FIXME then why are we only copying half as many? */
     if (len > VCOM_TX_EPSIZE / 2) {
         len = VCOM_TX_EPSIZE / 2;
     }
-
     // Try to load some bytes if we can
     if (len) {
         usb_copy_to_pma(buf, len, VCOM_TX_ADDR);
@@ -432,11 +407,13 @@ uint32 usb_cdcacm_tx(const uint8* buf, uint32 len) {
 }
 
 /* returns the number of available bytes are in the recv FIFO */
-uint32 usb_cdcacm_data_available(void) {
+uint32_t usb_cdcacm_data_available(void)
+{
     return newBytes;
 }
 
-uint16 usb_cdcacm_get_pending() {
+uint16_t usb_cdcacm_get_pending()
+{
     return countTx;
 }
 
@@ -444,7 +421,7 @@ uint16 usb_cdcacm_get_pending() {
  *
  * Copies up to len bytes from our private data buffer (*NOT* the PMA)
  * into buf and deq's the FIFO. */
-uint32 usb_cdcacm_rx(uint8* buf, uint32 len)
+uint32_t usb_cdcacm_rx(uint8_t * buf, uint32_t len)
 {
     static uint32_t rx_offset = 0;
     int i;
@@ -470,12 +447,12 @@ uint32 usb_cdcacm_rx(uint8* buf, uint32 len)
     return len;
 }
 
-uint8 usb_cdcacm_get_dtr()
+uint8_t usb_cdcacm_get_dtr()
 {
     return ((line_dtr_rts & CONTROL_LINE_DTR) != 0);
 }
 
-uint8 usb_cdcacm_get_rts()
+uint8_t usb_cdcacm_get_rts()
 {
     return ((line_dtr_rts & CONTROL_LINE_RTS) != 0);
 }
@@ -490,25 +467,21 @@ static void vcomDataTxCb(void)
     countTx = 0;
 }
 
-#define EXC_RETURN 0xFFFFFFF9
-#define DEFAULT_CPSR 0x61000000
 static void vcomDataRxCb(void)
 {
-    /* FIXME this is mad buggy */
-
-    /* setEPRxCount on the previous cycle should garuntee
-       we havnt received more bytes than we can fit */
+    /* setEPRxCount on the previous cycle should guarantee we haven't received more bytes than we can fit */
     newBytes = usb_get_ep_rx_count(VCOM_RX_ENDP);
     usb_set_ep_rx_stat(VCOM_RX_ENDP, USB_EP_STAT_RX_NAK);
     usb_copy_from_pma(vcomBufferRx, newBytes, VCOM_RX_ADDR);
+    // debug_printf("Received %d bytes from USB (%02x)\n", newBytes, vcomBufferRx[0]);
 }
 
-static uint8* vcomGetSetLineCoding(uint16 length)
+static uint8_t *vcomGetSetLineCoding(uint16_t length)
 {
     if (length == 0) {
         pInformation->Ctrl_Info.Usb_wLength = sizeof(USB_Line_Coding);
     }
-    return (uint8*)&line_coding;
+    return (uint8_t *) & line_coding;
 }
 
 static void usbInit(void)
@@ -583,15 +556,15 @@ static void usbReset(void)
     SetDeviceAddress(0);
 
     /* reset the rx fifo */
-    recvBufIn   = 0;
-    recvBufOut  = 0;
+    recvBufIn = 0;
+    recvBufOut = 0;
     maxNewBytes = VCOM_RX_EPSIZE;
-    countTx     = 0;
+    countTx = 0;
 }
 
-static RESULT usbDataSetup(uint8 request)
+static RESULT usbDataSetup(uint8_t request)
 {
-    uint8 *(*CopyRoutine)(uint16);
+    uint8_t *(*CopyRoutine) (uint16_t);
     CopyRoutine = NULL;
 
     if (Type_Recipient == (CLASS_REQUEST | INTERFACE_RECIPIENT)) {
@@ -615,12 +588,13 @@ static RESULT usbDataSetup(uint8 request)
 
     pInformation->Ctrl_Info.CopyData = CopyRoutine;
     pInformation->Ctrl_Info.Usb_wOffset = 0;
-    (*CopyRoutine)(0);
+    (*CopyRoutine) (0);
     return USB_SUCCESS;
 }
 
-static RESULT usbNoDataSetup(uint8 request) {
-    uint8 new_signal;
+static RESULT usbNoDataSetup(uint8_t request)
+{
+    uint8_t new_signal;
 
     /* we support set com feature but dont handle it */
     if (Type_Recipient == (CLASS_REQUEST | INTERFACE_RECIPIENT)) {
@@ -631,14 +605,13 @@ static RESULT usbNoDataSetup(uint8 request) {
         case (SET_CONTROL_LINE_STATE):
             /* to reset the board, pull both dtr and rts low
                then pulse dtr by itself */
-            new_signal = (pInformation->USBwValues.bw.bb0 &
-                          (CONTROL_LINE_DTR | CONTROL_LINE_RTS));
+            new_signal = (pInformation->USBwValues.bw.bb0 & (CONTROL_LINE_DTR | CONTROL_LINE_RTS));
             line_dtr_rts = new_signal & 0x03;
 
             switch (reset_state) {
                 /* no default, covered enum */
             case DTR_UNSET:
-                if ((new_signal & CONTROL_LINE_DTR) == 0 ) {
+                if ((new_signal & CONTROL_LINE_DTR) == 0) {
                     reset_state = DTR_LOW;
                 } else {
                     reset_state = DTR_HIGH;
@@ -646,7 +619,7 @@ static RESULT usbNoDataSetup(uint8 request) {
                 break;
 
             case DTR_HIGH:
-                if ((new_signal & CONTROL_LINE_DTR) == 0 ) {
+                if ((new_signal & CONTROL_LINE_DTR) == 0) {
                     reset_state = DTR_NEGEDGE;
                 } else {
                     reset_state = DTR_HIGH;
@@ -654,7 +627,7 @@ static RESULT usbNoDataSetup(uint8 request) {
                 break;
 
             case DTR_NEGEDGE:
-                if ((new_signal & CONTROL_LINE_DTR) == 0 ) {
+                if ((new_signal & CONTROL_LINE_DTR) == 0) {
                     reset_state = DTR_LOW;
                 } else {
                     reset_state = DTR_HIGH;
@@ -662,7 +635,7 @@ static RESULT usbNoDataSetup(uint8 request) {
                 break;
 
             case DTR_LOW:
-                if ((new_signal & CONTROL_LINE_DTR) == 0 ) {
+                if ((new_signal & CONTROL_LINE_DTR) == 0) {
                     reset_state = DTR_LOW;
                 } else {
                     reset_state = DTR_HIGH;
@@ -676,7 +649,8 @@ static RESULT usbNoDataSetup(uint8 request) {
     return USB_UNSUPPORT;
 }
 
-static RESULT usbGetInterfaceSetting(uint8 interface, uint8 alt_setting) {
+static RESULT usbGetInterfaceSetting(uint8_t interface, uint8_t alt_setting)
+{
     if (alt_setting > 0) {
         return USB_UNSUPPORT;
     } else if (interface > 1) {
@@ -686,16 +660,19 @@ static RESULT usbGetInterfaceSetting(uint8 interface, uint8 alt_setting) {
     return USB_SUCCESS;
 }
 
-static uint8* usbGetDeviceDescriptor(uint16 length) {
+static uint8_t *usbGetDeviceDescriptor(uint16_t length)
+{
     return Standard_GetDescriptorData(length, &Device_Descriptor);
 }
 
-static uint8* usbGetConfigDescriptor(uint16 length) {
+static uint8_t *usbGetConfigDescriptor(uint16_t length)
+{
     return Standard_GetDescriptorData(length, &Config_Descriptor);
 }
 
-static uint8* usbGetStringDescriptor(uint16 length) {
-    uint8 wValue0 = pInformation->USBwValue0;
+static uint8_t *usbGetStringDescriptor(uint16_t length)
+{
+    uint8_t wValue0 = pInformation->USBwValue0;
 
     if (wValue0 > 2) {
         return NULL;
@@ -703,12 +680,14 @@ static uint8* usbGetStringDescriptor(uint16 length) {
     return Standard_GetDescriptorData(length, &String_Descriptor[wValue0]);
 }
 
-static void usbSetConfiguration(void) {
+static void usbSetConfiguration(void)
+{
     if (pInformation->Current_Configuration != 0) {
         USBLIB->state = USB_CONFIGURED;
     }
 }
 
-static void usbSetDeviceAddress(void) {
+static void usbSetDeviceAddress(void)
+{
     USBLIB->state = USB_ADDRESSED;
 }

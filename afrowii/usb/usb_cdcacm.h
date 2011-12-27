@@ -32,7 +32,6 @@
 #ifndef _USB_CDCACM_H_
 #define _USB_CDCACM_H_
 
-#include "libmaple_types.h"
 #include "stm32f10x_gpio.h"
 
 #ifdef __cplusplus
@@ -42,18 +41,17 @@ extern "C" {
 void usb_cdcacm_enable(void);
 void usb_cdcacm_disable(void);
 
-void   usb_cdcacm_putc(char ch);
-uint32 usb_cdcacm_tx(const uint8* buf, uint32 len);
-uint32 usb_cdcacm_rx(uint8* buf, uint32 len);
+void usb_cdcacm_putc(char ch);
+uint32_t usb_cdcacm_tx(const uint8_t * buf, uint32_t len);
+uint32_t usb_cdcacm_rx(uint8_t * buf, uint32_t len);
 
-uint32 usb_cdcacm_data_available(void); /* in RX buffer */
-uint16 usb_cdcacm_get_pending(void);
+uint32_t usb_cdcacm_data_available(void);   /* in RX buffer */
+uint16_t usb_cdcacm_get_pending(void);
 
-uint8 usb_cdcacm_get_dtr(void);
-uint8 usb_cdcacm_get_rts(void);
+uint8_t usb_cdcacm_get_dtr(void);
+uint8_t usb_cdcacm_get_rts(void);
 
 #ifdef __cplusplus
 }
 #endif
-
 #endif

@@ -86,7 +86,7 @@ void Serial_commitBuffer(void)
     uint32_t len = uartPointer;
 
     while (txed < len && (millis() - start < USB_TIMEOUT)) {
-        txed += usb_cdcacm_tx((const uint8*)uartBuffer + txed, len - txed);
+        txed += usb_cdcacm_tx((const uint8_t*)uartBuffer + txed, len - txed);
         if (old_txed != txed) {
             start = millis();
         }

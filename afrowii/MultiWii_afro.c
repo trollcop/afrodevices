@@ -1210,8 +1210,8 @@ void computeIMU()
     static uint32_t timeInterleave = 0;
     static int16_t gyroYawSmooth = 0;
 
-    //we separate the 2 situations because reading gyro values with a gyro only setup can be acchieved at a higher rate
-    //gyro+nunchuk: we must wait for a quite high delay betwwen 2 reads to get both WM+ and Nunchuk data. It works with 3ms
+    //we separate the 2 situations because reading gyro values with a gyro only setup can be achieved at a higher rate
+    //gyro+nunchuk: we must wait for a quite high delay between 2 reads to get both WM+ and Nunchuk data. It works with 3ms
     //gyro only: the delay to read 2 consecutive values can be reduced to only 0.65ms
     if (!ACC && nunchuk) {
         annexCode();
@@ -3054,7 +3054,7 @@ void serialCom(void)
             systemReboot();
             break;
         case 'W':              //GUI write params to eeprom @ arduino
-            while (Serial_available() < 33) { }
+            while (Serial_available() < 33) { delay(1); }
             for (i = 0; i < 5; i++) {
                 P8[i] = Serial_read();
                 I8[i] = Serial_read();

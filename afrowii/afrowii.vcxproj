@@ -107,7 +107,6 @@
     <ClInclude Include="STM8S_StdPeriph_Driver\inc\stm8s_wwdg.h" />
     <ClInclude Include="sysdep.h" />
     <ClInclude Include="usb\descriptors.h" />
-    <ClInclude Include="usb\libmaple_types.h" />
     <ClInclude Include="usb\usb.h" />
     <ClInclude Include="usb\usb_cdcacm.h" />
     <ClInclude Include="usb\usb_lib\usb_core.h" />
@@ -174,7 +173,6 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="afrowii.hzp" />
-    <None Include="afrowii.stp" />
     <None Include="afrowii.stw" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

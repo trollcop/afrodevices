@@ -1,5 +1,7 @@
 #pragma once
 
+#include <stdlib.h>
+
 #define INPUT 0x0
 #define OUTPUT 0x1
 
@@ -8,6 +10,17 @@
 #define TWO_PI 6.283185307179586476925286766559
 #define DEG_TO_RAD 0.017453292519943295769236907684886
 #define RAD_TO_DEG 57.295779513082320876798154814105
+
+/*
+ * Bit manipulation
+ */
+
+/** 1 << the bit number */
+#define BIT(shift)                     (1UL << (shift))
+/** Mask shifted left by 'shift' */
+#define BIT_MASK_SHIFT(mask, shift)    ((mask) << (shift))
+/** Bits m to n of x */
+#define GET_BITS(x, m, n) ((((uint32_t)x) << (31 - (n))) >> ((31 - (n)) + (m)))
 
 /* hardware abstraction */
 

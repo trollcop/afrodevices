@@ -31,12 +31,13 @@
  * routines in particular are obvious targets for performance
  * measurement and tuning. */
 
-void usb_copy_to_pma(const uint8 *buf, uint16 len, uint16 pma_offset) {
-    uint16 *dst = (uint16*)usb_pma_ptr(pma_offset);
-    uint16 n = len >> 1;
-    uint16 i;
+void usb_copy_to_pma(const uint8_t * buf, uint16_t len, uint16_t pma_offset)
+{
+    uint16_t *dst = (uint16_t *) usb_pma_ptr(pma_offset);
+    uint16_t n = len >> 1;
+    uint16_t i;
     for (i = 0; i < n; i++) {
-        *dst = (uint16)(*buf) | *(buf + 1) << 8;
+        *dst = (uint16_t) (*buf) | *(buf + 1) << 8;
         buf += 2;
         dst += 2;
     }
@@ -45,11 +46,12 @@ void usb_copy_to_pma(const uint8 *buf, uint16 len, uint16 pma_offset) {
     }
 }
 
-void usb_copy_from_pma(uint8 *buf, uint16 len, uint16 pma_offset) {
-    uint32 *src = (uint32*)usb_pma_ptr(pma_offset);
-    uint16 *dst = (uint16*)buf;
-    uint16 n = len >> 1;
-    uint16 i;
+void usb_copy_from_pma(uint8_t * buf, uint16_t len, uint16_t pma_offset)
+{
+    uint32_t *src = (uint32_t *) usb_pma_ptr(pma_offset);
+    uint16_t *dst = (uint16_t *) buf;
+    uint16_t n = len >> 1;
+    uint16_t i;
     for (i = 0; i < n; i++) {
         *dst++ = *src++;
     }
@@ -58,9 +60,10 @@ void usb_copy_from_pma(uint8 *buf, uint16 len, uint16 pma_offset) {
     }
 }
 
-void usb_set_ep_rx_count(uint8 ep, uint16 count) {
-    uint32 *rxc = usb_ep_rx_count_ptr(ep);
-    uint16 nblocks;
+void usb_set_ep_rx_count(uint8_t ep, uint16_t count)
+{
+    uint32_t *rxc = usb_ep_rx_count_ptr(ep);
+    uint16_t nblocks;
     if (count > 62) {
         /* use 32-byte memory block size */
         nblocks = count >> 5;
