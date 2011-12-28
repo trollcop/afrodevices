@@ -143,6 +143,15 @@ static uint8_t yawRate;
 static uint8_t dynThrPID;
 static uint8_t activate[8];
 
+enum {
+    GIMBAL_TILTONLY = 1
+};
+
+// camera gimbal settings
+static uint8_t gimbalFlags = 0;                 // To be determined
+static int8_t gimbalGainPitch = 10;             // Amount of servo gain per angle of inclination for pitch (can be negative to invert movement)
+static int8_t gimbalGainRoll = 10;              // Amount of servo gain per angle of inclination for roll (can be negative to invert movement)
+
 /* prototypes */
 void serialCom(void);
 void initOutput(void);
@@ -368,8 +377,8 @@ void setup()
     STABLEPIN_PINMODE;
     POWERPIN_OFF;
     Serial_begin(SERIAL_COM_SPEED);
-    initOutput();
     readEEPROM();
+    initOutput();
     checkFirstTime();
     configureReceiver();
     initSensors();
@@ -700,7 +709,7 @@ void loop(void)
 }
 
 /* EEPROM --------------------------------------------------------------------- */
-static uint8_t checkNewConf = 147;
+static uint8_t checkNewConf = 148;
 
 typedef struct eep_entry_t {
     void *var;
@@ -726,6 +735,9 @@ volatile eep_entry_t eep_entry[] = {
     &activate, sizeof(activate),
     &powerTrigger1, sizeof(powerTrigger1),
     &mixerConfiguration, sizeof(mixerConfiguration),
+    &gimbalFlags, sizeof(gimbalFlags),
+    &gimbalGainPitch, sizeof(gimbalGainPitch),
+    &gimbalGainRoll, sizeof(gimbalGainRoll)
 };
 #define EEBLOCK_SIZE sizeof(eep_entry)/sizeof(eep_entry_t)
 // ************************************************************************************************************
@@ -805,6 +817,9 @@ void checkFirstTime(void)
     accTrim[1] = 0;
     powerTrigger1 = 0;
     mixerConfiguration = MULTITYPE_QUADX;
+    gimbalFlags = 0;
+    gimbalGainPitch = 10;
+    gimbalGainRoll = 10;
     writeParams();
 }
 
@@ -818,6 +833,14 @@ static uint8_t rcChannel[8] = { SERIAL_SUM_PPM };
 #endif
 volatile uint16_t rcValue[8] = { 1500, 1500, 1500, 1500, 1500, 1500, 1500, 1500 };      // interval [1000;2000]
 
+#if defined(STM8) && defined(SERIAL_SUM_PPM)
+/* for single channel PWM input mode */
+static uint16_t riseValue = 0;
+static uint16_t fallValue = 0;
+static uint8_t captureState = 0;
+static uint8_t usePPM = 1;
+#endif
+
 // Configure receiver pins
 void configureReceiver(void)
 {
@@ -825,6 +848,10 @@ void configureReceiver(void)
 #if defined(STM8)
     // Configure GPIO pin for ppm input
     GPIO_Init(GPIOD, GPIO_PIN_2, GPIO_MODE_IN_FL_NO_IT);
+
+    // when we're in camera gimbal mode, allow single PWM rx input for tilt compensation. useful? no idea.
+    if ((mixerConfiguration == MULTITYPE_GIMBAL) && (gimbalFlags & GIMBAL_TILTONLY))
+        usePPM = 0;
 
     TIM3_TimeBaseInit(TIM3_PRESCALER_8, 0xFFFF);
     TIM3_ICInit(TIM3_CHANNEL_1, TIM3_ICPOLARITY_RISING, TIM3_ICSELECTION_DIRECTTI, TIM3_ICPSC_DIV1, 0x0);
@@ -847,6 +874,34 @@ __near __interrupt void TIM3_CAP_COM_IRQHandler(void)
     }
 
     TIM3_ClearITPendingBit(TIM3_IT_CC1);
+
+    if (!usePPM) {
+        // single-channel PWM input
+        if (captureState == 0)
+            riseValue = now;
+        else
+            fallValue = now;
+
+        if (captureState == 0) {
+            // switch states
+            captureState = 1;
+            TIM3_ICInit(TIM3_CHANNEL_1, TIM3_ICPOLARITY_FALLING, TIM3_ICSELECTION_DIRECTTI, TIM3_ICPSC_DIV1, 0x0);
+        } else {
+            // capture compute
+            if (fallValue > riseValue)
+                rcValue[PITCH] = fallValue - riseValue;
+            else
+                rcValue[PITCH] = (0xffff - riseValue) + fallValue;
+            
+            // 0.5us resolution, so we halve it for real stuff. And it ends up in the PITCH channel (camera tilt use)
+            rcValue[PITCH] >>= 1;
+
+            // switch state
+            captureState = 0;
+            TIM3_ICInit(TIM3_CHANNEL_1, TIM3_ICPOLARITY_RISING, TIM3_ICSELECTION_DIRECTTI, TIM3_ICPSC_DIV1, 0x0);
+        }
+        return;
+    }
 
     if (now > last) {
         diff = (now - last);
@@ -1122,8 +1177,8 @@ void mixTable()
             break;
 
         case MULTITYPE_GIMBAL:
-            servo[1] = constrain(TILT_PITCH_MIDDLE + TILT_PITCH_PROP * angle[PITCH] / 16 + rcCommand[PITCH], TILT_PITCH_MIN, TILT_PITCH_MAX);
-            servo[2] = constrain(TILT_ROLL_MIDDLE + TILT_ROLL_PROP * angle[ROLL] / 16 + rcCommand[ROLL], TILT_ROLL_MIN, TILT_ROLL_MAX);
+            servo[1] = constrain(TILT_PITCH_MIDDLE + gimbalGainPitch * angle[PITCH] / 16 + rcCommand[PITCH], TILT_PITCH_MIN, TILT_PITCH_MAX);
+            servo[2] = constrain(TILT_ROLL_MIDDLE + gimbalGainRoll * angle[ROLL] / 16 + rcCommand[ROLL], TILT_ROLL_MIN, TILT_ROLL_MAX);
             break;
             
         case MULTITYPE_FLYING_WING:
@@ -1144,8 +1199,8 @@ void mixTable()
 
 #ifdef SERVO_TILT
     if (rcOptions & activate[BOXCAMSTAB]) {
-        servo[1] = constrain(TILT_PITCH_MIDDLE + TILT_PITCH_PROP * angle[PITCH] / 16 + rcData[CAMPITCH] - 1500, TILT_PITCH_MIN, TILT_PITCH_MAX);
-        servo[2] = constrain(TILT_ROLL_MIDDLE + TILT_ROLL_PROP * angle[ROLL] / 16 + rcData[CAMROLL] - 1500, TILT_ROLL_MIN, TILT_ROLL_MAX);
+        servo[1] = constrain(TILT_PITCH_MIDDLE + gimbalGainPitch * angle[PITCH] / 16 + rcData[CAMPITCH] - 1500, TILT_PITCH_MIN, TILT_PITCH_MAX);
+        servo[2] = constrain(TILT_ROLL_MIDDLE + gimbalGainRoll * angle[ROLL] / 16 + rcData[CAMROLL] - 1500, TILT_ROLL_MIN, TILT_ROLL_MAX);
     } else {
         servo[1] = constrain(TILT_PITCH_MIDDLE + rcData[CAMPITCH] - 1500, TILT_PITCH_MIN, TILT_PITCH_MAX);
         servo[2] = constrain(TILT_ROLL_MIDDLE + rcData[CAMROLL] - 1500, TILT_ROLL_MIN, TILT_ROLL_MAX);
@@ -3054,7 +3109,7 @@ void serialCom(void)
             systemReboot();
             break;
         case 'W':              //GUI write params to eeprom @ arduino
-            while (Serial_available() < 33) { delay(1); }
+            while (Serial_available() < 33) { }
             for (i = 0; i < 5; i++) {
                 P8[i] = Serial_read();
                 I8[i] = Serial_read();
@@ -3084,6 +3139,15 @@ void serialCom(void)
         case 'E':              //GUI to arduino MAG calibration request
             calibratingM = 1;
             break;
+
+        case 'G':               // GUI to multiwii - gimbal tuning parameters
+            while (Serial_available() < 3) { }
+            gimbalFlags = Serial_read();
+            gimbalGainPitch = Serial_read();
+            gimbalGainRoll = Serial_read();
+            writeParams();
+            break;
+
         case 'X':              // GUI to change mixer type. command is X+ascii A + MULTITYPE_XXXX index. i.e. XA for tri, XB for Quad+, XC for QuadX, etc.
             while (Serial_available() < 1) { }
             i = Serial_read();

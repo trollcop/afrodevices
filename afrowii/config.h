@@ -10,7 +10,7 @@
 //#define MINTHROTTLE 1220
 #define MINTHROTTLE 1120
 
-#define DIGITAL_SERVO      // If high-speed (200hz) refresh is needed on tail servo or for camera stabilization, define this. otherwise 50hz is used.
+// #define DIGITAL_SERVO      // If high-speed (200hz) refresh is needed on tail servo or for camera stabilization, define this. otherwise 50hz is used.
 
 #define YAW_DIRECTION 1		// if you want to reverse the yaw correction direction
 //#define YAW_DIRECTION -1
@@ -68,16 +68,15 @@
 
 /* The following lines apply only for a pitch/roll tilt stabilization system
    On promini board, it is not compatible with config with 6 motors or more
-   Uncomment the first line to activate it */
+   Uncomment the first line to activate it 
+   These constants are also used in MULTITYPE_GIMBAL, in this case no #define is needed */
 // #define SERVO_TILT
 #define TILT_PITCH_MIN    1020	//servo travel min, don't set it below 1020
 #define TILT_PITCH_MAX    2000	//servo travel max, max value=2000
 #define TILT_PITCH_MIDDLE 1500	//servo neutral value
-#define TILT_PITCH_PROP   10	//servo proportional (tied to angle) ; can be negative to invert movement
 #define TILT_ROLL_MIN     1020
 #define TILT_ROLL_MAX     2000
 #define TILT_ROLL_MIDDLE  1500
-#define TILT_ROLL_PROP    10
 
 /* if you use a specific sensor board:
    please submit any correction to this list.

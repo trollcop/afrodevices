@@ -173,6 +173,7 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="afrowii.hzp" />
+    <None Include="afrowii.stp" />
     <None Include="afrowii.stw" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

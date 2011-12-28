@@ -511,12 +511,10 @@ void pwmInit(uint8_t useServo)
         TIM2_OC2Init(TIM2_OCMODE_PWM2, TIM2_OUTPUTSTATE_ENABLE, PULSE_1MS, TIM2_OCPOLARITY_LOW);
         TIM2_OC2PreloadConfig(ENABLE);
         TIM2_ARRPreloadConfig(ENABLE);
-        TIM2_Cmd(ENABLE);
     }
 
     TIM1_Cmd(ENABLE);
-    if (!useServo)
-        TIM2_Cmd(ENABLE);
+    TIM2_Cmd(ENABLE);
 }
 
 /* PWM write */

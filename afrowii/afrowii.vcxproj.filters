@@ -357,5 +357,8 @@
     <None Include="afrowii.hzp">
       <Filter>CrossWorks Workspace</Filter>
     </None>
+    <None Include="afrowii.stp">
+      <Filter>STVD Workspace</Filter>
+    </None>
   </ItemGroup>
 </Project>
