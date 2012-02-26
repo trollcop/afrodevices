@@ -1,5 +1,6 @@
-#include "config.h"
+#include "board.h"
 #include "def.h"
+#include "config.h"
 #include "sysdep.h"
 
 /* HW init */
@@ -135,10 +136,9 @@ uint8_t Serial_read(void)
 }
 
 /* TIMING */
-#define F_CPU (16000000L)
-#define clockCyclesPerMicrosecond() ( F_CPU / 1000000L )
-#define clockCyclesToMicroseconds(a) ( ((a) * 1000L) / (F_CPU / 1000L) )
-#define microsecondsToClockCycles(a) ( ((a) * (F_CPU / 1000L)) / 1000L )
+#define clockCyclesPerMicrosecond() ( HSE_VALUE / 1000000L )
+#define clockCyclesToMicroseconds(a) ( ((a) * 1000L) / (HSE_VALUE / 1000L) )
+#define microsecondsToClockCycles(a) ( ((a) * (HSE_VALUE / 1000L)) / 1000L )
 // the prescaler is set so that timer0 ticks every 64 clock cycles, and the
 // the overflow handler is called every 256 ticks.
 #define MICROSECONDS_PER_TIMER0_OVERFLOW (clockCyclesToMicroseconds(64 * 256))
@@ -471,11 +471,16 @@ static const struct {
 #define PULSE_PERIOD_SERVO_DIGITAL  (10000)
 // pulse period for analog servo (50Hz)
 #define PULSE_PERIOD_SERVO_ANALOG  (40000)
+// Brushed support 2kHz PWM output
+#define PULSE_PERIOD_BRUSHED        (4000)
 
 void pwmInit(uint8_t useServo)
 {
-    // Motor PWM timers at 400Hz
+    // Motor PWM timers at 400Hz unless brushed
     TIM1_DeInit();
+
+#ifndef BRUSHED
+    // RC PWM / Brushless mode (2MHz timer)
     TIM1_TimeBaseInit(7, TIM1_COUNTERMODE_UP, PULSE_PERIOD, 0);
     TIM1_OC1Init(TIM1_OCMODE_PWM2, TIM1_OUTPUTSTATE_ENABLE, TIM1_OUTPUTNSTATE_DISABLE, PULSE_1MS, TIM1_OCPOLARITY_LOW, TIM1_OCNPOLARITY_HIGH, TIM1_OCIDLESTATE_RESET, TIM1_OCNIDLESTATE_RESET);
     TIM1_OC1PreloadConfig(ENABLE);
@@ -487,7 +492,22 @@ void pwmInit(uint8_t useServo)
     TIM1_OC4PreloadConfig(ENABLE);
     TIM1_ARRPreloadConfig(ENABLE);
     TIM1_CtrlPWMOutputs(ENABLE);
+#else
+    // Brushed mode (8MHz timer - 2kHz PWM switching)
+    TIM1_TimeBaseInit(1, TIM1_COUNTERMODE_UP, PULSE_PERIOD_BRUSHED, 0);
+    TIM1_OC1Init(TIM1_OCMODE_PWM2, TIM1_OUTPUTSTATE_ENABLE, TIM1_OUTPUTNSTATE_DISABLE, 0, TIM1_OCPOLARITY_LOW, TIM1_OCNPOLARITY_HIGH, TIM1_OCIDLESTATE_RESET, TIM1_OCNIDLESTATE_RESET);
+    TIM1_OC1PreloadConfig(ENABLE);
+    TIM1_OC2Init(TIM1_OCMODE_PWM2, TIM1_OUTPUTSTATE_ENABLE, TIM1_OUTPUTNSTATE_DISABLE, 0, TIM1_OCPOLARITY_LOW, TIM1_OCNPOLARITY_HIGH, TIM1_OCIDLESTATE_RESET, TIM1_OCNIDLESTATE_RESET);
+    TIM1_OC2PreloadConfig(ENABLE);
+    TIM1_OC3Init(TIM1_OCMODE_PWM2, TIM1_OUTPUTSTATE_ENABLE, TIM1_OUTPUTNSTATE_DISABLE, 0, TIM1_OCPOLARITY_LOW, TIM1_OCNPOLARITY_HIGH, TIM1_OCIDLESTATE_RESET, TIM1_OCNIDLESTATE_RESET);
+    TIM1_OC3PreloadConfig(ENABLE);
+    TIM1_OC4Init(TIM1_OCMODE_PWM2, TIM1_OUTPUTSTATE_ENABLE, 0, TIM1_OCPOLARITY_LOW, TIM1_OCIDLESTATE_RESET);
+    TIM1_OC4PreloadConfig(ENABLE);
+    TIM1_ARRPreloadConfig(ENABLE);
+    TIM1_CtrlPWMOutputs(ENABLE);
+#endif
 
+#ifndef BRUSHED
     if (!useServo) {
         // last 2 motor channels at 400Hz
         TIM2_DeInit();
@@ -512,9 +532,12 @@ void pwmInit(uint8_t useServo)
         TIM2_OC2PreloadConfig(ENABLE);
         TIM2_ARRPreloadConfig(ENABLE);
     }
+#endif /* !BRUSHED */    
 
     TIM1_Cmd(ENABLE);
+#ifndef BRUSHED
     TIM2_Cmd(ENABLE);
+#endif
 }
 
 /* PWM write */

@@ -431,11 +431,6 @@ Next=Root.Source Files.multiwii_afro.c
 [Root.Source Files.multiwii_afro.c]
 ElemType=File
 PathName=multiwii_afro.c
-Next=Root.Source Files.lcd.c
-
-[Root.Source Files.lcd.c]
-ElemType=File
-PathName=lcd.c
 Next=Root.Source Files.main.c
 
 [Root.Source Files.main.c]

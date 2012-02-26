@@ -10,8 +10,8 @@ November  2011     V1.9
 */
 
 #include "board.h"
-#include "config.h"
 #include "def.h"
+#include "config.h"
 #include "sysdep.h"
 
 #define   VERSION  19
@@ -90,12 +90,6 @@ static uint8_t pMeterV;         // dummy to satisfy the paramStruct logic in Con
 static uint32_t pAlarm;         // we scale the eeprom value from [0:255] to this value we can directly compare to the sum in pMeter[6]
 static uint8_t powerTrigger1 = 0;       // trigger for alarm based on power consumption
 
-// **********************
-// telemetry
-// **********************
-static uint8_t telemetry = 0;
-static uint8_t telemetry_auto = 0;
-
 // ******************
 // rc functions
 // ******************
@@ -134,7 +128,7 @@ static uint8_t useServo = 0;
 static uint8_t numberMotor = 4;
 
 // **********************
-// EEPROM & LCD functions
+// EEPROM functions
 // **********************
 static uint8_t P8[7], I8[7], D8[7];     //8 bits is much faster and the code is much shorter
 static uint8_t dynP8[3], dynI8[3], dynD8[3];
@@ -171,7 +165,6 @@ void Baro_update(void);
 void computeIMU(void);
 void mixTable(void);
 void annexCode(void);
-uint8_t WMP_getRawADC(void);
 void getEstimatedAttitude(void);
 void getEstimatedAltitude(void);
 void ACC_getADC(void);
@@ -351,32 +344,12 @@ void annexCode(void)
         serialCom();
         serialTime = currentTime + 20000;
     }
-#ifdef LCD_TELEMETRY_AUTO
-    if ((telemetry_auto) && (micros() > telemetryAutoTime + LCD_TELEMETRY_AUTO)) {      // every 2 seconds
-        telemetry++;
-        if (telemetry == 'E')
-            telemetry = 'Z';
-        else if ((telemetry < 'A') || (telemetry > 'D'))
-            telemetry = 'A';
-
-        telemetryAutoTime = micros();   // why use micros() and not the variable currentTime ?
-    }
-#endif
-#ifdef LCD_TELEMETRY
-    if (micros() > telemetryTime + LCD_TELEMETRY) {     // 10Hz
-        if (telemetry)
-            lcd_telemetry();
-        telemetryTime = micros();
-    }
-#endif
 }
 
 void setup()
 {
     LEDPIN_PINMODE;
     BUZZERPIN_PINMODE;
-    STABLEPIN_PINMODE;
-    POWERPIN_OFF;
     Serial_begin(SERIAL_COM_SPEED);
     readEEPROM();
     initOutput();
@@ -391,16 +364,6 @@ void setup()
 #if defined(POWERMETER)
     for (uint8_t i = 0; i <= PMOTOR_SUM; i++)
         pMeter[i] = 0;
-#endif
-#if defined(GPS)
-    GPS_SERIAL.begin(GPS_BAUD);
-#endif
-#if defined(LCD_ETPP)
-    i2c_ETPP_init();
-    i2c_ETPP_set_cursor(0, 0);
-    LCDprintChar("MultiWii");
-    i2c_ETPP_set_cursor(0, 1);
-    LCDprintChar("Ready to Fly!");
 #endif
 }
 
@@ -463,9 +426,6 @@ void loop(void)
                 if (rcDelayCommand == 20) {
                     servo[0] = 1500;    //we center the yaw gyro in conf mode
                     writeServos();
-#ifdef LCD_CONF
-                    configurationLoop();        //beginning LCD configuration
-#endif
                     previousTime = micros();
                 }
             } else if (activate[BOXARM] > 0) {
@@ -480,16 +440,6 @@ void loop(void)
             } else if ((rcData[YAW] > MAXCHECK || rcData[ROLL] > MAXCHECK) && rcData[PITCH] < MAXCHECK && armed == 0 && calibratingG == 0 && calibratedACC == 1) {
                 if (rcDelayCommand == 20)
                     armed = 1;
-#ifdef LCD_TELEMETRY_AUTO
-            } else if (rcData[ROLL] < MINCHECK && rcData[PITCH] > MAXCHECK && armed == 0) {
-                if (rcDelayCommand == 20) {
-                    if (telemetry_auto) {
-                        telemetry_auto = 0;
-                        telemetry = 0;
-                    } else
-                        telemetry_auto = 1;
-                }
-#endif
             } else
                 rcDelayCommand = 0;
         } else if (rcData[THROTTLE] > MAXCHECK && armed == 0) {
@@ -545,11 +495,6 @@ void loop(void)
 
         if ((rcOptions & activate[BOXARM]) == 0)
             okToArm = 1;
-        if (accMode == 1) {
-            STABLEPIN_ON;
-        } else {
-            STABLEPIN_OFF;
-        }
 
 #if BARO
         if (rcOptions & activate[BOXBARO]) {
@@ -574,17 +519,6 @@ void loop(void)
             magMode = 0;
 #endif
     }
-#if GPS
-    if (rcOptions & activate[BOXGPSHOME])
-        GPSModeHome = 1;
-    else
-        GPSModeHome = 0;
-    if (rcOptions & activate[BOXGPSHOLD])
-        GPSModeHold = 1;
-    else
-        GPSModeHold = 0;
-#endif
-
 #if MAG
     Mag_getADC();
 #endif
@@ -687,26 +621,6 @@ void loop(void)
     mixTable();
     writeServos();
     writeMotors();
-
-    //GPS
-#if GPS
-    while (GPS_SERIAL.available()) {
-        if (GPS_newFrame(GPS_SERIAL.read())) {
-            if (GPS_update == 1)
-                GPS_update = 0;
-            else
-                GPS_update = 1;
-            if (GPS_fix == 1) {
-                if (GPS_fix_home == 0) {
-                    GPS_fix_home = 1;
-                    GPS_latitude_home = GPS_latitude;
-                    GPS_longitude_home = GPS_longitude;
-                }
-                GPS_distance(GPS_latitude_home, GPS_longitude_home, GPS_latitude, GPS_longitude, &GPS_distanceToHome, &GPS_directionToHome);
-            }
-        }
-    }
-#endif
 }
 
 /* EEPROM --------------------------------------------------------------------- */
@@ -825,7 +739,6 @@ void checkFirstTime(void)
 }
 
 /* RX -------------------------------------------------------------------------------- */
-static uint8_t pinRcChannel[8] = { ROLLPIN, PITCHPIN, YAWPIN, THROTTLEPIN, AUX1PIN, AUX2PIN, CAM1PIN, CAM2PIN };
 volatile uint16_t rcPinValue[8] = { 1500, 1500, 1500, 1500, 1500, 1500, 1500, 1500 };   // interval [1000;2000]
 
 // ***PPM SUM SIGNAL***
@@ -854,27 +767,64 @@ void configureReceiver(void)
     if ((mixerConfiguration == MULTITYPE_GIMBAL) && (gimbalFlags & GIMBAL_TILTONLY))
         usePPM = 0;
 
+#ifndef ROME
     TIM3_TimeBaseInit(TIM3_PRESCALER_8, 0xFFFF);
     TIM3_ICInit(TIM3_CHANNEL_1, TIM3_ICPOLARITY_RISING, TIM3_ICSELECTION_DIRECTTI, TIM3_ICPSC_DIV1, 0x0);
     TIM3_ITConfig(TIM3_IT_CC1, ENABLE);
     TIM3_Cmd(ENABLE);
+#else
+    TIM2_TimeBaseInit(TIM2_PRESCALER_8, 0xFFFF);
+    TIM2_ICInit(TIM2_CHANNEL_1, TIM2_ICPOLARITY_RISING, TIM2_ICSELECTION_DIRECTTI, TIM2_ICPSC_DIV1, 0x0);
+    TIM2_ITConfig(TIM2_IT_CC1, ENABLE);
+    TIM2_Cmd(ENABLE);
+#endif
 #endif
 }
 
 #if defined(STM8) && defined(SERIAL_SUM_PPM)
+#ifdef ROME
+#define TIM_Channel             TIM2_CHANNEL_1
+#define TIM_GetITStatus         TIM2_GetITStatus
+#define TIM_CC_Channel          TIM2_IT_CC1
+#define TIM_GetCapture          TIM2_GetCapture1
+#define TIM_ClearITPendingBit   TIM2_ClearITPendingBit
+#define TIM_ICInit              TIM2_ICInit
+#define TIM_ICPOLARITY_FALLING  TIM2_ICPOLARITY_FALLING
+#define TIM_ICPOLARITY_RISING   TIM2_ICPOLARITY_RISING
+#define TIM_ICSELECTION_DIRECTTI        TIM2_ICSELECTION_DIRECTTI
+#define TIM_ICPSC_DIV1          TIM2_ICPSC_DIV1
+#define TIM_CAP_COM_IRQHandler  TIM2_CAP_COM_IRQHandler
+#else
+#define TIM_Channel             TIM3_CHANNEL_1
+#define TIM_GetITStatus         TIM3_GetITStatus
+#define TIM_CC_Channel          TIM3_IT_CC1
+#define TIM_GetCapture          TIM3_GetCapture1
+#define TIM_ClearITPendingBit   TIM3_ClearITPendingBit
+#define TIM_ICInit              TIM3_ICInit
+#define TIM_ICPOLARITY_FALLING  TIM3_ICPOLARITY_FALLING
+#define TIM_ICPOLARITY_RISING   TIM3_ICPOLARITY_RISING
+#define TIM_ICSELECTION_DIRECTTI        TIM3_ICSELECTION_DIRECTTI
+#define TIM_ICPSC_DIV1          TIM3_ICPSC_DIV1
+#define TIM_CAP_COM_IRQHandler  TIM3_CAP_COM_IRQHandler
+#endif
+
 __near __interrupt void TIM3_CAP_COM_IRQHandler(void)
+{
+}
+
+__near __interrupt void TIM2_CAP_COM_IRQHandler(void)
 {
     uint16_t diff;
     static uint16_t now;
     static uint16_t last = 0;
     static uint8_t chan = 0;
 
-    if (TIM3_GetITStatus(TIM3_IT_CC1) == SET) {
+    if (TIM_GetITStatus(TIM_CC_Channel) == SET) {
         last = now;
-        now = TIM3_GetCapture1();
+        now = TIM_GetCapture();
     }
 
-    TIM3_ClearITPendingBit(TIM3_IT_CC1);
+    TIM_ClearITPendingBit(TIM_CC_Channel);
 
     if (!usePPM) {
         // single-channel PWM input
@@ -886,7 +836,7 @@ __near __interrupt void TIM3_CAP_COM_IRQHandler(void)
         if (captureState == 0) {
             // switch states
             captureState = 1;
-            TIM3_ICInit(TIM3_CHANNEL_1, TIM3_ICPOLARITY_FALLING, TIM3_ICSELECTION_DIRECTTI, TIM3_ICPSC_DIV1, 0x0);
+            TIM_ICInit(TIM_Channel, TIM_ICPOLARITY_FALLING, TIM_ICSELECTION_DIRECTTI, TIM_ICPSC_DIV1, 0x0);
         } else {
             // capture compute
             if (fallValue > riseValue)
@@ -899,7 +849,7 @@ __near __interrupt void TIM3_CAP_COM_IRQHandler(void)
 
             // switch state
             captureState = 0;
-            TIM3_ICInit(TIM3_CHANNEL_1, TIM3_ICPOLARITY_RISING, TIM3_ICSELECTION_DIRECTTI, TIM3_ICPSC_DIV1, 0x0);
+            TIM_ICInit(TIM_Channel, TIM_ICPOLARITY_RISING, TIM_ICSELECTION_DIRECTTI, TIM_ICPSC_DIV1, 0x0);
         }
         return;
     }
@@ -1062,9 +1012,12 @@ void initOutput()
 
     // This handles motor and servo initialization in one place
     pwmInit(useServo);
-    writeAllMotors(1000);
+    writeAllMotors(MINCOMMAND);
+
     delay(300);
 }
+
+#define PIDMIX(X,Y,Z) rcCommand[THROTTLE] + axisPID[ROLL] * X + axisPID[PITCH] * Y + YAW_DIRECTION * axisPID[YAW] * Z
 
 void mixTable()
 {
@@ -1073,8 +1026,6 @@ void mixTable()
     static uint8_t camCycle = 0;
     static uint8_t camState = 0;
     static uint32_t camTime = 0;
-
-#define PIDMIX(X,Y,Z) rcCommand[THROTTLE] + axisPID[ROLL]*X + axisPID[PITCH]*Y + YAW_DIRECTION * axisPID[YAW]*Z
 
     if (numberMotor > 3) {
         //prevent "yaw jump" during yaw correction
@@ -1271,60 +1222,28 @@ void computeIMU()
     static uint32_t timeInterleave = 0;
     static int16_t gyroYawSmooth = 0;
 
-    //we separate the 2 situations because reading gyro values with a gyro only setup can be achieved at a higher rate
-    //gyro+nunchuk: we must wait for a quite high delay between 2 reads to get both WM+ and Nunchuk data. It works with 3ms
-    //gyro only: the delay to read 2 consecutive values can be reduced to only 0.65ms
-    if (!ACC && nunchuk) {
-        annexCode();
-        while ((micros() - timeInterleave) < INTERLEAVING_DELAY);       //interleaving delay between 2 consecutive reads
-        timeInterleave = micros();
-        WMP_getRawADC();
-        getEstimatedAttitude(); // computation time must last less than one interleaving delay
-#if BARO
-        getEstimatedAltitude();
-#endif
-        while ((micros() - timeInterleave) < INTERLEAVING_DELAY);       //interleaving delay between 2 consecutive reads
-        timeInterleave = micros();
-        while (WMP_getRawADC() != 1);   // For this interleaving reading, we must have a gyro update at this point (less delay)
-
-        for (axis = 0; axis < 3; axis++) {
-            // empirical, we take a weighted value of the current and the previous values
-            // /4 is to average 4 values, note: overflow is not possible for WMP gyro here
-            gyroData[axis] = (gyroADC[axis] * 3 + gyroADCprevious[axis] + 2) / 4;
-            gyroADCprevious[axis] = gyroADC[axis];
-        }
-    } else {
-        if (ACC) {
-            ACC_getADC();
-            getEstimatedAttitude();
+    if (ACC) {
+        ACC_getADC();
+        getEstimatedAttitude();
 #if BARO
         getEstimatedAltitude();
 #endif                          /* BARO */
-        }
-#if GYRO
-        Gyro_getADC();
-#else
-        WMP_getRawADC();
-#endif                          /* GYRO */
+    }
+    Gyro_getADC();
 
-        for (axis = 0; axis < 3; axis++)
-            gyroADCp[axis] = gyroADC[axis];
-        timeInterleave = micros();
-        annexCode();
-        while ((micros() - timeInterleave) < 650);  //empirical, interleaving delay between 2 consecutive reads
-#if GYRO
-        Gyro_getADC();
-#else
-        WMP_getRawADC();
-#endif
-        for (axis = 0; axis < 3; axis++) {
-            gyroADCinter[axis] = gyroADC[axis] + gyroADCp[axis];
-            // empirical, we take a weighted value of the current and the previous values
-            gyroData[axis] = (gyroADCinter[axis] + gyroADCprevious[axis] + 1) / 3;
-            gyroADCprevious[axis] = gyroADCinter[axis] / 2;
-            if (!ACC)
-                accADC[axis] = 0;
-        }
+    for (axis = 0; axis < 3; axis++)
+        gyroADCp[axis] = gyroADC[axis];
+    timeInterleave = micros();
+    annexCode();
+    while ((micros() - timeInterleave) < 650);  //empirical, interleaving delay between 2 consecutive reads
+    Gyro_getADC();
+    for (axis = 0; axis < 3; axis++) {
+        gyroADCinter[axis] = gyroADC[axis] + gyroADCp[axis];
+        // empirical, we take a weighted value of the current and the previous values
+        gyroData[axis] = (gyroADCinter[axis] + gyroADCprevious[axis] + 1) / 3;
+        gyroADCprevious[axis] = gyroADCinter[axis] / 2;
+        if (!ACC)
+            accADC[axis] = 0;
     }
 
     if (mixerConfiguration == MULTITYPE_TRI) { 
@@ -1332,85 +1251,6 @@ void computeIMU()
         gyroYawSmooth = gyroData[YAW];
     }
 }
-
-#if defined(STAB_OLD_17)
-/// OLD CODE from 1.7 ////
-// ************************************
-// simplified IMU based on Kalman Filter
-// inspired from http://starlino.com/imu_guide.html
-// and http://www.starlino.com/imu_kalman_arduino.html
-// for angles under 25deg, we use an approximation to speed up the angle calculation
-// magnetometer addition for small angles
-// ************************************
-void getEstimatedAttitude()
-{
-    uint8_t axis;
-    float R, RGyro[3];          //R obtained from last estimated value and gyro movement;
-    static float REst[3] = { 0, 0, 1 }; // init acc in stable mode
-    static float A[2];          //angles between projection of R on XZ/YZ plane and Z axis (in Radian)
-    float wGyro = 300;          // gyro weight/smooting factor
-    float invW = 1.0 / (1 + 300);
-    float gyroFactor;
-    static uint8_t small_angle = 1;
-    static uint16_t tPrevious;
-    uint16_t tCurrent, deltaTime;
-    float a[2], mag[2], cos_[2];
-
-    tCurrent = micros();
-    deltaTime = tCurrent - tPrevious;
-    tPrevious = tCurrent;
-
-#if GYRO
-    gyroFactor = deltaTime / 300e6;     //empirical
-#else
-    gyroFactor = deltaTime / 200e6;     //empirical, depends on WMP on IDG datasheet, tied of deg/ms sensibility
-#endif
-
-    for (axis = 0; axis < 2; axis++)
-        a[axis] = gyroADC[axis] * gyroFactor;
-    for (axis = 0; axis < 3; axis++)
-        accSmooth[axis] = (accSmooth[axis] * 7 + accADC[axis] + 4) / 8;
-
-    if (accSmooth[YAW] > 0) {   //we want to be sure we are not flying inverted  
-        // a very nice trigonometric approximation: under 25deg, the error of this approximation is less than 1 deg:
-        //   sin(x) =~= x =~= arcsin(x)
-        //   angle_axis = arcsin(ACC_axis/ACC_1G) =~= ACC_axis/ACC_1G
-        // the angle calculation is much more faster in this case
-        if (accSmooth[ROLL] < acc_25deg && accSmooth[ROLL] > -acc_25deg && accSmooth[PITCH] < acc_25deg && accSmooth[PITCH] > -acc_25deg) {
-            for (axis = 0; axis < 2; axis++) {
-                A[axis] += a[axis];
-                A[axis] = ((float) accSmooth[axis] / acc_1G + A[axis] * wGyro) * invW;  // =~= sin axis
-#if MAG
-                cos_[axis] = 1 - A[axis] * A[axis] / 2; // cos(x) =~= 1-x^2/2
-#endif
-            }
-            small_angle = 1;
-        } else {
-            //magnitude vector size
-            R = sqrt(square(accSmooth[ROLL]) + square(accSmooth[PITCH]) + square(accSmooth[YAW]));
-            for (axis = 0; axis < 2; axis++) {
-                if (acc_1G * 3 / 5 < R && R < acc_1G * 7 / 5 && small_angle == 0)       //if accel magnitude >1.4G or <0.6G => we neutralize the effect of accelerometers in the angle estimation
-                    A[axis] = atan2(REst[axis], REst[YAW]);
-                A[axis] += a[axis];
-                cos_[axis] = cos(A[axis]);
-                RGyro[axis] = sin(A[axis]) / sqrt(1.0 + square(cos_[axis]) * square(tan(A[1 - axis]))); //reverse calculation of RwGyro from Awz angles
-            }
-            RGyro[YAW] = sqrt(abs(1.0 - square(RGyro[ROLL]) - square(RGyro[PITCH])));
-            for (axis = 0; axis < 3; axis++)
-                REst[axis] = (accADC[axis] / R + wGyro * RGyro[axis]) * invW;   //combine Accelerometer and gyro readings
-            small_angle = 0;
-        }
-#if defined(HMC5843) || defined(HMC5883)
-        mag[PITCH] = -magADC[PITCH] * cos_[PITCH] + magADC[ROLL] * A[ROLL] * A[PITCH] + magADC[YAW] * cos_[ROLL] * A[PITCH];
-        mag[ROLL] = magADC[ROLL] * cos_[ROLL] - magADC[YAW] * A[ROLL];
-        heading = -degrees(atan2(mag[PITCH], mag[ROLL]));
-#endif
-    }
-    for (axis = 0; axis < 2; axis++)
-        angle[axis] = A[axis] * 572.9577951;    //angle in multiple of 0.1 degree
-}
-
-#else
 
 // **************************************************
 // Simplified IMU based on "Complementary Filter"
@@ -1460,7 +1300,6 @@ void getEstimatedAttitude()
 
 #define INV_GYR_CMPF_FACTOR   (1.0f / (GYR_CMPF_FACTOR  + 1.0f))
 #define INV_GYR_CMPFM_FACTOR  (1.0f / (GYR_CMPFM_FACTOR + 1.0f))
-#if GYRO
 
 // #define GYRO_SCALE ((2000.0f * PI)/((32767.0f / 4.0f ) * 180.0f * 1000000.0f) * 1.155f)
 #define CAMSTABGYRO
@@ -1476,14 +1315,6 @@ void getEstimatedAttitude()
 // +- 200/sec deg scale
 // 1.5 is emperical, not sure what it means
 // should be in rad/sec
-#else
-#define GYRO_SCALE (1.0f/200e6f)
-  // empirical, depends on WMP on IDG datasheet, tied of deg/ms sensibility
-  // !!!!should be adjusted to the rad/sec
-#endif
-// Small angle approximation
-#define ssin(val) (val)
-#define scos(val) 1.0f
 
 typedef struct fp_vector {
     float X;
@@ -1603,8 +1434,6 @@ void getEstimatedAttitude()
     heading = _atan2(EstG.V.X * EstM.V.Z - EstG.V.Z * EstM.V.X, EstG.V.Z * EstM.V.Y - EstG.V.Y * EstM.V.Z) / 10;
 #endif
 }
-
-#endif                          /* OLD_1_7_STAB_CODE */
 
 float InvSqrt(float x)
 {
@@ -2781,12 +2610,56 @@ void Gyro_init(void)
 
 void Gyro_getADC(void)
 {
-    i2c_getSixRawADC(ITG3200_ADDRESS, 0X1D);
+    i2c_getSixRawADC(ITG3200_ADDRESS, 0x1D);
     GYRO_ORIENTATION(+(((rawADC[2] << 8) | rawADC[3]) / 4),     // range: +/- 8192; +/- 2000 deg/sec
                      -(((rawADC[0] << 8) | rawADC[1]) / 4), -(((rawADC[4] << 8) | rawADC[5]) / 4));
     GYRO_Common();
 }
 #endif
+
+#if defined(MPU3050)
+// Registers
+#define MPU3050_SMPLRT_DIV      0x15
+#define MPU3050_DLPF_FS_SYNC    0x16
+#define MPU3050_INT_CFG         0x17
+#define MPU3050_TEMP_OUT        0x1B
+#define MPU3050_GYRO_OUT        0x1D
+#define MPU3050_USER_CTRL       0x3D
+#define MPU3050_PWR_MGM         0x3E
+
+// Bits
+#define MPU3050_FS_SEL_2000DPS  0x18
+#define MPU3050_DLPF_20HZ       0x04
+#define MPU3050_DLPF_42HZ       0x03
+#define MPU3050_DLPF_98HZ       0x02
+#define MPU3050_DLPF_188HZ      0x01
+#define MPU3050_DLPF_256HZ      0x00
+
+#define MPU3050_USER_RESET      0x01
+#define MPU3050_CLK_SEL_PLL_GX  0x01
+
+void Gyro_init(void)
+{
+    delay(100);
+    i2c_writeReg(MPU3050_ADDRESS, MPU3050_SMPLRT_DIV, 0);
+    delay(5);
+    i2c_writeReg(MPU3050_ADDRESS, MPU3050_DLPF_FS_SYNC, MPU3050_FS_SEL_2000DPS | MPU3050_DLPF_256HZ);
+    i2c_writeReg(MPU3050_ADDRESS, MPU3050_INT_CFG, 0);
+    i2c_writeReg(MPU3050_ADDRESS, MPU3050_USER_CTRL, MPU3050_USER_RESET);
+    i2c_writeReg(MPU3050_ADDRESS, MPU3050_PWR_MGM, MPU3050_CLK_SEL_PLL_GX);
+    delay(100);
+}
+
+void Gyro_getADC(void)
+{
+    i2c_getSixRawADC(MPU3050_ADDRESS, MPU3050_GYRO_OUT);
+    GYRO_ORIENTATION(+(((rawADC[2] << 8) | rawADC[3]) / 4),     // range: +/- 8192; +/- 2000 deg/sec
+                     -(((rawADC[0] << 8) | rawADC[1]) / 4), -(((rawADC[4] << 8) | rawADC[5]) / 4));
+    GYRO_Common();
+}
+#endif
+
+
 
 
 
@@ -2883,87 +2756,12 @@ void Device_Mag_getADC(void)
 }
 #endif
 
-#if !GYRO
-// ************************************************************************************************************
-// I2C Wii Motion Plus + optional Nunchuk
-// ************************************************************************************************************
-// I2C adress 1: 0xA6 (8bit)    0x53 (7bit)
-// I2C adress 2: 0xA4 (8bit)    0x52 (7bit)
-// ************************************************************************************************************
-void WMP_init(uint8_t d)
-{
-    delay(d);
-    i2c_writeReg(0xA6, 0xF0, 0x55);     // Initialize Extension
-    delay(d);
-    i2c_writeReg(0xA6, 0xFE, 0x05);     // Activate Nunchuck pass-through mode
-    delay(d);
-    if (d > 0) {
-        // We need to set acc_1G for the Nunchuk beforehand; It's used in WMP_getRawADC() and ACC_Common()
-        // If a different accelerometer is used, it will be overwritten by its ACC_init() later.
-        uint8_t i;
-        uint8_t numberAccRead = 0;
-        acc_1G = 200;
-        acc_25deg = acc_1G * 0.423;
-        // Read from WMP 100 times, this should return alternating WMP and Nunchuk data
-        for (i = 0; i < 100; i++) {
-            delay(4);
-            if (WMP_getRawADC() == 0)
-                numberAccRead++;        // Count number of times we read from the Nunchuk extension
-        }
-        // If we got at least 25 Nunchuck reads, we assume the Nunchuk is present
-        if (numberAccRead > 25)
-            nunchuk = 1;
-        delay(10);
-    }
-}
-
-uint8_t WMP_getRawADC(void)
-{
-    uint8_t axis;
-#if 0
-    TWBR = ((16000000L / I2C_SPEED) - 16) / 2;  // change the I2C clock rate
-#endif
-    i2c_getSixRawADC(0xA4, 0x00);
-
-    if (micros() < (neutralizeTime + NEUTRALIZE_DELAY)) {       //we neutralize data in case of blocking+hard reset state
-        for (axis = 0; axis < 3; axis++) {
-            gyroADC[axis] = 0;
-            accADC[axis] = 0;
-        }
-        accADC[YAW] = acc_1G;
-        return 1;
-    }
-    // Wii Motion Plus Data
-    if ((rawADC[5] & 0x03) == 0x02) {
-        // Assemble 14bit data 
-        gyroADC[ROLL] = -(((rawADC[5] >> 2) << 8) | rawADC[2]); //range: +/- 8192
-        gyroADC[PITCH] = -(((rawADC[4] >> 2) << 8) | rawADC[1]);
-        gyroADC[YAW] = -(((rawADC[3] >> 2) << 8) | rawADC[0]);
-        GYRO_Common();
-        // Check if slow bit is set and normalize to fast mode range
-        gyroADC[ROLL] = (rawADC[3] & 0x01) ? gyroADC[ROLL] / 5 : gyroADC[ROLL]; //the ratio 1/5 is not exactly the IDG600 or ISZ650 specification 
-        gyroADC[PITCH] = (rawADC[4] & 0x02) >> 1 ? gyroADC[PITCH] / 5 : gyroADC[PITCH]; //we detect here the slow of fast mode WMP gyros values (see wiibrew for more details)
-        gyroADC[YAW] = (rawADC[3] & 0x02) >> 1 ? gyroADC[YAW] / 5 : gyroADC[YAW];       // this step must be done after zero compensation    
-        return 1;
-    } else if ((rawADC[5] & 0x03) == 0x00) {    // Nunchuk Data
-        ACC_ORIENTATION(((rawADC[3] << 2) | ((rawADC[5] >> 4) & 0x02)), -((rawADC[2] << 2) | ((rawADC[5] >> 3) & 0x02)), (((rawADC[4] >> 1) << 3) | ((rawADC[5] >> 5) & 0x06)));
-        ACC_Common();
-        return 0;
-    } else
-        return 2;
-}
-#endif                          /* !GYRO */
-
 void initSensors(void)
 {
     i2c_init();
     spi_init();
     delay(100);
-#if GYRO
     Gyro_init();
-#else
-    WMP_init(250);
-#endif
 #if BARO
     Baro_init();
 #endif
@@ -2993,45 +2791,6 @@ void serialCom(void)
             rcData[PITCH] = (Serial.read() * 4) + 1000;
             rcData[YAW] = (Serial.read() * 4) + 1000;
             rcData[AUX1] = (Serial.read() * 4) + 1000;
-            break;
-#endif
-#ifdef LCD_TELEMETRY
-        case 'A':              // button A press
-            if (telemetry == 'A')
-                telemetry = 0;
-            else {
-                telemetry = 'A';
-                LCDprint(12);   /* clear screen */
-            }
-            break;
-        case 'B':              // button B press
-            if (telemetry == 'B')
-                telemetry = 0;
-            else {
-                telemetry = 'B';
-                LCDprint(12);   /* clear screen */
-            }
-            break;
-        case 'C':              // button C press
-            if (telemetry == 'C')
-                telemetry = 0;
-            else {
-                telemetry = 'C';
-                LCDprint(12);   /* clear screen */
-            }
-            break;
-        case 'D':              // button D press
-            if (telemetry == 'D')
-                telemetry = 0;
-            else {
-                telemetry = 'D';
-                LCDprint(12);   /* clear screen */
-            }
-            break;
-        case 'a':              // button A release
-        case 'b':              // button B release
-        case 'c':              // button C release
-        case 'd':              // button D release
             break;
 #endif
         case 'M':              // Multiwii @ arduino to GUI all data

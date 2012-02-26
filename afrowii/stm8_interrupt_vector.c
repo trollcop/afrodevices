@@ -58,7 +58,7 @@ void @near (* const _vectab[])() =
     NonHandledInterrupt,   /* irq13 - TIM2 Update/Overflow/Break interrupt  */
 
     (void @near (*)())0x8200,
-    NonHandledInterrupt,   /* irq14 - TIM2 Capture/Compare interrupt */
+    TIM2_CAP_COM_IRQHandler,   /* irq14 - TIM2 Capture/Compare interrupt */
 
     (void @near (*)())0x8200,
     NonHandledInterrupt,   /* irq15 - TIM3 Update/Overflow/Break interrupt */

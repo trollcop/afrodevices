@@ -6,6 +6,7 @@
  *  - AFROV2    AbuseMarK "Naze" FC
  *  - AFROV3    Next-generation MPU6000 FC
  *  - AFROI2C   AbuseMarK Tokyo Drift I2C Converter as FC w/sensor board of choice
+ *  - ROME      ROME Brushed Board
 
  * STM32F1      STMicro STM32F103 series
  *  - STM32_CC  OpenPilot CopterControl
@@ -19,6 +20,7 @@
 #define AFROV2                  // AfroFlight rev2 (ADXL345 on SPI, Invensense Analog gyros on ADC)
 // #define AFROV3                  // AfroFlight rev3 (MPU6000 on SPI, HMC5883L behind it)
 // #define AFROI2C                 // AfroI2C converter + CSG_EU's sensor bob w/LLC
+// #define ROME                    // Brushed test
 #endif
 
 // #define STM32F1

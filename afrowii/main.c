@@ -1,5 +1,6 @@
-#include "config.h"
+#include "board.h"
 #include "def.h"
+#include "config.h"
 #include "sysdep.h"
 
 void setup(void);

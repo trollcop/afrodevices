@@ -3,14 +3,36 @@
 /****CONFIGURABLE PARAMETERS****/
 /*******************************/
 
+#ifndef BRUSHED
 /* Set the minimum throttle command sent to the ESC (Electronic Speed Controller)
    This is the minimum value that allow motors to run at a idle speed  */
 //#define MINTHROTTLE 1300 // for Turnigy Plush ESCs 10A
 //#define MINTHROTTLE 1120 // for Super Simple ESCs 10A
 //#define MINTHROTTLE 1220
 #define MINTHROTTLE 1120
-
+/* this is the value for the ESCs when they are not armed
+   in some cases, this value must be lowered down to 900 for some specific ESCs */
+#define MINCOMMAND 1000
+/* this is the maximum value for the ESCs at full power
+   this value can be increased up to 2000 */
+#define MAXTHROTTLE 2000
 // #define DIGITAL_SERVO      // If high-speed (200hz) refresh is needed on tail servo or for camera stabilization, define this. otherwise 50hz is used.
+
+#else
+/* Set the minimum throttle command sent to the ESC (Electronic Speed Controller)
+   This is the minimum value that allow motors to run at a idle speed  */
+//#define MINTHROTTLE 1300 // for Turnigy Plush ESCs 10A
+//#define MINTHROTTLE 1120 // for Super Simple ESCs 10A
+//#define MINTHROTTLE 1220
+#define MINTHROTTLE 100
+/* this is the value for the ESCs when they are not armed
+   in some cases, this value must be lowered down to 900 for some specific ESCs */
+#define MINCOMMAND 0
+/* this is the maximum value for the ESCs at full power
+   this value can be increased up to 2000 */
+#define MAXTHROTTLE 2000
+// #define DIGITAL_SERVO      // If high-speed (200hz) refresh is needed on tail servo or for camera stabilization, define this. otherwise 50hz is used.
+#endif
 
 #define YAW_DIRECTION 1		// if you want to reverse the yaw correction direction
 //#define YAW_DIRECTION -1
@@ -145,11 +167,6 @@
 /* The following lines apply only for Spektrum Satellite Receiver on MEGA boards only *///not yet implemented
 //#define SPEKTRUM
 
-/* interleaving delay in micro seconds between 2 readings WMP/NK in a WMP+NK config
-   if the ACC calibration time is very long (20 or 30s), try to increase this delay up to 4000
-   it is relevent only for a conf with NK */
-#define INTERLEAVING_DELAY 3000
-
 /* for V BAT monitoring
    after the resistor divisor we should get [0V;5V]->[0;1023] on analog V_BATPIN
    with R1=33k and R2=51k
@@ -161,35 +178,8 @@
 #define VBATLEVEL3_3S 99	// 9.9V
 #define NO_VBAT       16	// Avoid beeping without any battery
 
-/* when there is an error on I2C bus, we neutralize the values during a short time. expressed in microseconds
-   it is relevent only for a conf with at least a WMP */
-#define NEUTRALIZE_DELAY 100000
-
-/* this is the value for the ESCs when they are not armed
-   in some cases, this value must be lowered down to 900 for some specific ESCs */
-#define MINCOMMAND 1000
-
-/* this is the maximum value for the ESCs at full power
-   this value can be increased up to 2000 */
-#define MAXTHROTTLE 2000
-
 /* This is the speed of the serial interface. 115200 kbit/s is the best option for a USB connection.*/
 #define SERIAL_COM_SPEED 115200
-
-/* In order to save space, it's possibile to desactivate the LCD configuration functions
-   comment this line only if you don't plan to used a LCD */
-// #define LCD_CONF
-
-/* to use Cat's whisker TEXTSTAR LCD, uncomment following line.
-   Pleae note this display needs a full 4 wire connection to (+5V, Gnd, RXD, TXD )
-   Configure display as follows: 115K baud, and TTL levels for RXD and TXD, terminal mode
-   NO rx / tx line reconfiguration, use natural pins */
-//#define LCD_TEXTSTAR
-/* keys to navigate the LCD menu (preset to TEXTSTAR key-depress codes)*/
-#define LCD_MENU_PREV 'a'
-#define LCD_MENU_NEXT 'c'
-#define LCD_VALUE_UP 'd'
-#define LCD_VALUE_DOWN 'b'
 
 /* motors will not spin when the throttle command is in low position
    this is an alternative method to stop immediately the motors */
@@ -268,23 +258,6 @@
 /* set to analogRead() value for zero current */
 #define PSENSORNULL 510		// for I=0A my sensor gives 1/2 Vss; that is approx 2.49Volt
 #define PINT2mA 13		// for telemtry display: one integer step on arduino analog translates to mA (example 4.9 / 37 * 100
-
-/* to monitor system values (battery level, loop time etc. with LCD enable this */
-/* note: for now you must send single characters 'A', 'B', 'C', 'D' to request 4 different pages */
-/* Buttons toggle request for page on/off */
-/* The active page on the LCD does get updated automatically */
-/* Easy to use with Terminal application or Textstar LCD - the 4 buttons are preconfigured to send 'A', 'B', 'C', 'D' */
-/* The value represents the refresh interval in cpu time (micro seconds) */
-//#define LCD_TELEMETRY 100011
-/* to enable automatic hopping between 4 telemetry pages uncomment this. */
-/* This may be useful if your LCD has no buttons or the sending is broken */
-/* hopping is activated and deactivated in unarmed mode with throttle=low & roll=left & pitch=forward */
-/* The value represents the hopping interval in cpu time (micro seconds) */
-//#define LCD_TELEMETRY_AUTO 2000123
-/* on telemetry page B it gives a bar graph which shows how much voltage battery has left. Range from 0 to 12 Volt is not very informative */
-/* so we try do define a meaningful part. For a 3S battery we define full=12,6V and calculate how much it is above first warning level */
-/* Example: 12.6V - VBATLEVEL1_3S  (for me = 126 - 102 = 24) */
-#define VBATREF 24
 
 /* to log values like max loop time and others to come */
 /* logging values are visible via LCD config */

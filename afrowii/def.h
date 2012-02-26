@@ -68,6 +68,12 @@ typedef enum MultiType
 #define ALLINONE                // CSG_EU's sensor board w/LLC
 #endif
 
+#if defined(STM8) && defined(ROME)
+#define MPU3050
+#define BRUSHED
+#define MPU3050_ADDRESS 0xD0
+#endif
+
 //please submit any correction to this list.
 #if defined(FFIMUv1)
 #define ITG3200
@@ -208,7 +214,7 @@ typedef enum MultiType
 #define MAG 0
 #endif
 
-#if defined(ITG3200) || defined(L3G4200D) || defined(ADCGYRO) || defined(MPU6000SPI)
+#if defined(ITG3200) || defined(L3G4200D) || defined(ADCGYRO) || defined(MPU6000SPI) || defined(MPU3050)
 #define GYRO 1
 #else
 #define GYRO 0
@@ -220,7 +226,8 @@ typedef enum MultiType
 #define BARO 0
 #endif
 
-#if defined(STM32F1)
+// STM32 Pin mapping
+#ifdef STM32F1
 #define LEDPIN_PINMODE             // GPIO_Init(GPIOD, GPIO_PIN_7, GPIO_MODE_OUT_PP_LOW_FAST);    // LED
 #define LEDPIN_TOGGLE              digitalToggle(GPIOA, GPIO_Pin_6);
 #define LEDPIN_OFF                 digitalHi(GPIOA, GPIO_Pin_6);
@@ -228,48 +235,10 @@ typedef enum MultiType
 #define BUZZERPIN_PINMODE          // GPIO_Init(GPIOF, GPIO_PIN_4, GPIO_MODE_OUT_PP_LOW_FAST);
 #define BUZZERPIN_ON               // GPIO_WriteHigh(GPIOF, GPIO_PIN_4);
 #define BUZZERPIN_OFF              // GPIO_WriteLow(GPIOF, GPIO_PIN_4);
-#define POWERPIN_PINMODE           ;
-#define POWERPIN_ON                ;
-#define POWERPIN_OFF               ;
-#define I2C_PULLUPS_ENABLE         ;
-#define I2C_PULLUPS_DISABLE        ;
-#define PINMODE_LCD                ;
-#define LCDPIN_OFF                 ;
-#define LCDPIN_ON                  ;
-#define STABLEPIN_PINMODE          ;
-#define STABLEPIN_ON               ;
-#define STABLEPIN_OFF              ;
-#define DIGITAL_SERVO_TRI_PINMODE  ;
-#define DIGITAL_SERVO_TRI_HIGH     ;
-#define DIGITAL_SERVO_TRI_LOW      ;
-#define DIGITAL_TILT_PITCH_PINMODE ;
-#define DIGITAL_TILT_PITCH_HIGH    ;
-#define DIGITAL_TILT_PITCH_LOW     ;
-#define DIGITAL_TILT_ROLL_PINMODE  ;
-#define DIGITAL_TILT_ROLL_HIGH     ;
-#define DIGITAL_TILT_ROLL_LOW      ;
-#define DIGITAL_BI_LEFT_PINMODE    ;
-#define DIGITAL_BI_LEFT_HIGH       ;
-#define DIGITAL_BI_LEFT_LOW        ;
-#define PPM_PIN_INTERRUPT          ;
-#define DIGITAL_CAM_PINMODE        ;
-#define DIGITAL_CAM_HIGH           ;
-#define DIGITAL_CAM_LOW            ;
-//RX PIN assignment inside the port //for PORTD
-#define THROTTLEPIN                2
-#define ROLLPIN                    4
-#define PITCHPIN                   5
-#define YAWPIN                     6
-#define AUX1PIN                    7
-#define AUX2PIN                    7	//unused just for compatibility with MEGA
-#define CAM1PIN                    7	//unused just for compatibility with MEGA
-#define CAM2PIN                    7	//unused just for compatibility with MEGA
-#define ISR_UART                   ISR(USART_UDRE_vect)
-#define V_BATPIN                   3	// Analog PIN 3
-#define PSENSORPIN                 2	// Analog PIN 2
 #endif
-#if defined(STM8)
-#ifndef AFROI2C
+
+#ifdef STM8
+ #if defined(AFROV2) || defined(AFROV3)
 #define LEDPIN_PINMODE             GPIO_Init(GPIOD, GPIO_PIN_7, GPIO_MODE_OUT_PP_LOW_FAST);    // LED
 #define LEDPIN_TOGGLE              GPIO_WriteReverse(GPIOD, GPIO_PIN_7);
 #define LEDPIN_OFF                 GPIO_WriteHigh(GPIOD, GPIO_PIN_7);
@@ -277,46 +246,19 @@ typedef enum MultiType
 #define BUZZERPIN_PINMODE          GPIO_Init(GPIOF, GPIO_PIN_4, GPIO_MODE_OUT_PP_LOW_FAST);
 #define BUZZERPIN_ON               GPIO_WriteHigh(GPIOF, GPIO_PIN_4);
 #define BUZZERPIN_OFF              GPIO_WriteLow(GPIOF, GPIO_PIN_4);
-#define POWERPIN_PINMODE           ;
-#define POWERPIN_ON                ;
-#define POWERPIN_OFF               ;
-#define I2C_PULLUPS_ENABLE         ;
-#define I2C_PULLUPS_DISABLE        ;
-#define PINMODE_LCD                ;
-#define LCDPIN_OFF                 ;
-#define LCDPIN_ON                  ;
-#define STABLEPIN_PINMODE          ;
-#define STABLEPIN_ON               ;
-#define STABLEPIN_OFF              ;
-#define DIGITAL_SERVO_TRI_PINMODE  ;
-#define DIGITAL_SERVO_TRI_HIGH     ;
-#define DIGITAL_SERVO_TRI_LOW      ;
-#define DIGITAL_TILT_PITCH_PINMODE ;
-#define DIGITAL_TILT_PITCH_HIGH    ;
-#define DIGITAL_TILT_PITCH_LOW     ;
-#define DIGITAL_TILT_ROLL_PINMODE  ;
-#define DIGITAL_TILT_ROLL_HIGH     ;
-#define DIGITAL_TILT_ROLL_LOW      ;
-#define DIGITAL_BI_LEFT_PINMODE    ;
-#define DIGITAL_BI_LEFT_HIGH       ;
-#define DIGITAL_BI_LEFT_LOW        ;
-#define PPM_PIN_INTERRUPT          ;
-#define DIGITAL_CAM_PINMODE        ;
-#define DIGITAL_CAM_HIGH           ;
-#define DIGITAL_CAM_LOW            ;
-//RX PIN assignment inside the port //for PORTD
-#define THROTTLEPIN                2
-#define ROLLPIN                    4
-#define PITCHPIN                   5
-#define YAWPIN                     6
-#define AUX1PIN                    7
-#define AUX2PIN                    7	//unused just for compatibility with MEGA
-#define CAM1PIN                    7	//unused just for compatibility with MEGA
-#define CAM2PIN                    7	//unused just for compatibility with MEGA
-#define ISR_UART                   ISR(USART_UDRE_vect)
-#define V_BATPIN                   3	// Analog PIN 3
-#define PSENSORPIN                 2	// Analog PIN 2
-#else /* AFROI2C pinout */
+#define BOARDOK
+ #endif
+ #if defined(ROME) /* ROME brushed pinout */
+#define LEDPIN_PINMODE             GPIO_Init(GPIOC, GPIO_PIN_7, GPIO_MODE_OUT_PP_LOW_FAST);    // LED
+#define LEDPIN_TOGGLE              GPIO_WriteReverse(GPIOC, GPIO_PIN_7);
+#define LEDPIN_OFF                 GPIO_WriteHigh(GPIOC, GPIO_PIN_7);
+#define LEDPIN_ON                  GPIO_WriteLow(GPIOC, GPIO_PIN_7);
+#define BUZZERPIN_PINMODE          ;
+#define BUZZERPIN_ON               ;
+#define BUZZERPIN_OFF              ;
+#define BOARDOK
+ #endif
+ #if defined(AFROI2C) /* AFROI2C pinout */
 #define LEDPIN_PINMODE             GPIO_Init(GPIOE, GPIO_PIN_5, GPIO_MODE_OUT_PP_LOW_FAST);    // LED
 #define LEDPIN_TOGGLE              GPIO_WriteReverse(GPIOE, GPIO_PIN_5);
 #define LEDPIN_OFF                 GPIO_WriteHigh(GPIOE, GPIO_PIN_5);
@@ -324,48 +266,13 @@ typedef enum MultiType
 #define BUZZERPIN_PINMODE          ;
 #define BUZZERPIN_ON               ;
 #define BUZZERPIN_OFF              ;
-#define POWERPIN_PINMODE           ;
-#define POWERPIN_ON                ;
-#define POWERPIN_OFF               ;
-#define I2C_PULLUPS_ENABLE         ;
-#define I2C_PULLUPS_DISABLE        ;
-#define PINMODE_LCD                ;
-#define LCDPIN_OFF                 ;
-#define LCDPIN_ON                  ;
-#define STABLEPIN_PINMODE          ;
-#define STABLEPIN_ON               ;
-#define STABLEPIN_OFF              ;
-#define DIGITAL_SERVO_TRI_PINMODE  ;
-#define DIGITAL_SERVO_TRI_HIGH     ;
-#define DIGITAL_SERVO_TRI_LOW      ;
-#define DIGITAL_TILT_PITCH_PINMODE ;
-#define DIGITAL_TILT_PITCH_HIGH    ;
-#define DIGITAL_TILT_PITCH_LOW     ;
-#define DIGITAL_TILT_ROLL_PINMODE  ;
-#define DIGITAL_TILT_ROLL_HIGH     ;
-#define DIGITAL_TILT_ROLL_LOW      ;
-#define DIGITAL_BI_LEFT_PINMODE    ;
-#define DIGITAL_BI_LEFT_HIGH       ;
-#define DIGITAL_BI_LEFT_LOW        ;
-#define PPM_PIN_INTERRUPT          ;
-#define DIGITAL_CAM_PINMODE        ;
-#define DIGITAL_CAM_HIGH           ;
-#define DIGITAL_CAM_LOW            ;
-//RX PIN assignment inside the port //for PORTD
-#define THROTTLEPIN                2
-#define ROLLPIN                    4
-#define PITCHPIN                   5
-#define YAWPIN                     6
-#define AUX1PIN                    7
-#define AUX2PIN                    7	//unused just for compatibility with MEGA
-#define CAM1PIN                    7	//unused just for compatibility with MEGA
-#define CAM2PIN                    7	//unused just for compatibility with MEGA
-#define ISR_UART                   ISR(USART_UDRE_vect)
-#define V_BATPIN                   3	// Analog PIN 3
-#define PSENSORPIN                 2	// Analog PIN 2
-#endif /* AFROI2C */
+#define BOARDOK
+ #endif
+ 
+ #ifndef BOARDOK
+#error No stm8 target board defined!
+ #endif
 #endif
-
 
 #if defined(GPS)
 #define GPSPRESENT 1
@@ -376,10 +283,5 @@ typedef enum MultiType
 #if defined(POWERMETER)
 #ifndef VBAT
 #error "to use powermeter, you must also define and configure VBAT"
-#endif
-#endif
-#ifdef LCD_TELEMETRY_AUTO
-#ifndef LCD_TELEMETRY
-#error "to use automatic telemetry, you MUST also define and configure LCD_TELEMETRY"
 #endif
 #endif
