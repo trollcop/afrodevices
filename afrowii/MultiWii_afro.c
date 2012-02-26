@@ -144,7 +144,8 @@ static uint8_t dynThrPID;
 static uint8_t activate[8];
 
 enum {
-    GIMBAL_TILTONLY = 1
+    GIMBAL_TILTONLY = 1,                        // In standalone gimbal mode, this switches PPM port into a single-channel PWM input
+    GIMBAL_LEVEL_STAB = 2                       // In quadx/quadp with camstab enabled, ignore CAM1/CAM2 inputs and just stabilize level.
 };
 
 // camera gimbal settings
@@ -709,7 +710,7 @@ void loop(void)
 }
 
 /* EEPROM --------------------------------------------------------------------- */
-static uint8_t checkNewConf = 148;
+static uint8_t checkNewConf = 149;
 
 typedef struct eep_entry_t {
     void *var;
@@ -1199,8 +1200,13 @@ void mixTable()
 
 #ifdef SERVO_TILT
     if (rcOptions & activate[BOXCAMSTAB]) {
-        servo[1] = constrain(TILT_PITCH_MIDDLE + gimbalGainPitch * angle[PITCH] / 16 + rcData[CAMPITCH] - 1500, TILT_PITCH_MIN, TILT_PITCH_MAX);
-        servo[2] = constrain(TILT_ROLL_MIDDLE + gimbalGainRoll * angle[ROLL] / 16 + rcData[CAMROLL] - 1500, TILT_ROLL_MIN, TILT_ROLL_MAX);
+        if (gimbalFlags & GIMBAL_LEVEL_STAB) {
+            servo[1] = constrain(TILT_PITCH_MIDDLE + gimbalGainPitch * angle[PITCH] / 16, TILT_PITCH_MIN, TILT_PITCH_MAX);
+            servo[2] = constrain(TILT_ROLL_MIDDLE + gimbalGainRoll * angle[ROLL] / 16, TILT_ROLL_MIN, TILT_ROLL_MAX);
+        } else {
+            servo[1] = constrain(TILT_PITCH_MIDDLE + gimbalGainPitch * angle[PITCH] / 16 + rcData[CAMPITCH] - 1500, TILT_PITCH_MIN, TILT_PITCH_MAX);
+            servo[2] = constrain(TILT_ROLL_MIDDLE + gimbalGainRoll * angle[ROLL] / 16 + rcData[CAMROLL] - 1500, TILT_ROLL_MIN, TILT_ROLL_MAX);
+        }
     } else {
         servo[1] = constrain(TILT_PITCH_MIDDLE + rcData[CAMPITCH] - 1500, TILT_PITCH_MIN, TILT_PITCH_MAX);
         servo[2] = constrain(TILT_ROLL_MIDDLE + rcData[CAMROLL] - 1500, TILT_ROLL_MIN, TILT_ROLL_MAX);
@@ -1455,8 +1461,15 @@ void getEstimatedAttitude()
 #define INV_GYR_CMPF_FACTOR   (1.0f / (GYR_CMPF_FACTOR  + 1.0f))
 #define INV_GYR_CMPFM_FACTOR  (1.0f / (GYR_CMPFM_FACTOR + 1.0f))
 #if GYRO
+
 // #define GYRO_SCALE ((2000.0f * PI)/((32767.0f / 4.0f ) * 180.0f * 1000000.0f) * 1.155f)
+#define CAMSTABGYRO
+
+#ifdef CAMSTABGYRO
+#define GYRO_SCALE ((650 * PI)/((32767.0f / 4.0f ) * 180.0f * 1000000.0f))     //should be 2279.44 but 2380 gives better result
+#else
 #define GYRO_SCALE ((2380 * PI)/((32767.0f / 4.0f ) * 180.0f * 1000000.0f))     //should be 2279.44 but 2380 gives better result
+#endif
 
 // +-2000/sec deg scale
 // #define GYRO_SCALE ((200.0f * PI)/((32768.0f / 5.0f / 4.0f ) * 180.0f * 1000000.0f) * 1.5f)
@@ -3107,6 +3120,9 @@ void serialCom(void)
             break;
         case 'R':
             systemReboot();
+            break;
+        case 'r':
+            // back to default settings
             break;
         case 'W':              //GUI write params to eeprom @ arduino
             while (Serial_available() < 33) { }

@@ -36,10 +36,12 @@
 
 /* In the following line adjust the value of External High Speed oscillator (HSE)
    used in your application */
+#ifndef HSE_VALUE
 #if defined (STM8S208) || defined (STM8S207)
  #define HSE_VALUE ((u32)24000000) /* Value of the External oscillator in Hz*/
 #else
  #define HSE_VALUE ((u32)16000000) /* Value of the External oscillator in Hz*/
+#endif
 #endif
 
 /* Uncomment the line below to enable peripheral header file inclusion */
