@@ -19,14 +19,14 @@ static s32 last_error[3] = { 0, };			             // PID Last proportional error
 /* Main configuration struct, saved in eeprom */
 static const _Config DefaultConfig = {
     { 2, 1, 0, 3, 4 },          // Default sticks for D8R [ Thr | Pitch | Roll | Yaw | Switch ]
-    QUAD_COPTER,                // Type of motor mixer
+    QUAD_X_COPTER,              // Type of motor mixer
     33,                         // VoltagePerCellMin
-    GYRO_NORMAL,                // RollGyroDirection
+    GYRO_REVERSED,              // RollGyroDirection
     GYRO_NORMAL,                // PitchGyroDirection
-    GYRO_NORMAL,                // YawGyroDirection
+    GYRO_REVERSED,                // YawGyroDirection
 
-    25,                         // Gain for roll/pitch gyros
-    25,                         // Gain for yaw gyro
+    21, // 25,                         // Gain for roll/pitch gyros
+    21, // 25,                         // Gain for yaw gyro
 
     2,                          // Divider for pitch/roll gyros
     2,                          // Divider for yaw gyro
@@ -231,8 +231,8 @@ void pidloop(void)
     d_set = error_d[ROLL][index] * 0.3f; // Kd;
     error_sum[ROLL] += error; // integrate the above
     error_sum[ROLL] = CLAMP(error_sum[ROLL], -10000, 10000);
-    p_set = error * 0.5f; // Kp
-    i_set = error * 0.0012f; // Ki
+    p_set = error_sum[ROLL] * 0.5f; // Kp
+    i_set = error_sum[ROLL] * 0.0012f; // Ki
     Roll = -(p_set + i_set + d_set);
 
     // PITCH
@@ -247,8 +247,8 @@ void pidloop(void)
     d_set = error_d[PITCH][index] * 0.3f; // Kd;
     error_sum[PITCH] += error; // integrate the above
     error_sum[PITCH] = CLAMP(error_sum[PITCH], -10000, 10000);
-    p_set = error * 0.5f; // Kp
-    i_set = error * 0.0012f; // Ki
+    p_set = error_sum[PITCH] * 0.5f; // Kp
+    i_set = error_sum[PITCH] * 0.0012f; // Ki
     Pitch = -(p_set + i_set + d_set);
 
     // YAW
@@ -263,8 +263,8 @@ void pidloop(void)
     d_set = error_d[YAW][index] * 0.3f; // Kd;
     error_sum[YAW] += error; // integrate the above
     error_sum[YAW] = CLAMP(error_sum[YAW], -32000, 32000);
-    p_set = error * 0.4f; // Kp
-    i_set = error * 0.003f; // Ki
+    p_set = error_sum[YAW] * 0.4f; // Kp
+    i_set = error_sum[YAW] * 0.003f; // Ki
     Yaw = -(p_set + i_set + d_set);
 
     // Multirotor mixing (mixer.c)

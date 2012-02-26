@@ -11,34 +11,35 @@ void Mixer(s16 Throttle, s16 Roll, s16 Pitch, s16 Yaw)
         Motors[MOTOR2] += Roll;
         Motors[MOTOR3] -= Roll;
         // (Add) Adjust pitch gyro output to motors
-        Motors[MOTOR1] += Pitch;
-        Motors[MOTOR4] -= Pitch;
+        Motors[MOTOR1] -= Pitch;
+        Motors[MOTOR4] += Pitch;
         // (Add) Adjust yaw gyro output to motors
-        Motors[MOTOR1] -= Yaw;
-        Motors[MOTOR2] += Yaw;
-        Motors[MOTOR3] += Yaw;
-        Motors[MOTOR4] -= Yaw;
+        Motors[MOTOR1] += Yaw;
+        Motors[MOTOR2] -= Yaw;
+        Motors[MOTOR3] -= Yaw;
+        Motors[MOTOR4] += Yaw;
     } else if (Config.Mixer ==  QUAD_X_COPTER) {
         for (i = 0; i < 4; i++)
             Motors[i] = Throttle;
 	// Roll
-	Roll = Roll >> 1; // halve the power because we got 2 motors
+	// Roll = Roll >> 1; // halve the power because we got 2 motors
         Motors[MOTOR1] += Roll;
-        Motors[MOTOR2] -= Roll;
+        Motors[MOTOR2] += Roll;
         Motors[MOTOR3] -= Roll;
-        Motors[MOTOR4] += Roll;
+        Motors[MOTOR4] -= Roll;
         // Pitch
-	Pitch = Pitch >> 1; // halve the power because we got 2 motors
-        Motors[MOTOR1] += Pitch;
+	// Pitch = Pitch >> 1; // halve the power because we got 2 motors
+        Motors[MOTOR1] -= Pitch;
         Motors[MOTOR2] += Pitch;
         Motors[MOTOR3] -= Pitch;
-        Motors[MOTOR4] -= Pitch;
+        Motors[MOTOR4] += Pitch;
         // Yaw
-        Motors[MOTOR1] -= Yaw;
-        Motors[MOTOR2] += Yaw;
+        Motors[MOTOR1] += Yaw;
+        Motors[MOTOR2] -= Yaw;
         Motors[MOTOR3] -= Yaw;
         Motors[MOTOR4] += Yaw;
     } else if (Config.Mixer == Y6_COPTER) {
+        // WARNING OUTDATED + UNTESTED!!!
         for (i = 0; i < 6; i++)
             Motors[i] = Throttle;
 	// Roll

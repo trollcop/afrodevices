@@ -27,7 +27,7 @@ __near __interrupt void UART2_TX_IRQHandler(void)
         u8 ch;
         buffer_ptr++;
         ch = TxBuffer[buffer_ptr];      // 1st byte was already sent in UART_Transmit() to fire off the interrupt
-        if (TxBytes == 0 || buffer_ptr == TX_BUFFER_SIZE)) {
+        if (TxBytes == 0 || buffer_ptr == TX_BUFFER_SIZE) {
             buffer_ptr = 0;
             TxComplete = TRUE;
         } else {
