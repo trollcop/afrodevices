@@ -767,22 +767,22 @@ void configureReceiver(void)
     if ((mixerConfiguration == MULTITYPE_GIMBAL) && (gimbalFlags & GIMBAL_TILTONLY))
         usePPM = 0;
 
-#ifndef ROME
-    TIM3_TimeBaseInit(TIM3_PRESCALER_8, 0xFFFF);
-    TIM3_ICInit(TIM3_CHANNEL_1, TIM3_ICPOLARITY_RISING, TIM3_ICSELECTION_DIRECTTI, TIM3_ICPSC_DIV1, 0x0);
-    TIM3_ITConfig(TIM3_IT_CC1, ENABLE);
-    TIM3_Cmd(ENABLE);
-#else
+#if defined(ROME) || defined(ROME_BRUSHED)
     TIM2_TimeBaseInit(TIM2_PRESCALER_8, 0xFFFF);
     TIM2_ICInit(TIM2_CHANNEL_1, TIM2_ICPOLARITY_RISING, TIM2_ICSELECTION_DIRECTTI, TIM2_ICPSC_DIV1, 0x0);
     TIM2_ITConfig(TIM2_IT_CC1, ENABLE);
     TIM2_Cmd(ENABLE);
+#else
+    TIM3_TimeBaseInit(TIM3_PRESCALER_8, 0xFFFF);
+    TIM3_ICInit(TIM3_CHANNEL_1, TIM3_ICPOLARITY_RISING, TIM3_ICSELECTION_DIRECTTI, TIM3_ICPSC_DIV1, 0x0);
+    TIM3_ITConfig(TIM3_IT_CC1, ENABLE);
+    TIM3_Cmd(ENABLE);
 #endif
 #endif
 }
 
 #if defined(STM8) && defined(SERIAL_SUM_PPM)
-#ifdef ROME
+#if defined(ROME) || defined(ROME_BRUSHED)
 #define TIM_Channel             TIM2_CHANNEL_1
 #define TIM_GetITStatus         TIM2_GetITStatus
 #define TIM_CC_Channel          TIM2_IT_CC1
@@ -808,11 +808,20 @@ void configureReceiver(void)
 #define TIM_CAP_COM_IRQHandler  TIM3_CAP_COM_IRQHandler
 #endif
 
+#if defined(ROME) || defined(ROME_BRUSHED)
 __near __interrupt void TIM3_CAP_COM_IRQHandler(void)
 {
 }
 
 __near __interrupt void TIM2_CAP_COM_IRQHandler(void)
+#else
+
+__near __interrupt void TIM2_CAP_COM_IRQHandler(void)
+{
+}
+
+__near __interrupt void TIM3_CAP_COM_IRQHandler(void)
+#endif
 {
     uint16_t diff;
     static uint16_t now;
@@ -1246,9 +1255,14 @@ void computeIMU()
             accADC[axis] = 0;
     }
 
-    if (mixerConfiguration == MULTITYPE_TRI) { 
+    if (mixerConfiguration == MULTITYPE_TRI) {
+#if 0
         gyroData[YAW] = (gyroYawSmooth * 2 + gyroData[YAW] + 1) / 3;
         gyroYawSmooth = gyroData[YAW];
+#else
+        gyroData[YAW] = (gyroYawSmooth * 4 + gyroData[YAW] + 2) / 5;
+        gyroYawSmooth = gyroData[YAW];
+#endif        
     }
 }
 
@@ -2075,9 +2089,9 @@ static uint8_t ADXL_GetAccelValues(void)
 
 #ifdef LOWPASS_ACC
         // new result = 0.95 * previous_result + 0.05 * current_data
-        sensorInputs[i + 4] = ((sensorInputs[i + 4] * 19) / 20) + (((i1 | i2 << 8) * 5) / 100);
+        sensorInputs[i + 4] = ((sensorInputs[i + 4] * 19) / 20) + (((i1 | (i2 << 8)) * 5) / 100);
 #else
-        sensorInputs[i + 4] += (i1 | i2 << 8);
+        sensorInputs[i + 4] += (i1 + (i2 << 8));
 #endif
     }
 
@@ -2643,7 +2657,7 @@ void Gyro_init(void)
     delay(100);
     i2c_writeReg(MPU3050_ADDRESS, MPU3050_SMPLRT_DIV, 0);
     delay(5);
-    i2c_writeReg(MPU3050_ADDRESS, MPU3050_DLPF_FS_SYNC, MPU3050_FS_SEL_2000DPS | MPU3050_DLPF_256HZ);
+    i2c_writeReg(MPU3050_ADDRESS, MPU3050_DLPF_FS_SYNC, MPU3050_FS_SEL_2000DPS | MPU3050_DLPF_42HZ);
     i2c_writeReg(MPU3050_ADDRESS, MPU3050_INT_CFG, 0);
     i2c_writeReg(MPU3050_ADDRESS, MPU3050_USER_CTRL, MPU3050_USER_RESET);
     i2c_writeReg(MPU3050_ADDRESS, MPU3050_PWR_MGM, MPU3050_CLK_SEL_PLL_GX);

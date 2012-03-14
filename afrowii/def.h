@@ -68,9 +68,14 @@ typedef enum MultiType
 #define ALLINONE                // CSG_EU's sensor board w/LLC
 #endif
 
-#if defined(STM8) && defined(ROME)
+#if defined(STM8) && defined(ROME_BRUSHED)
 #define MPU3050
 #define BRUSHED
+#define MPU3050_ADDRESS 0xD0
+#endif
+
+#if defined(STM8) && defined(ROME)
+#define MPU3050
 #define MPU3050_ADDRESS 0xD0
 #endif
 
@@ -248,7 +253,7 @@ typedef enum MultiType
 #define BUZZERPIN_OFF              GPIO_WriteLow(GPIOF, GPIO_PIN_4);
 #define BOARDOK
  #endif
- #if defined(ROME) /* ROME brushed pinout */
+ #if defined(ROME) || defined(ROME_BRUSHED) /* ROME brushed/brushless pinout */
 #define LEDPIN_PINMODE             GPIO_Init(GPIOC, GPIO_PIN_7, GPIO_MODE_OUT_PP_LOW_FAST);    // LED
 #define LEDPIN_TOGGLE              GPIO_WriteReverse(GPIOC, GPIO_PIN_7);
 #define LEDPIN_OFF                 GPIO_WriteHigh(GPIOC, GPIO_PIN_7);
@@ -268,7 +273,7 @@ typedef enum MultiType
 #define BUZZERPIN_OFF              ;
 #define BOARDOK
  #endif
- 
+
  #ifndef BOARDOK
 #error No stm8 target board defined!
  #endif

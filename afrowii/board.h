@@ -20,7 +20,8 @@
 #define AFROV2                  // AfroFlight rev2 (ADXL345 on SPI, Invensense Analog gyros on ADC)
 // #define AFROV3                  // AfroFlight rev3 (MPU6000 on SPI, HMC5883L behind it)
 // #define AFROI2C                 // AfroI2C converter + CSG_EU's sensor bob w/LLC
-// #define ROME                    // Brushed test
+// #define ROME_BRUSHED            // Brushed ROME
+// #define ROME                    // Brushless ROME
 #endif
 
 // #define STM32F1

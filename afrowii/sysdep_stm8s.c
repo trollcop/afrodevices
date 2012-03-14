@@ -507,7 +507,7 @@ void pwmInit(uint8_t useServo)
     TIM1_CtrlPWMOutputs(ENABLE);
 #endif
 
-#ifndef BRUSHED
+#if !defined(BRUSHED) && !defined(ROME)
     if (!useServo) {
         // last 2 motor channels at 400Hz
         TIM2_DeInit();
@@ -535,7 +535,7 @@ void pwmInit(uint8_t useServo)
 #endif /* !BRUSHED */    
 
     TIM1_Cmd(ENABLE);
-#ifndef BRUSHED
+#if !defined(BRUSHED) && !defined(ROME)
     TIM2_Cmd(ENABLE);
 #endif
 }
