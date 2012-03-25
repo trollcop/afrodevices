@@ -101,8 +101,11 @@ static ring_buffer rx_buffer  =  { { 0, }, 0, 0 };
   }
 }
 
+extern volatile int16_t failsafeCnt;
+
 __near __interrupt void UART2_RX_IRQHandler(void)
 {
+    // regular uart/GUI stuff
     uint8_t c;
 
     c = UART2_ReceiveData8();
@@ -286,12 +289,18 @@ uint8_t spi_readByte(void)
     return data;
 }
 
+static void i2c_unstick(void);
+
 // ************************************************************************************************************
 // I2C general functions
 // ************************************************************************************************************
 void i2c_init(void)
 {
     I2C_DeInit();
+    
+    // free bus of any stuck crap
+    i2c_unstick();
+
 #if (I2C_SPEED == 100000)
     // retarded slow speed for broken boards
     I2C_Init(I2C_MAX_STANDARD_FREQ, 0xA0, I2C_DUTYCYCLE_2, I2C_ACK_CURR, I2C_ADDMODE_7BIT, I2C_MAX_INPUT_FREQ);
@@ -299,6 +308,46 @@ void i2c_init(void)
     I2C_Init(I2C_MAX_FAST_FREQ, 0xA0, I2C_DUTYCYCLE_2, I2C_ACK_CURR, I2C_ADDMODE_7BIT, I2C_MAX_INPUT_FREQ);
 #endif
     I2C_Cmd(ENABLE);
+}
+
+static void delay_dummy(uint16_t val)
+{
+    val *= 100;
+    while (val--);
+}
+
+static void i2c_unstick(void)
+{
+    uint8_t i;
+    
+    // Configure GPIO pin for ppm input
+    GPIO_Init(GPIOB, GPIO_PIN_4 | GPIO_PIN_5, GPIO_MODE_OUT_OD_LOW_FAST);
+    
+    GPIO_WriteHigh(GPIOB, GPIO_PIN_4 | GPIO_PIN_5);
+    for (i = 0; i < 8; i++) {
+        // Wait for any clock stretching to finish
+        while (!GPIO_ReadInputPin(GPIOB, GPIO_PIN_4))
+            delay_dummy(10);
+
+        // Pull low
+        GPIO_WriteLow(GPIOB, GPIO_PIN_4); //Set bus low
+        delay_dummy(10);
+        // Release high again
+        GPIO_WriteHigh(GPIOB, GPIO_PIN_4); //Set bus high
+        delay_dummy(10);
+    }
+    
+    // Generate a start then stop condition
+    // SCL  PB10
+    // SDA  PB11
+
+    GPIO_WriteLow(GPIOB, GPIO_PIN_5); // Set bus data low
+    delay_dummy(10);
+    GPIO_WriteLow(GPIOB, GPIO_PIN_4); // Set bus scl low
+    delay_dummy(10);
+    GPIO_WriteHigh(GPIOB, GPIO_PIN_4); // Set bus scl high
+    delay_dummy(10);
+    GPIO_WriteHigh(GPIOB, GPIO_PIN_5); // Set bus sda high
 }
 
 #define I2C_TIMEOUT 0x600

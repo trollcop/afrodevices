@@ -13,32 +13,10 @@ November  2011     V1.9
 #include "def.h"
 #include "config.h"
 #include "sysdep.h"
+#include "mw.h"
 
 #define   VERSION  19
-
-/*********** RC alias *****************/
-#define ROLL       0
-#define PITCH      1
-#define YAW        2
-#define THROTTLE   3
-#define AUX1       4
-#define AUX2       5
-#define CAMPITCH   6
-#define CAMROLL    7
-
-#define PIDALT     3
-#define PIDVEL     4
-#define PIDLEVEL   5
-#define PIDMAG     6
-
-#define BOXACC      0
-#define BOXBARO     1
-#define BOXMAG      2
-#define BOXCAMSTAB  3
-#define BOXCAMTRIG  4
-#define BOXARM      5
-#define BOXGPSHOME  6
-#define BOXGPSHOLD  7
+#define LOWPASS_ACC
 
 static uint32_t currentTime = 0;
 static uint16_t previousTime = 0;
@@ -46,18 +24,16 @@ static uint16_t cycleTime = 0;  // this is the number in micro second to achieve
 static uint16_t calibratingA = 0;       // the calibration is done is the main loop. Calibrating decreases at each cycle down to 0, then we enter in a normal mode.
 static uint8_t calibratingM = 0;
 static uint16_t calibratingG;
-static uint8_t armed = 0;
+uint8_t armed = 0;
 static uint16_t acc_1G;         // this is the 1G measured acceleration
 static int16_t acc_25deg;
 static uint8_t nunchuk = 0;
 static uint8_t accMode = 0;     // if level mode is a activated
 static uint8_t magMode = 0;     // if compass heading hold is a activated
 static uint8_t baroMode = 0;    // if altitude hold is activated
-static uint8_t GPSModeHome = 0; // if GPS RTH is activated
-static uint8_t GPSModeHold = 0; // if GPS PH is activated
 static int16_t gyroADC[3], accADC[3], magADC[3];
 static int16_t accSmooth[3];    // projection of smoothed and normalized gravitation force vector on x/y/z axis, as measured by accelerometer
-static int16_t accTrim[2] = { 0, 0 };
+int16_t accTrim[2] = { 0, 0 };
 static int16_t heading, magHold;
 static uint8_t calibratedACC = 0;
 static uint8_t vbat;            // battery voltage in 0.1V steps
@@ -88,71 +64,58 @@ static uint16_t powerAvg = 0;   // last known current
 static uint32_t pMeter[PMOTOR_SUM + 1]; //we use [0:7] for eight motors,one extra for sum
 static uint8_t pMeterV;         // dummy to satisfy the paramStruct logic in ConfigurationLoop()
 static uint32_t pAlarm;         // we scale the eeprom value from [0:255] to this value we can directly compare to the sum in pMeter[6]
-static uint8_t powerTrigger1 = 0;       // trigger for alarm based on power consumption
-
-// ******************
-// rc functions
-// ******************
-#define MINCHECK 1100
-#define MAXCHECK 1900
+uint8_t powerTrigger1 = 0;       // trigger for alarm based on power consumption
 
 volatile int16_t failsafeCnt = 0;
 
 static int16_t failsafeEvents = 0;
-static int16_t rcData[8];       // interval [1000;2000]
-static int16_t rcCommand[4];    // interval [1000;2000] for THROTTLE and [-500;+500] for ROLL/PITCH/YAW 
-
-static uint8_t rcRate8;
-static uint8_t rcExpo8;
-static int16_t lookupRX[7];     //  lookup table for expo & RC rate
+int16_t rcData[8];       // interval [1000;2000]
+int16_t rcCommand[4];    // interval [1000;2000] for THROTTLE and [-500;+500] for ROLL/PITCH/YAW 
+uint8_t rcRate8;
+uint8_t rcExpo8;
+int16_t lookupRX[7];     //  lookup table for expo & RC rate
 volatile uint8_t rcFrameComplete;       // for serial rc receiver Spektrum
+uint8_t useSpektrum = FALSE;     // using spektrum sat
 
 // **************
 // gyro+acc IMU
 // **************
 static int16_t gyroData[3] = { 0, 0, 0 };
 static int16_t gyroZero[3] = { 0, 0, 0 };
-static int16_t accZero[3] = { 0, 0, 0 };
-static int16_t magZero[3] = { 0, 0, 0 };
-static int16_t angle[2] = { 0, 0 };     // absolute angle inclination in multiple of 0.1 degree    180 deg = 1800
+int16_t accZero[3] = { 0, 0, 0 };
+int16_t magZero[3] = { 0, 0, 0 };
+int16_t angle[2] = { 0, 0 };     // absolute angle inclination in multiple of 0.1 degree    180 deg = 1800
 static int8_t smallAngle25 = 1;
 
 // *************************
 // motor and servo functions
 // *************************
-static int16_t axisPID[3];
-static int16_t motor[8];
-static int16_t servo[4] = { 1500, 1500, 1500, 1500 };
-static uint8_t mixerConfiguration = MULTITYPE_QUADX;
-static uint8_t useServo = 0;
-static uint8_t numberMotor = 4;
+int16_t axisPID[3];
+int16_t motor[8];
+int16_t servo[4] = { 1500, 1500, 1500, 1500 };
+uint8_t mixerConfiguration = MULTITYPE_QUADX;
+uint8_t useServo = 0;
+uint8_t numberMotor = 4;
 
 // **********************
 // EEPROM functions
 // **********************
-static uint8_t P8[7], I8[7], D8[7];     //8 bits is much faster and the code is much shorter
+uint8_t P8[7], I8[7], D8[7];     //8 bits is much faster and the code is much shorter
 static uint8_t dynP8[3], dynI8[3], dynD8[3];
-static uint8_t rollPitchRate;
-static uint8_t yawRate;
-static uint8_t dynThrPID;
-static uint8_t activate[8];
-
-enum {
-    GIMBAL_TILTONLY = 1,                        // In standalone gimbal mode, this switches PPM port into a single-channel PWM input
-    GIMBAL_LEVEL_STAB = 2                       // In quadx/quadp with camstab enabled, ignore CAM1/CAM2 inputs and just stabilize level.
-};
+uint8_t rollPitchRate;
+uint8_t yawRate;
+uint8_t dynThrPID;
+uint8_t activate[8];
 
 // camera gimbal settings
-static uint8_t gimbalFlags = 0;                 // To be determined
-static int8_t gimbalGainPitch = 10;             // Amount of servo gain per angle of inclination for pitch (can be negative to invert movement)
-static int8_t gimbalGainRoll = 10;              // Amount of servo gain per angle of inclination for roll (can be negative to invert movement)
+uint8_t gimbalFlags = 0;                 // To be determined
+int8_t gimbalGainPitch = 10;             // Amount of servo gain per angle of inclination for pitch (can be negative to invert movement)
+int8_t gimbalGainRoll = 10;              // Amount of servo gain per angle of inclination for roll (can be negative to invert movement)
 
 /* prototypes */
 void serialCom(void);
 void initOutput(void);
 void initSensors(void);
-void readEEPROM(void);
-void checkFirstTime(void);
 void configureReceiver(void);
 void initializeServo(void);
 void writeMotors(void);
@@ -197,17 +160,6 @@ void blinkLED(uint8_t num, uint8_t wait, uint8_t repeat)
         delay(60);
     }
 }
-
-// **********************
-// GPS
-// **********************
-static int32_t GPS_latitude, GPS_longitude;
-static int32_t GPS_latitude_home, GPS_longitude_home;
-static uint8_t GPS_fix, GPS_fix_home = 0;
-static uint8_t GPS_numSat;
-static uint16_t GPS_distanceToHome;
-static int16_t GPS_directionToHome = 0;
-static uint8_t GPS_update = 0;
 
 void annexCode(void)
 {
@@ -341,12 +293,13 @@ void annexCode(void)
     }
 
     if (currentTime > serialTime) {     // 50Hz
-        serialCom();
+        if (!useSpektrum)
+            serialCom();
         serialTime = currentTime + 20000;
     }
 }
 
-void setup()
+void setup(void)
 {
     LEDPIN_PINMODE;
     BUZZERPIN_PINMODE;
@@ -387,16 +340,16 @@ void loop(void)
     static int16_t lastVelError = 0;
     static int32_t AltHold;
     
-#ifdef SPEKTRUM
-    if (rcFrameComplete)
-        computeRC();
-#endif
+    if (useSpektrum) {
+        if (rcFrameComplete)
+            computeRC();
+    }
 
     if (currentTime > rcTime) { // 50Hz
         rcTime = currentTime + 20000;
-#if !(defined(SPEKTRUM) || defined(BTSERIAL))
-        computeRC();
-#endif
+        if (!useSpektrum)
+            computeRC();
+
         // Failsafe routine - added by MIS
 #if defined(FAILSAFE)
         if (failsafeCnt > (5 * FAILSAVE_DELAY) && armed == 1) { // Stabilize, and set Throttle to specified level
@@ -623,605 +576,10 @@ void loop(void)
     writeMotors();
 }
 
-/* EEPROM --------------------------------------------------------------------- */
-static uint8_t checkNewConf = 149;
-
-typedef struct eep_entry_t {
-    void *var;
-    uint8_t size;
-} eep_entry_t;
-
-// ************************************************************************************************************
-// EEPROM Layout definition
-// ************************************************************************************************************
-volatile eep_entry_t eep_entry[] = {
-    &checkNewConf, sizeof(checkNewConf),
-    &P8, sizeof(P8),
-    &I8, sizeof(I8),
-    &D8, sizeof(D8),
-    &rcRate8, sizeof(rcRate8),
-    &rcExpo8, sizeof(rcExpo8),
-    &rollPitchRate, sizeof(rollPitchRate),
-    &yawRate, sizeof(yawRate),
-    &dynThrPID, sizeof(dynThrPID),
-    &accZero, sizeof(accZero),
-    &magZero, sizeof(magZero),
-    &accTrim, sizeof(accTrim),
-    &activate, sizeof(activate),
-    &powerTrigger1, sizeof(powerTrigger1),
-    &mixerConfiguration, sizeof(mixerConfiguration),
-    &gimbalFlags, sizeof(gimbalFlags),
-    &gimbalGainPitch, sizeof(gimbalGainPitch),
-    &gimbalGainRoll, sizeof(gimbalGainRoll)
-};
-#define EEBLOCK_SIZE sizeof(eep_entry)/sizeof(eep_entry_t)
-// ************************************************************************************************************
-
-void readEEPROM(void)
-{
-    uint8_t i;
-    uint8_t _address = eep_entry[0].size;
-
-    eeprom_open();
-    for (i = 1; i < EEBLOCK_SIZE; i++) {
-        eeprom_read_block(eep_entry[i].var, (void *) (_address), eep_entry[i].size);
-        _address += eep_entry[i].size;
-    }
-    eeprom_close();
-
-#if defined(POWERMETER)
-    pAlarm = (uint32_t) powerTrigger1 *(uint32_t) PLEVELSCALE *(uint32_t) PLEVELDIV;    // need to cast before multiplying
-#endif
-    for (i = 0; i < 7; i++)
-        lookupRX[i] = (2500 + rcExpo8 * (i * i - 25)) * i * (int32_t) rcRate8 / 1250;
-}
-
-void writeParams(void)
-{
-    uint8_t i;
-    uint8_t _address = 0;
-
-    eeprom_open();
-    for (i = 0; i < EEBLOCK_SIZE; i++) {
-        eeprom_write_block(eep_entry[i].var, (void *)(_address), eep_entry[i].size); 
-        _address += eep_entry[i].size;
-    }
-    eeprom_close();
-
-    readEEPROM();
-    blinkLED(15, 20, 1);
-}
-
-void checkFirstTime(void)
-{
-    uint8_t test_val, i;
-
-    eeprom_open();
-    eeprom_read_block(&test_val, (void *)0, 1);
-    eeprom_close();
-
-    if (test_val == checkNewConf)
-        return;
-
-    P8[ROLL] = 40;
-    I8[ROLL] = 30;
-    D8[ROLL] = 23;
-    P8[PITCH] = 40;
-    I8[PITCH] = 30;
-    D8[PITCH] = 23;
-    P8[YAW] = 85;
-    I8[YAW] = 0;
-    D8[YAW] = 0;
-    P8[PIDALT] = 47;
-    I8[PIDALT] = 0;
-    D8[PIDALT] = 0;
-    P8[PIDVEL] = 0;
-    I8[PIDVEL] = 0;
-    D8[PIDVEL] = 0;
-    P8[PIDLEVEL] = 90;
-    I8[PIDLEVEL] = 45;
-    P8[PIDMAG] = 40;
-    rcRate8 = 45;               // = 0.9 in GUI
-    rcExpo8 = 65;
-    rollPitchRate = 0;
-    yawRate = 0;
-    dynThrPID = 0;
-    for (i = 0; i < 8; i++)
-        activate[i] = 0;
-    accTrim[0] = 0;
-    accTrim[1] = 0;
-    powerTrigger1 = 0;
-    mixerConfiguration = MULTITYPE_QUADX;
-    gimbalFlags = 0;
-    gimbalGainPitch = 10;
-    gimbalGainRoll = 10;
-    writeParams();
-}
-
-/* RX -------------------------------------------------------------------------------- */
-volatile uint16_t rcPinValue[8] = { 1500, 1500, 1500, 1500, 1500, 1500, 1500, 1500 };   // interval [1000;2000]
-
-// ***PPM SUM SIGNAL***
-#ifdef SERIAL_SUM_PPM
-static uint8_t rcChannel[8] = { SERIAL_SUM_PPM };
-#endif
-volatile uint16_t rcValue[8] = { 1500, 1500, 1500, 1500, 1500, 1500, 1500, 1500 };      // interval [1000;2000]
-
-#if defined(STM8) && defined(SERIAL_SUM_PPM)
-/* for single channel PWM input mode */
-static uint16_t riseValue = 0;
-static uint16_t fallValue = 0;
-static uint8_t captureState = 0;
-static uint8_t usePPM = 1;
-#endif
-
-// Configure receiver pins
-void configureReceiver(void)
-{
-    uint8_t chan, a;
-#if defined(STM8)
-    // Configure GPIO pin for ppm input
-    GPIO_Init(GPIOD, GPIO_PIN_2, GPIO_MODE_IN_FL_NO_IT);
-
-    // when we're in camera gimbal mode, allow single PWM rx input for tilt compensation. useful? no idea.
-    if ((mixerConfiguration == MULTITYPE_GIMBAL) && (gimbalFlags & GIMBAL_TILTONLY))
-        usePPM = 0;
-
-#if defined(ROME) || defined(ROME_BRUSHED)
-    TIM2_TimeBaseInit(TIM2_PRESCALER_8, 0xFFFF);
-    TIM2_ICInit(TIM2_CHANNEL_1, TIM2_ICPOLARITY_RISING, TIM2_ICSELECTION_DIRECTTI, TIM2_ICPSC_DIV1, 0x0);
-    TIM2_ITConfig(TIM2_IT_CC1, ENABLE);
-    TIM2_Cmd(ENABLE);
-#else
-    TIM3_TimeBaseInit(TIM3_PRESCALER_8, 0xFFFF);
-    TIM3_ICInit(TIM3_CHANNEL_1, TIM3_ICPOLARITY_RISING, TIM3_ICSELECTION_DIRECTTI, TIM3_ICPSC_DIV1, 0x0);
-    TIM3_ITConfig(TIM3_IT_CC1, ENABLE);
-    TIM3_Cmd(ENABLE);
-#endif
-#endif
-}
-
-#if defined(STM8) && defined(SERIAL_SUM_PPM)
-#if defined(ROME) || defined(ROME_BRUSHED)
-#define TIM_Channel             TIM2_CHANNEL_1
-#define TIM_GetITStatus         TIM2_GetITStatus
-#define TIM_CC_Channel          TIM2_IT_CC1
-#define TIM_GetCapture          TIM2_GetCapture1
-#define TIM_ClearITPendingBit   TIM2_ClearITPendingBit
-#define TIM_ICInit              TIM2_ICInit
-#define TIM_ICPOLARITY_FALLING  TIM2_ICPOLARITY_FALLING
-#define TIM_ICPOLARITY_RISING   TIM2_ICPOLARITY_RISING
-#define TIM_ICSELECTION_DIRECTTI        TIM2_ICSELECTION_DIRECTTI
-#define TIM_ICPSC_DIV1          TIM2_ICPSC_DIV1
-#define TIM_CAP_COM_IRQHandler  TIM2_CAP_COM_IRQHandler
-#else
-#define TIM_Channel             TIM3_CHANNEL_1
-#define TIM_GetITStatus         TIM3_GetITStatus
-#define TIM_CC_Channel          TIM3_IT_CC1
-#define TIM_GetCapture          TIM3_GetCapture1
-#define TIM_ClearITPendingBit   TIM3_ClearITPendingBit
-#define TIM_ICInit              TIM3_ICInit
-#define TIM_ICPOLARITY_FALLING  TIM3_ICPOLARITY_FALLING
-#define TIM_ICPOLARITY_RISING   TIM3_ICPOLARITY_RISING
-#define TIM_ICSELECTION_DIRECTTI        TIM3_ICSELECTION_DIRECTTI
-#define TIM_ICPSC_DIV1          TIM3_ICPSC_DIV1
-#define TIM_CAP_COM_IRQHandler  TIM3_CAP_COM_IRQHandler
-#endif
-
-#if defined(ROME) || defined(ROME_BRUSHED)
-__near __interrupt void TIM3_CAP_COM_IRQHandler(void)
-{
-}
-
-__near __interrupt void TIM2_CAP_COM_IRQHandler(void)
-#else
-
-__near __interrupt void TIM2_CAP_COM_IRQHandler(void)
-{
-}
-
-__near __interrupt void TIM3_CAP_COM_IRQHandler(void)
-#endif
-{
-    uint16_t diff;
-    static uint16_t now;
-    static uint16_t last = 0;
-    static uint8_t chan = 0;
-
-    if (TIM_GetITStatus(TIM_CC_Channel) == SET) {
-        last = now;
-        now = TIM_GetCapture();
-    }
-
-    TIM_ClearITPendingBit(TIM_CC_Channel);
-
-    if (!usePPM) {
-        // single-channel PWM input
-        if (captureState == 0)
-            riseValue = now;
-        else
-            fallValue = now;
-
-        if (captureState == 0) {
-            // switch states
-            captureState = 1;
-            TIM_ICInit(TIM_Channel, TIM_ICPOLARITY_FALLING, TIM_ICSELECTION_DIRECTTI, TIM_ICPSC_DIV1, 0x0);
-        } else {
-            // capture compute
-            if (fallValue > riseValue)
-                rcValue[PITCH] = fallValue - riseValue;
-            else
-                rcValue[PITCH] = (0xffff - riseValue) + fallValue;
-            
-            // 0.5us resolution, so we halve it for real stuff. And it ends up in the PITCH channel (camera tilt use)
-            rcValue[PITCH] >>= 1;
-
-            // switch state
-            captureState = 0;
-            TIM_ICInit(TIM_Channel, TIM_ICPOLARITY_RISING, TIM_ICSELECTION_DIRECTTI, TIM_ICPSC_DIV1, 0x0);
-        }
-        return;
-    }
-
-    if (now > last) {
-        diff = (now - last);
-    } else {
-        diff = ((0xFFFF - last) + now);
-    }
-
-    if (diff > 8000) {
-        chan = 0;
-    } else {
-        if (diff > 1500 && diff < 4500 && chan < 8) {   // div2, 750 to 2250 ms Only if the signal is between these values it is valid, otherwise the failsafe counter should move up
-            uint16_t tmp = diff >> 1;
-            rcValue[chan] = tmp;
-
-#if defined(FAILSAFE)
-            if (failsafeCnt > 20)
-                failsafeCnt -= 20;
-            else
-                failsafeCnt = 0;        // clear FailSafe counter - added by MIS  //incompatible to quadroppm
-#endif
-        }
-        chan++;
-    }
-}
-#endif
-
-uint16_t readRawRC(uint8_t chan)
-{
-    // We return the value correctly copied when the IRQ's where disabled
-    return rcValue[rcChannel[chan]];                
-}
-
-void computeRC()
-{
-    static int16_t rcData4Values[8][4], rcDataMean[8];
-    static uint8_t rc4ValuesIndex = 0;
-    uint8_t chan, a;
-
-    rc4ValuesIndex++;
-    for (chan = 0; chan < 8; chan++) {
-        rcData4Values[chan][rc4ValuesIndex % 4] = readRawRC(chan);
-        rcDataMean[chan] = 0;
-        for (a = 0; a < 4; a++)
-            rcDataMean[chan] += rcData4Values[chan][a];
-        rcDataMean[chan] = (rcDataMean[chan] + 2) / 4;
-        if (rcDataMean[chan] < rcData[chan] - 3)
-            rcData[chan] = rcDataMean[chan] + 2;
-        if (rcDataMean[chan] > rcData[chan] + 3)
-            rcData[chan] = rcDataMean[chan] - 2;
-    }
-}
-
-/* OUTPUT ------------------------------------------------------------------------------------- */
-void writeServos()
-{
-    if (!useServo)
-        return;
-
-    // STM8 PWM is actually 0.5us precision, so we double it
-    if (mixerConfiguration == MULTITYPE_TRI || mixerConfiguration == MULTITYPE_BI) {
-        /* One servo on Motor #4 */
-        pwmWrite(4, servo[0]);
-        if (mixerConfiguration == MULTITYPE_BI)
-            pwmWrite(5, servo[1]);
-    } else {
-        /* Two servos for camstab or FLYING_WING */
-        pwmWrite(4, servo[1]);
-        pwmWrite(5, servo[2]);
-    }
-}
-
-void writeMotors(void)
-{
-    uint8_t i;
-
-    for (i = 0; i < numberMotor; i++)
-        pwmWrite(i, motor[i]);
-}
-
-void writeAllMotors(int16_t mc)
-{
-    uint8_t i;
-    // Sends commands to all motors
-    for (i = 0; i < numberMotor; i++)
-        motor[i] = mc;
-    writeMotors();
-}
-
-#if defined(LOG_VALUES) || (POWERMETER == 1)
-void logMotorsPower(void)
-{
-    uint32_t amp;
-    uint8_t i;
-    /* true cubic function; when divided by vbat_max=126 (12.6V) for 3 cell battery this gives maximum value of ~ 1000 */
-    const uint32_t amperes[64] = { 0, 4, 13, 31, 60, 104, 165, 246, 350, 481, 640, 831, 1056, 1319, 1622, 1969, 2361, 2803, 3297, 3845, 4451, 5118, 5848, 6645,
-        7510, 8448, 9461, 10551, 11723, 12978, 14319, 15750, 17273, 18892, 20608, 22425, 24346, 26374, 28512, 30762, 33127, 35611,
-        38215, 40944, 43799, 46785, 49903, 53156, 56548, 60081, 63759, 67583, 71558, 75685, 79968, 84410, 89013, 93781, 98716, 103821,
-        109099, 114553, 120186, 126000
-    };
-
-    if (vbat) {                 // by all means - must avoid division by zero 
-        for (i = 0; i < numberMotor; i++) {
-            amp = amperes[(motor[i] - 1000) >> 4] / vbat;       // range mapped from [1000:2000] => [0:1000]; then break that up into 64 ranges; lookup amp
-
-#ifdef LOG_VALUES
-            pMeter[i] += amp;   // sum up over time the mapped ESC input 
-#endif
-#if (POWERMETER == 1)
-            pMeter[PMOTOR_SUM] += amp;  // total sum over all motors
-#endif
-        }
-    }
-}
-#endif
-
-void initOutput()
-{
-    if (mixerConfiguration == MULTITYPE_BI || mixerConfiguration == MULTITYPE_TRI || mixerConfiguration == MULTITYPE_GIMBAL || mixerConfiguration == MULTITYPE_FLYING_WING)
-        useServo = 1;
-
-#if defined(SERVO_TILT) || defined(CAMTRIG)
-    useServo = 1;
-#endif
-
-    switch (mixerConfiguration) {
-        case MULTITYPE_GIMBAL:
-            numberMotor = 0;
-            break;
-        case MULTITYPE_FLYING_WING:
-            numberMotor = 1;
-            break;
-        case MULTITYPE_BI:
-            numberMotor = 2;
-            break;
-        case MULTITYPE_TRI:
-            numberMotor = 3;
-            break;
-
-        case MULTITYPE_QUADP:
-        case MULTITYPE_QUADX:
-        case MULTITYPE_Y4:
-            numberMotor = 4;
-            break;
-
-        case MULTITYPE_Y6:
-        case MULTITYPE_HEX6:
-        case MULTITYPE_HEX6X:
-            numberMotor = 6;
-            break;
-
-        case MULTITYPE_OCTOX8:
-        case MULTITYPE_OCTOFLATP:
-        case MULTITYPE_OCTOFLATX:
-            numberMotor = 8;
-            break;
-    }
-
-    // This handles motor and servo initialization in one place
-    pwmInit(useServo);
-    writeAllMotors(MINCOMMAND);
-
-    delay(300);
-}
-
-#define PIDMIX(X,Y,Z) rcCommand[THROTTLE] + axisPID[ROLL] * X + axisPID[PITCH] * Y + YAW_DIRECTION * axisPID[YAW] * Z
-
-void mixTable()
-{
-    int16_t maxMotor;
-    uint8_t i, axis;
-    static uint8_t camCycle = 0;
-    static uint8_t camState = 0;
-    static uint32_t camTime = 0;
-
-    if (numberMotor > 3) {
-        //prevent "yaw jump" during yaw correction
-        axisPID[YAW] = constrain(axisPID[YAW], -100 - abs(rcCommand[YAW]), +100 + abs(rcCommand[YAW]));
-    }
-
-    switch (mixerConfiguration) {
-        case MULTITYPE_BI:
-            motor[0] = PIDMIX(+1, 0, 0);        //LEFT
-            motor[1] = PIDMIX(-1, 0, 0);        //RIGHT        
-            servo[0] = constrain(1500 + YAW_DIRECTION * (axisPID[YAW] + axisPID[PITCH]), 1020, 2000);   //LEFT
-            servo[1] = constrain(1500 + YAW_DIRECTION * (axisPID[YAW] - axisPID[PITCH]), 1020, 2000);   //RIGHT
-            break;
-
-        case MULTITYPE_TRI:
-            motor[0] = PIDMIX(0, +4 / 3, 0);    //REAR
-            motor[1] = PIDMIX(-1, -2 / 3, 0);   //RIGHT
-            motor[2] = PIDMIX(+1, -2 / 3, 0);   //LEFT
-            servo[0] = constrain(TRI_YAW_MIDDLE + YAW_DIRECTION * axisPID[YAW], TRI_YAW_CONSTRAINT_MIN, TRI_YAW_CONSTRAINT_MAX);        //REAR
-            break;
-
-        case MULTITYPE_QUADP:
-            motor[0] = PIDMIX(0, +1, -1);       //REAR
-            motor[1] = PIDMIX(-1, 0, +1);       //RIGHT
-            motor[2] = PIDMIX(+1, 0, +1);       //LEFT
-            motor[3] = PIDMIX(0, -1, -1);       //FRONT
-            break;
-
-        case MULTITYPE_QUADX:
-            motor[0] = PIDMIX(-1, +1, -1);      //REAR_R
-            motor[1] = PIDMIX(-1, -1, +1);      //FRONT_R
-            motor[2] = PIDMIX(+1, +1, +1);      //REAR_L
-            motor[3] = PIDMIX(+1, -1, -1);      //FRONT_L
-            break;
-
-        case MULTITYPE_Y4:
-            motor[0] = PIDMIX(+0, +1, -1);      //REAR_1 CW
-            motor[1] = PIDMIX(-1, -1, 0);       //FRONT_R CCW
-            motor[2] = PIDMIX(+0, +1, +1);      //REAR_2 CCW
-            motor[3] = PIDMIX(+1, -1, 0);       //FRONT_L CW
-            break;
-
-        case MULTITYPE_Y6:
-            motor[0] = PIDMIX(+0, +4 / 3, +1);  //REAR
-            motor[1] = PIDMIX(-1, -2 / 3, -1);  //RIGHT
-            motor[2] = PIDMIX(+1, -2 / 3, -1);  //LEFT
-            motor[3] = PIDMIX(+0, +4 / 3, -1);  //UNDER_REAR
-            motor[4] = PIDMIX(-1, -2 / 3, +1);  //UNDER_RIGHT
-            motor[5] = PIDMIX(+1, -2 / 3, +1);  //UNDER_LEFT    
-            break;
-
-        case MULTITYPE_HEX6:
-            motor[0] = PIDMIX(-1 / 2, +1 / 2, +1);      //REAR_R
-            motor[1] = PIDMIX(-1 / 2, -1 / 2, -1);      //FRONT_R
-            motor[2] = PIDMIX(+1 / 2, +1 / 2, +1);      //REAR_L
-            motor[3] = PIDMIX(+1 / 2, -1 / 2, -1);      //FRONT_L
-            motor[4] = PIDMIX(+0, -1, +1);      //FRONT
-            motor[5] = PIDMIX(+0, +1, -1);      //REAR
-            break;
-
-        case MULTITYPE_HEX6X:
-            motor[0] = PIDMIX(-1 / 2, +1 / 2, +1);      //REAR_R
-            motor[1] = PIDMIX(-1 / 2, -1 / 2, +1);      //FRONT_R
-            motor[2] = PIDMIX(+1 / 2, +1 / 2, -1);      //REAR_L
-            motor[3] = PIDMIX(+1 / 2, -1 / 2, -1);      //FRONT_L
-            motor[4] = PIDMIX(-1, +0, -1);      //RIGHT
-            motor[5] = PIDMIX(+1, +0, +1);      //LEFT
-            break;
-
-        case MULTITYPE_OCTOX8:
-            motor[0] = PIDMIX(-1, +1, -1);      //REAR_R
-            motor[1] = PIDMIX(-1, -1, +1);      //FRONT_R
-            motor[2] = PIDMIX(+1, +1, +1);      //REAR_L
-            motor[3] = PIDMIX(+1, -1, -1);      //FRONT_L
-            motor[4] = PIDMIX(-1, +1, +1);      //UNDER_REAR_R
-            motor[5] = PIDMIX(-1, -1, -1);      //UNDER_FRONT_R
-            motor[6] = PIDMIX(+1, +1, -1);      //UNDER_REAR_L
-            motor[7] = PIDMIX(+1, -1, +1);      //UNDER_FRONT_L
-            break;
-
-        case MULTITYPE_OCTOFLATP:
-            motor[0] = PIDMIX(+7 / 10, -7 / 10, +1);    //FRONT_L
-            motor[1] = PIDMIX(-7 / 10, -7 / 10, +1);    //FRONT_R
-            motor[2] = PIDMIX(-7 / 10, +7 / 10, +1);    //REAR_R
-            motor[3] = PIDMIX(+7 / 10, +7 / 10, +1);    //REAR_L
-            motor[4] = PIDMIX(+0, -1, -1);      //FRONT
-            motor[5] = PIDMIX(-1, +0, -1);      //RIGHT
-            motor[6] = PIDMIX(+0, +1, -1);      //REAR
-            motor[7] = PIDMIX(+1, +0, -1);      //LEFT 
-            break;
-
-        case MULTITYPE_OCTOFLATX:
-            motor[0] = PIDMIX(+1, -1 / 2, +1);  //MIDFRONT_L
-            motor[1] = PIDMIX(-1 / 2, -1, +1);  //FRONT_R
-            motor[2] = PIDMIX(-1, +1 / 2, +1);  //MIDREAR_R
-            motor[3] = PIDMIX(+1 / 2, +1, +1);  //REAR_L
-            motor[4] = PIDMIX(+1 / 2, -1, -1);  //FRONT_L
-            motor[5] = PIDMIX(-1, -1 / 2, -1);  //MIDFRONT_R
-            motor[6] = PIDMIX(-1 / 2, +1, -1);  //REAR_R
-            motor[7] = PIDMIX(+1, +1 / 2, -1);  //MIDREAR_L 
-            break;
-
-        case MULTITYPE_GIMBAL:
-            servo[1] = constrain(TILT_PITCH_MIDDLE + gimbalGainPitch * angle[PITCH] / 16 + rcCommand[PITCH], TILT_PITCH_MIN, TILT_PITCH_MAX);
-            servo[2] = constrain(TILT_ROLL_MIDDLE + gimbalGainRoll * angle[ROLL] / 16 + rcCommand[ROLL], TILT_ROLL_MIN, TILT_ROLL_MAX);
-            break;
-            
-        case MULTITYPE_FLYING_WING:
-            motor[0] = rcCommand[THROTTLE];
-            //if (passthroughMode) {// use raw stick values to drive output 
-            // follow aux1 as being three way switch **NOTE: better to implement via check boxes in GUI 
-            if (rcData[AUX1] < 1300) {
-                // passthrough
-                servo[1] = constrain(WING_LEFT_MID + PITCH_DIRECTION_L * (rcData[PITCH] - MIDRC) + ROLL_DIRECTION_L * (rcData[ROLL] - MIDRC), WING_LEFT_MIN, WING_LEFT_MAX);    //LEFT
-                servo[2] = constrain(WING_RIGHT_MID + PITCH_DIRECTION_R * (rcData[PITCH] - MIDRC) + ROLL_DIRECTION_R * (rcData[ROLL] - MIDRC), WING_RIGHT_MIN, WING_RIGHT_MAX); //RIGHT
-            } else {                    // use sensors to correct (gyro only or gyro+acc according to aux1/aux2 configuration
-                servo[1] = constrain(WING_LEFT_MID + PITCH_DIRECTION_L * axisPID[PITCH] + ROLL_DIRECTION_L * axisPID[ROLL], WING_LEFT_MIN, WING_LEFT_MAX);      //LEFT
-                servo[2] = constrain(WING_RIGHT_MID + PITCH_DIRECTION_R * axisPID[PITCH] + ROLL_DIRECTION_R * axisPID[ROLL], WING_RIGHT_MIN, WING_RIGHT_MAX);   //RIGHT
-            }
-            break;
-
-    }
-
-#ifdef SERVO_TILT
-    if (rcOptions & activate[BOXCAMSTAB]) {
-        if (gimbalFlags & GIMBAL_LEVEL_STAB) {
-            servo[1] = constrain(TILT_PITCH_MIDDLE + gimbalGainPitch * angle[PITCH] / 16, TILT_PITCH_MIN, TILT_PITCH_MAX);
-            servo[2] = constrain(TILT_ROLL_MIDDLE + gimbalGainRoll * angle[ROLL] / 16, TILT_ROLL_MIN, TILT_ROLL_MAX);
-        } else {
-            servo[1] = constrain(TILT_PITCH_MIDDLE + gimbalGainPitch * angle[PITCH] / 16 + rcData[CAMPITCH] - 1500, TILT_PITCH_MIN, TILT_PITCH_MAX);
-            servo[2] = constrain(TILT_ROLL_MIDDLE + gimbalGainRoll * angle[ROLL] / 16 + rcData[CAMROLL] - 1500, TILT_ROLL_MIN, TILT_ROLL_MAX);
-        }
-    } else {
-        servo[1] = constrain(TILT_PITCH_MIDDLE + rcData[CAMPITCH] - 1500, TILT_PITCH_MIN, TILT_PITCH_MAX);
-        servo[2] = constrain(TILT_ROLL_MIDDLE + rcData[CAMROLL] - 1500, TILT_ROLL_MIN, TILT_ROLL_MAX);
-    }
-#endif
-
-#if defined(CAMTRIG)
-    if (camCycle == 1) {
-        if (camState == 0) {
-            servo[3] = CAM_SERVO_HIGH;
-            camState = 1;
-            camTime = millis();
-        } else if (camState == 1) {
-            if ((millis() - camTime) > CAM_TIME_HIGH) {
-                servo[3] = CAM_SERVO_LOW;
-                camState = 2;
-                camTime = millis();
-            }
-        } else {                //camState ==2
-            if ((millis() - camTime) > CAM_TIME_LOW) {
-                camState = 0;
-                camCycle = 0;
-            }
-        }
-    }
-    if (rcOptions & activate[BOXCAMTRIG])
-        camCycle = 1;
-#endif
-
-    maxMotor = motor[0];
-    for (i = 1; i < numberMotor; i++)
-        if (motor[i] > maxMotor)
-            maxMotor = motor[i];
-    for (i = 0; i < numberMotor; i++) {
-        if (maxMotor > MAXTHROTTLE)     // this is a way to still have good gyro corrections if at least one motor reaches its max.
-            motor[i] -= maxMotor - MAXTHROTTLE;
-        motor[i] = constrain(motor[i], MINTHROTTLE, MAXTHROTTLE);
-        if ((rcData[THROTTLE]) < MINCHECK)
-#ifndef MOTOR_STOP
-            motor[i] = MINTHROTTLE;
-#else
-            motor[i] = MINCOMMAND;
-#endif
-        if (armed == 0)
-            motor[i] = MINCOMMAND;
-    }
-
-#if defined(LOG_VALUES) || (POWERMETER == 1)
-    logMotorsPower();
-#endif
-}
 
 /* IMU ------------------------------------------------------------------------------------------------- */
 
-void computeIMU()
+void computeIMU(void)
 {
     uint8_t axis;
     static int16_t gyroADCprevious[3] = { 0, 0, 0 };
@@ -1316,7 +674,7 @@ void computeIMU()
 #define INV_GYR_CMPFM_FACTOR  (1.0f / (GYR_CMPFM_FACTOR + 1.0f))
 
 // #define GYRO_SCALE ((2000.0f * PI)/((32767.0f / 4.0f ) * 180.0f * 1000000.0f) * 1.155f)
-#define CAMSTABGYRO
+// #define CAMSTABGYRO
 
 #ifdef CAMSTABGYRO
 #define GYRO_SCALE ((650 * PI)/((32767.0f / 4.0f ) * 180.0f * 1000000.0f))     //should be 2279.44 but 2380 gives better result
@@ -1376,7 +734,7 @@ void rotateV(struct fp_vector *v, float *delta)
     v->Y += delta[PITCH] * v_tmp.Z + delta[YAW] * v_tmp.X;
 }
 
-void getEstimatedAttitude()
+void getEstimatedAttitude(void)
 {
     uint8_t axis;
     int16_t accMag = 0;
@@ -1472,7 +830,7 @@ int32_t isq(int32_t x)
 #define Ki  0.001f              // PI observer integral gain (bias cancellation)
 #define dt  (UPDATE_INTERVAL / 1000000.0f)
 
-void getEstimatedAltitude()
+void getEstimatedAltitude(void)
 {
     static uint8_t inited = 0;
     static int16_t AltErrorI = 0;
@@ -1615,7 +973,7 @@ uint8_t i2c_readReg(uint8_t add, uint8_t reg)
 // ****************
 // GYRO common part
 // ****************
-void GYRO_Common()
+void GYRO_Common(void)
 {
     static int16_t previousGyroADC[3] = { 0, 0, 0 };
     static int32_t g[3];
@@ -1649,7 +1007,7 @@ void GYRO_Common()
 // ****************
 // ACC common part
 // ****************
-void ACC_Common()
+void ACC_Common(void)
 {
     static int32_t a[3];
     uint8_t axis;
@@ -1806,7 +1164,7 @@ void i2c_BMP085_Calculate(void)
     pressure = p + ((x1 + x2 + 3791) >> 4);
 }
 
-void Baro_update()
+void Baro_update(void)
 {
     if (currentTime < bmp085_ctx.deadline)
         return;
@@ -2000,7 +1358,7 @@ void Baro_update(void)
 //  4) bits b00001011 must be set on register 0x31 to select the data format (only once at the initialization)
 // ************************************************************************************************************
 #if defined(ADXL345)
-void ACC_init()
+void ACC_init(void)
 {
     delay(10);
     i2c_writeReg(ADXL345_ADDRESS, 0x2D, 1 << 3);        //  register: Power CTRL  -- value: Set measure bit 3 on
@@ -2009,11 +1367,8 @@ void ACC_init()
     acc_1G = 256;
 }
 
-void ACC_getADC()
+void ACC_getADC(void)
 {
-#ifndef STM8
-    TWBR = ((16000000L / 400000L) - 16) / 2;    // change the I2C clock rate to 400kHz, ADXL435 is ok with this speed
-#endif
     i2c_getSixRawADC(ADXL345_ADDRESS, 0x32);
 
     ACC_ORIENTATION(-((rawADC[3] << 8) | rawADC[2]), ((rawADC[1] << 8) | rawADC[0]), ((rawADC[5] << 8) | rawADC[4]));
@@ -2825,8 +2180,8 @@ void serialCom(void)
                 serialize16(motor[i]);
             for (i = 0; i < 8; i++)
                 serialize16(rcData[i]);
-            serialize8(nunchuk | ACC << 1 | BARO << 2 | MAG << 3 | GPSPRESENT << 4);
-            serialize8(accMode | baroMode << 1 | magMode << 2 | (GPSModeHome | GPSModeHold) << 3);
+            serialize8(nunchuk | ACC << 1 | BARO << 2 | MAG << 3 | 0 << 4);
+            serialize8(accMode | baroMode << 1 | magMode << 2 | 0 << 3);
             serialize16(cycleTime);
             for (i = 0; i < 2; i++)
                 serialize16(angle[i] / 10);
@@ -2846,11 +2201,11 @@ void serialCom(void)
             serialize8(dynThrPID);
             for (i = 0; i < 8; i++)
                 serialize8(activate[i]);
-            serialize16(GPS_distanceToHome);
-            serialize16(GPS_directionToHome);
-            serialize8(GPS_numSat);
-            serialize8(GPS_fix);
-            serialize8(GPS_update);
+            serialize16(0); // GPS stuff, unused
+            serialize16(0); // GPS stuff, unused
+            serialize8(0); // GPS stuff, unused
+            serialize8(0); // GPS stuff, unused
+            serialize8(0); // GPS stuff, unused
 #if defined(POWERMETER)
             intPowerMeterSum = (pMeter[PMOTOR_SUM] / PLEVELDIV);
             intPowerTrigger1 = powerTrigger1 * PLEVELSCALE;

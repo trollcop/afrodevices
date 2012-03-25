@@ -40,25 +40,21 @@
 //#define I2C_SPEED 100000L	//100kHz normal mode, this value must be used for a genuine WMP
 #define I2C_SPEED 400000L   //400kHz fast mode, it works only with some WMP clones
 
+// ******************
+// rc functions
+// ******************
+#if 1
+#define MINCHECK 1100
+#define MAXCHECK 1900
+#else
+#define MINCHECK 1150
+#define MAXCHECK 1850
+#endif
+
 //****** advanced users settings   *************
 
 /* This option should be uncommented if ACC Z is accurate enough when motors are running*/
 #define TRUSTED_ACCZ
-
-/* This option is here if you want to use the old level code from the verison 1.7
-   It's just to have some feedback. This will be removed in the future */
-// #define STAB_OLD_17
-
-/* GPS
-   only available on MEGA boards (this might be possible on 328 based boards in the future)
-   if enabled, define here the Arduino Serial port number and the UART speed
-   note: only the RX PIN is used, the GPS is not configured by multiwii
-   the GPS must be configured to output NMEA sentences (which is generally the default conf for most GPS devices)
-*/
-//#define GPS
-//#define GPS_SERIAL Serial3 // should be Serial2 for flyduino v2
-//#define GPS_BAUD   4800
-//#define GPS_BAUD   9600
 
 /* Pseudo-derivative conrtroller for level mode (experimental)
    Additional information: http://wbb.multiwii.com/viewtopic.php?f=8&t=503 */
@@ -157,15 +153,7 @@
 //#define ITG3200_LPF_20HZ
 //#define ITG3200_LPF_10HZ      // Use this only in extreme cases, rather change motors and/or props
 
-/* The following lines apply only for specific receiver with only one PPM sum signal, on digital PIN 2
-   IF YOUR RECEIVER IS NOT CONCERNED, DON'T UNCOMMENT ANYTHING. Note this is mandatory for a Y6 setup on a promini
-   Select the right line depending on your radio brand. Feel free to modify the order in your PPM order is different */
-// #define SERIAL_SUM_PPM         PITCH,YAW,THROTTLE,ROLL,AUX1,AUX2,CAMPITCH,CAMROLL //For Graupner/Spektrum
-#define SERIAL_SUM_PPM         ROLL,PITCH,THROTTLE,YAW,AUX1,AUX2,CAMPITCH,CAMROLL //For Robe/Hitec/Futaba
-// #define SERIAL_SUM_PPM         PITCH,ROLL,THROTTLE,YAW,AUX1,AUX2,CAMPITCH,CAMROLL //For some Hitec/Sanwa/Others
-
-/* The following lines apply only for Spektrum Satellite Receiver on MEGA boards only *///not yet implemented
-//#define SPEKTRUM
+#define SERIAL_SUM_PPM
 
 /* for V BAT monitoring
    after the resistor divisor we should get [0V;5V]->[0;1023] on analog V_BATPIN
