@@ -24,34 +24,8 @@
 // #define ROME                    // Brushless ROME
 #endif
 
-// #define STM32F1
-#ifdef STM32F1
-#define STM32_CC
-#define ATAVRSBIN1
-#endif
-
-
 /* ======================== No user-serviceable parts below ======================== */
 #ifdef STM8
 /* Includes for STM8 */
 #include "stm8s.h"
-#endif
-
-
-#ifdef STM32F1
-/* Includes for STM32F1xx */
-#include <stdint.h>
-#include <stdlib.h>
-#include <cross_studio_io.h>
-#include "misc.h"
-#include "stm32f10x_rcc.h"
-#include "stm32f10x_gpio.h"
-#include "usb/usb_cdcacm.h"
-#include "usb/usb.h"
-#include <string.h>
-
-#define digitalHi(p, i)    { p->BSRR = i; }
-#define digitalLo(p, i)    { p->BRR = i; }
-#define digitalToggle(p, i) { p->ODR ^= i; }
-
 #endif

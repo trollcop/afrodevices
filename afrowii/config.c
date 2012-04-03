@@ -5,68 +5,37 @@
 #include "mw.h"
 
 /* EEPROM --------------------------------------------------------------------- */
-static uint8_t checkNewConf = 149;
+static uint8_t checkNewConf = 151;
+config_t cfg;
+const char rcChannelLetters[] = "AERT1234";
 
-typedef struct eep_entry_t {
-    void *var;
-    uint8_t size;
-} eep_entry_t;
+void parseRcChannels(const char *input)
+{
+    const char *c, *s;
 
-// ************************************************************************************************************
-// EEPROM Layout definition
-// ************************************************************************************************************
-volatile eep_entry_t eep_entry[] = {
-    &checkNewConf, sizeof(checkNewConf),
-    &P8, sizeof(P8),
-    &I8, sizeof(I8),
-    &D8, sizeof(D8),
-    &rcRate8, sizeof(rcRate8),
-    &rcExpo8, sizeof(rcExpo8),
-    &rollPitchRate, sizeof(rollPitchRate),
-    &yawRate, sizeof(yawRate),
-    &dynThrPID, sizeof(dynThrPID),
-    &accZero, sizeof(accZero),
-    &magZero, sizeof(magZero),
-    &accTrim, sizeof(accTrim),
-    &activate, sizeof(activate),
-    &powerTrigger1, sizeof(powerTrigger1),
-    &mixerConfiguration, sizeof(mixerConfiguration),
-    &gimbalFlags, sizeof(gimbalFlags),
-    &gimbalGainPitch, sizeof(gimbalGainPitch),
-    &gimbalGainRoll, sizeof(gimbalGainRoll)
-};
-#define EEBLOCK_SIZE sizeof(eep_entry)/sizeof(eep_entry_t)
-// ************************************************************************************************************
+    for (c = input; *c; c++) {
+        s = strchr(rcChannelLetters, *c);
+        if (s)                          
+            cfg.rcmap[s - rcChannelLetters] = c - input;
+    }
+}
 
 void readEEPROM(void)
 {
     uint8_t i;
-    uint8_t _address = eep_entry[0].size;
 
     eeprom_open();
-    for (i = 1; i < EEBLOCK_SIZE; i++) {
-        eeprom_read_block(eep_entry[i].var, (void *) (_address), eep_entry[i].size);
-        _address += eep_entry[i].size;
-    }
+    eeprom_read_block(&cfg, (void *)NULL, sizeof(cfg));
     eeprom_close();
 
-#if defined(POWERMETER)
-    pAlarm = (uint32_t) powerTrigger1 *(uint32_t) PLEVELSCALE *(uint32_t) PLEVELDIV;    // need to cast before multiplying
-#endif
     for (i = 0; i < 7; i++)
-        lookupRX[i] = (2500 + rcExpo8 * (i * i - 25)) * i * (int32_t) rcRate8 / 1250;
+        lookupRX[i] = (2500 + cfg.rcExpo8 * (i * i - 25)) * i * (int32_t) cfg.rcRate8 / 1250;
 }
 
 void writeParams(void)
 {
-    uint8_t i;
-    uint8_t _address = 0;
-
     eeprom_open();
-    for (i = 0; i < EEBLOCK_SIZE; i++) {
-        eeprom_write_block(eep_entry[i].var, (void *)(_address), eep_entry[i].size); 
-        _address += eep_entry[i].size;
-    }
+    eeprom_write_block(&cfg, (void *)NULL, sizeof(cfg));
     eeprom_close();
 
     readEEPROM();
@@ -84,37 +53,45 @@ void checkFirstTime(void)
     if (test_val == checkNewConf)
         return;
 
-    P8[ROLL] = 40;
-    I8[ROLL] = 30;
-    D8[ROLL] = 23;
-    P8[PITCH] = 40;
-    I8[PITCH] = 30;
-    D8[PITCH] = 23;
-    P8[YAW] = 85;
-    I8[YAW] = 0;
-    D8[YAW] = 0;
-    P8[PIDALT] = 47;
-    I8[PIDALT] = 0;
-    D8[PIDALT] = 0;
-    P8[PIDVEL] = 0;
-    I8[PIDVEL] = 0;
-    D8[PIDVEL] = 0;
-    P8[PIDLEVEL] = 90;
-    I8[PIDLEVEL] = 45;
-    P8[PIDMAG] = 40;
-    rcRate8 = 45;               // = 0.9 in GUI
-    rcExpo8 = 65;
-    rollPitchRate = 0;
-    yawRate = 0;
-    dynThrPID = 0;
-    for (i = 0; i < 8; i++)
-        activate[i] = 0;
-    accTrim[0] = 0;
-    accTrim[1] = 0;
-    powerTrigger1 = 0;
-    mixerConfiguration = MULTITYPE_QUADX;
-    gimbalFlags = 0;
-    gimbalGainPitch = 10;
-    gimbalGainRoll = 10;
+    cfg.P8[ROLL] = 40;
+    cfg.I8[ROLL] = 30;
+    cfg.D8[ROLL] = 23;
+    cfg.P8[PITCH] = 40;
+    cfg.I8[PITCH] = 30;
+    cfg.D8[PITCH] = 23;
+    cfg.P8[YAW] = 85;
+    cfg.I8[YAW] = 0;
+    cfg.D8[YAW] = 0;
+    cfg.P8[PIDALT] = 16;
+    cfg.I8[PIDALT] = 15;
+    cfg.D8[PIDALT] = 7;
+    cfg.P8[PIDGPS] = 50;
+    cfg.I8[PIDGPS] = 0;
+    cfg.D8[PIDGPS] = 15;
+    cfg.P8[PIDVEL] = 0;
+    cfg.I8[PIDVEL] = 0;
+    cfg.P8[PIDLEVEL] = 90;
+    cfg.I8[PIDLEVEL] = 45;
+    cfg.D8[PIDLEVEL] = 100;
+    cfg.P8[PIDMAG] = 40;
+    cfg.rcRate8 = 45;               // = 0.9 in GUI
+    cfg.rcExpo8 = 65;
+    cfg.rollPitchRate = 0;
+    cfg.yawRate = 0;
+    cfg.dynThrPID = 0;
+    for (i = 0; i < CHECKBOXITEMS; i++) {
+        cfg.activate1[i] = 0;
+        cfg.activate2[i] = 0;
+    }
+    cfg.accTrim[0] = 0;
+    cfg.accTrim[1] = 0;
+    cfg.mixerConfiguration = MULTITYPE_QUADX;
+    cfg.gimbal_flags = 0;
+    cfg.gimbal_gain_pitch = 10;
+    cfg.gimbal_gain_roll = 10;
+    cfg.vbatscale = 110;
+    cfg.vbatmaxcellvoltage = 43;
+    cfg.vbatmincellvoltage = 33;
+    parseRcChannels("AETR1234");
     writeParams();
 }

@@ -5,7 +5,7 @@
 #include "mw.h"
 
 /* RX -------------------------------------------------------------------------------- */
-static uint8_t rcChannel[8] = { ROLL,PITCH,THROTTLE,YAW,AUX1,AUX2,CAMPITCH,CAMROLL };
+static uint8_t rcChannel[8] = { ROLL,PITCH,THROTTLE,YAW,AUX1,AUX2,AUX3,AUX4 };
 volatile uint16_t rcValue[8] = { 1500, 1500, 1500, 1500, 1500, 1500, 1500, 1500 };      // interval [1000;2000]
 
 /* for single channel PWM input mode */
@@ -76,7 +76,7 @@ void configureReceiver(void)
 #endif
 
     // when we're in camera gimbal mode, allow single PWM rx input for tilt compensation. useful? no idea.
-    if ((mixerConfiguration == MULTITYPE_GIMBAL) && (gimbalFlags & GIMBAL_TILTONLY))
+    if ((cfg.mixerConfiguration == MULTITYPE_GIMBAL) && (cfg.gimbal_flags & GIMBAL_TILTONLY))
         usePPM = 0;
 }
 

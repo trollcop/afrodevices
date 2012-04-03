@@ -4,12 +4,13 @@
 #include "sysdep.h"
 #include "mw.h"
 
+int16_t motor[8];
+int16_t servo[8] = { 1500, 1500, 1500, 1500, 1500, 1500, 1500, 1500 };
+uint8_t useServo = 0;
+uint8_t numberMotor = 4;
+
 extern int16_t axisPID[3];
-extern int16_t motor[8];
-extern int16_t servo[4];
 extern uint8_t mixerConfiguration;
-extern uint8_t useServo;
-extern uint8_t numberMotor;
 extern int16_t rcCommand[4];
 extern int16_t angle[2];
 extern uint8_t armed;
@@ -23,13 +24,13 @@ void writeServos(void)
     // STM8 PWM is actually 0.5us precision, so we double it
     if (mixerConfiguration == MULTITYPE_TRI || mixerConfiguration == MULTITYPE_BI) {
         /* One servo on Motor #4 */
-        pwmWrite(4, servo[0]);
+        pwmWrite(4, servo[4]);
         if (mixerConfiguration == MULTITYPE_BI)
-            pwmWrite(5, servo[1]);
+            pwmWrite(5, servo[5]);
     } else {
         /* Two servos for camstab or FLYING_WING */
-        pwmWrite(4, servo[1]);
-        pwmWrite(5, servo[2]);
+        pwmWrite(4, servo[4]);
+        pwmWrite(5, servo[5]);
     }
 }
 
@@ -50,34 +51,7 @@ void writeAllMotors(int16_t mc)
     writeMotors();
 }
 
-#if defined(LOG_VALUES) || (POWERMETER == 1)
-void logMotorsPower(void)
-{
-    uint32_t amp;
-    uint8_t i;
-    /* true cubic function; when divided by vbat_max=126 (12.6V) for 3 cell battery this gives maximum value of ~ 1000 */
-    const uint32_t amperes[64] = { 0, 4, 13, 31, 60, 104, 165, 246, 350, 481, 640, 831, 1056, 1319, 1622, 1969, 2361, 2803, 3297, 3845, 4451, 5118, 5848, 6645,
-        7510, 8448, 9461, 10551, 11723, 12978, 14319, 15750, 17273, 18892, 20608, 22425, 24346, 26374, 28512, 30762, 33127, 35611,
-        38215, 40944, 43799, 46785, 49903, 53156, 56548, 60081, 63759, 67583, 71558, 75685, 79968, 84410, 89013, 93781, 98716, 103821,
-        109099, 114553, 120186, 126000
-    };
-
-    if (vbat) {                 // by all means - must avoid division by zero 
-        for (i = 0; i < numberMotor; i++) {
-            amp = amperes[(motor[i] - 1000) >> 4] / vbat;       // range mapped from [1000:2000] => [0:1000]; then break that up into 64 ranges; lookup amp
-
-#ifdef LOG_VALUES
-            pMeter[i] += amp;   // sum up over time the mapped ESC input 
-#endif
-#if (POWERMETER == 1)
-            pMeter[PMOTOR_SUM] += amp;  // total sum over all motors
-#endif
-        }
-    }
-}
-#endif
-
-void initOutput()
+void initOutput(void)
 {
     if (mixerConfiguration == MULTITYPE_BI || mixerConfiguration == MULTITYPE_TRI || mixerConfiguration == MULTITYPE_GIMBAL || mixerConfiguration == MULTITYPE_FLYING_WING)
         useServo = 1;
@@ -145,15 +119,15 @@ void mixTable()
         case MULTITYPE_BI:
             motor[0] = PIDMIX(+1, 0, 0);        //LEFT
             motor[1] = PIDMIX(-1, 0, 0);        //RIGHT        
-            servo[0] = constrain(1500 + YAW_DIRECTION * (axisPID[YAW] + axisPID[PITCH]), 1020, 2000);   //LEFT
-            servo[1] = constrain(1500 + YAW_DIRECTION * (axisPID[YAW] - axisPID[PITCH]), 1020, 2000);   //RIGHT
+            servo[4] = constrain(1500 + (YAW_DIRECTION * axisPID[YAW]) + axisPID[PITCH], 1020, 2000);   //LEFT
+            servo[5] = constrain(1500 + (YAW_DIRECTION * axisPID[YAW]) - axisPID[PITCH], 1020, 2000);   //RIGHT
             break;
 
         case MULTITYPE_TRI:
             motor[0] = PIDMIX(0, +4 / 3, 0);    //REAR
             motor[1] = PIDMIX(-1, -2 / 3, 0);   //RIGHT
             motor[2] = PIDMIX(+1, -2 / 3, 0);   //LEFT
-            servo[0] = constrain(TRI_YAW_MIDDLE + YAW_DIRECTION * axisPID[YAW], TRI_YAW_CONSTRAINT_MIN, TRI_YAW_CONSTRAINT_MAX);        //REAR
+            servo[4] = constrain(TRI_YAW_MIDDLE + YAW_DIRECTION * axisPID[YAW], TRI_YAW_CONSTRAINT_MIN, TRI_YAW_CONSTRAINT_MAX);        //REAR
             break;
 
         case MULTITYPE_QUADP:
@@ -238,24 +212,9 @@ void mixTable()
             break;
 
         case MULTITYPE_GIMBAL:
-            servo[1] = constrain(TILT_PITCH_MIDDLE + gimbalGainPitch * angle[PITCH] / 16 + rcCommand[PITCH], TILT_PITCH_MIN, TILT_PITCH_MAX);
-            servo[2] = constrain(TILT_ROLL_MIDDLE + gimbalGainRoll * angle[ROLL] / 16 + rcCommand[ROLL], TILT_ROLL_MIN, TILT_ROLL_MAX);
+            servo[1] = constrain(TILT_PITCH_MIDDLE + cfg.gimbal_gain_pitch * angle[PITCH] / 16 + rcCommand[PITCH], TILT_PITCH_MIN, TILT_PITCH_MAX);
+            servo[2] = constrain(TILT_ROLL_MIDDLE + cfg.gimbal_gain_roll * angle[ROLL] / 16 + rcCommand[ROLL], TILT_ROLL_MIN, TILT_ROLL_MAX);
             break;
-            
-        case MULTITYPE_FLYING_WING:
-            motor[0] = rcCommand[THROTTLE];
-            //if (passthroughMode) {// use raw stick values to drive output 
-            // follow aux1 as being three way switch **NOTE: better to implement via check boxes in GUI 
-            if (rcData[AUX1] < 1300) {
-                // passthrough
-                servo[1] = constrain(WING_LEFT_MID + PITCH_DIRECTION_L * (rcData[PITCH] - MIDRC) + ROLL_DIRECTION_L * (rcData[ROLL] - MIDRC), WING_LEFT_MIN, WING_LEFT_MAX);    //LEFT
-                servo[2] = constrain(WING_RIGHT_MID + PITCH_DIRECTION_R * (rcData[PITCH] - MIDRC) + ROLL_DIRECTION_R * (rcData[ROLL] - MIDRC), WING_RIGHT_MIN, WING_RIGHT_MAX); //RIGHT
-            } else {                    // use sensors to correct (gyro only or gyro+acc according to aux1/aux2 configuration
-                servo[1] = constrain(WING_LEFT_MID + PITCH_DIRECTION_L * axisPID[PITCH] + ROLL_DIRECTION_L * axisPID[ROLL], WING_LEFT_MIN, WING_LEFT_MAX);      //LEFT
-                servo[2] = constrain(WING_RIGHT_MID + PITCH_DIRECTION_R * axisPID[PITCH] + ROLL_DIRECTION_R * axisPID[ROLL], WING_RIGHT_MIN, WING_RIGHT_MAX);   //RIGHT
-            }
-            break;
-
     }
 
 #ifdef SERVO_TILT
@@ -271,29 +230,6 @@ void mixTable()
         servo[1] = constrain(TILT_PITCH_MIDDLE + rcData[CAMPITCH] - 1500, TILT_PITCH_MIN, TILT_PITCH_MAX);
         servo[2] = constrain(TILT_ROLL_MIDDLE + rcData[CAMROLL] - 1500, TILT_ROLL_MIN, TILT_ROLL_MAX);
     }
-#endif
-
-#if defined(CAMTRIG)
-    if (camCycle == 1) {
-        if (camState == 0) {
-            servo[3] = CAM_SERVO_HIGH;
-            camState = 1;
-            camTime = millis();
-        } else if (camState == 1) {
-            if ((millis() - camTime) > CAM_TIME_HIGH) {
-                servo[3] = CAM_SERVO_LOW;
-                camState = 2;
-                camTime = millis();
-            }
-        } else {                //camState ==2
-            if ((millis() - camTime) > CAM_TIME_LOW) {
-                camState = 0;
-                camCycle = 0;
-            }
-        }
-    }
-    if (rcOptions & activate[BOXCAMTRIG])
-        camCycle = 1;
 #endif
 
     maxMotor = motor[0];
@@ -313,9 +249,5 @@ void mixTable()
         if (armed == 0)
             motor[i] = MINCOMMAND;
     }
-
-#if defined(LOG_VALUES) || (POWERMETER == 1)
-    logMotorsPower();
-#endif
 }
 

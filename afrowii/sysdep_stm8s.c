@@ -31,8 +31,8 @@ void systemReboot(void)
 }
 
 /* UART */
-static uint8_t uartPointer;
-static uint8_t uartBuffer[128];
+static uint8_t uartPointer = 0;
+static uint8_t uartBuffer[192];
 void serialize16(int16_t a)
 {
     uartBuffer[uartPointer++] = a;
@@ -47,7 +47,7 @@ void serialize8(uint8_t a)
 // ***********************************
 // Interrupt driven UART transmitter
 // ***********************************
-static uint8_t tx_ptr;
+static uint8_t tx_ptr = 0;
 static uint8_t tx_busy = 0;
 
 __near __interrupt void UART2_TX_IRQHandler(void)
@@ -123,19 +123,22 @@ void Serial_begin(uint32_t speed)
 
 uint16_t Serial_available(void)
 {
-    return (uint16_t)(RX_BUFFER_SIZE + rx_buffer.head - rx_buffer.tail) % RX_BUFFER_SIZE;
+    uint16_t avail = (uint16_t)(RX_BUFFER_SIZE + rx_buffer.head - rx_buffer.tail) % RX_BUFFER_SIZE;
+    return avail;
 }
 
 uint8_t Serial_read(void)
 {
+    uint8_t c;
   // if the head isn't ahead of the tail, we don't have any characters
-  if (rx_buffer.head == rx_buffer.tail) {
-    return -1;
-  } else {
-    unsigned char c = rx_buffer.buffer[rx_buffer.tail];
+  while (rx_buffer.head == rx_buffer.tail);
+//  if (rx_buffer.head == rx_buffer.tail) {
+    //return -1;
+  // } else {
+    c = rx_buffer.buffer[rx_buffer.tail];
     rx_buffer.tail = (unsigned int)(rx_buffer.tail + 1) % RX_BUFFER_SIZE;
     return c;
-  }
+  // }
 }
 
 /* TIMING */
@@ -231,7 +234,7 @@ void eeprom_open(void)
     FLASH_Unlock(FLASH_MEMTYPE_DATA);
 }
 
-void eeprom_read_block (void *dst, const void *src, size_t n)
+void eeprom_read_block(void *dst, const void *src, size_t n)
 {
     uint32_t _address = FLASH_DATA_START_PHYSICAL_ADDRESS + (uint32_t)src;
     memcpy(dst, (void *)_address, n);

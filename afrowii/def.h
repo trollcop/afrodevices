@@ -51,9 +51,9 @@ typedef enum MultiType
 #define abs(x) ((x)>0?(x):-(x))
 #define constrain(amt,low,high) ((amt)<(low)?(low):((amt)>(high)?(high):(amt)))
 #define round(x)     ((x)>=0?(long)((x)+0.5):(long)((x)-0.5))
-#define radians(deg) ((deg)*DEG_TO_RAD)
-#define degrees(rad) ((rad)*RAD_TO_DEG)
-#define sq(x) ((x)*(x))
+// #define radians(deg) ((deg)*DEG_TO_RAD)
+// #define degrees(rad) ((rad)*RAD_TO_DEG)
+// #define sq(x) ((x)*(x))
 
 #if defined(STM8) && defined(AFROV2)
 #define ADXL345SPI              // ADXL345 on SPI
@@ -207,7 +207,7 @@ typedef enum MultiType
 #endif
 
 
-#if defined(ADXL345) || defined(ADXL345SPI) || defined(BMA020) || defined(BMA180) || defined(NUNCHACK) || defined(ADCACC) || defined(MPU6000SPI)
+#if defined(ADXL345) || defined(ADXL345SPI) || defined(BMA020) || defined(BMA180) || defined(ADCACC) || defined(MPU6000SPI)
 #define ACC 1
 #else
 #define ACC 0
@@ -229,17 +229,6 @@ typedef enum MultiType
 #define BARO 1
 #else
 #define BARO 0
-#endif
-
-// STM32 Pin mapping
-#ifdef STM32F1
-#define LEDPIN_PINMODE             // GPIO_Init(GPIOD, GPIO_PIN_7, GPIO_MODE_OUT_PP_LOW_FAST);    // LED
-#define LEDPIN_TOGGLE              digitalToggle(GPIOA, GPIO_Pin_6);
-#define LEDPIN_OFF                 digitalHi(GPIOA, GPIO_Pin_6);
-#define LEDPIN_ON                  digitalLo(GPIOA, GPIO_Pin_6);
-#define BUZZERPIN_PINMODE          // GPIO_Init(GPIOF, GPIO_PIN_4, GPIO_MODE_OUT_PP_LOW_FAST);
-#define BUZZERPIN_ON               // GPIO_WriteHigh(GPIOF, GPIO_PIN_4);
-#define BUZZERPIN_OFF              // GPIO_WriteLow(GPIOF, GPIO_PIN_4);
 #endif
 
 #ifdef STM8
@@ -277,12 +266,6 @@ typedef enum MultiType
  #ifndef BOARDOK
 #error No stm8 target board defined!
  #endif
-#endif
-
-#if defined(GPS)
-#define GPSPRESENT 1
-#else
-#define GPSPRESENT 0
 #endif
 
 #if defined(POWERMETER)

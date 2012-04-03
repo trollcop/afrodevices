@@ -1,5 +1,4 @@
 /*******************************/
-/*******************************/
 /****CONFIGURABLE PARAMETERS****/
 /*******************************/
 
@@ -52,9 +51,6 @@
 #endif
 
 //****** advanced users settings   *************
-
-/* This option should be uncommented if ACC Z is accurate enough when motors are running*/
-#define TRUSTED_ACCZ
 
 /* Pseudo-derivative conrtroller for level mode (experimental)
    Additional information: http://wbb.multiwii.com/viewtopic.php?f=8&t=503 */
@@ -125,7 +121,6 @@
 //#define ADXL345
 //#define BMA020
 //#define BMA180
-//#define NUNCHACK  // if you want to use the nunckuk as a standalone I2C ACC without WMP
 //#define LIS3LV02
 //#define LSM303DLx_ACC
 
@@ -155,16 +150,8 @@
 
 #define SERIAL_SUM_PPM
 
-/* for V BAT monitoring
-   after the resistor divisor we should get [0V;5V]->[0;1023] on analog V_BATPIN
-   with R1=33k and R2=51k
-   vbat = [0;1023]*16/VBATSCALE */
 #define VBAT			// comment this line to suppress the vbat code
-#define VBATSCALE     91	// change this value if readed Battery voltage is different than real voltage
-#define VBATLEVEL1_3S 107	// 10,7V
-#define VBATLEVEL2_3S 103	// 10,3V
-#define VBATLEVEL3_3S 99	// 9.9V
-#define NO_VBAT       16	// Avoid beeping without any battery
+#define VBATFREQ 6        // to read battery voltage - keep equal to PSENSORFREQ (6) unless you know what you are doing
 
 /* This is the speed of the serial interface. 115200 kbit/s is the best option for a USB connection.*/
 #define SERIAL_COM_SPEED 115200
@@ -175,14 +162,6 @@
 
 /* some radios have not a neutral point centered on 1500. can be changed here */
 #define MIDRC 1500
-
-/* experimental
-   camera trigger function : activated via Rc Options in the GUI, servo output=A2 on promini */
-//#define CAMTRIG
-#define CAM_SERVO_HIGH 2000	// the position of HIGH state servo
-#define CAM_SERVO_LOW 1020	// the position of LOW state servo
-#define CAM_TIME_HIGH 1000	// the duration of HIGH state servo expressed in ms
-#define CAM_TIME_LOW 1000	// the duration of LOW state servo expressed in ms
 
 /* you can change the tricopter servo travel here */
 #define TRI_YAW_CONSTRAINT_MIN 1020
@@ -202,62 +181,3 @@
 #define WING_LEFT_MAX  2000 // limit servo travel range must be inside [1020;2000]
 #define WING_RIGHT_MIN 1020 // limit servo travel range must be inside [1020;2000]
 #define WING_RIGHT_MAX 2000 // limit servo travel range must be inside [1020;2000]
-
-/* enable monitoring of the power consumption from battery (think of mAh) */
-/* allows to set alarm value in GUI or via LCD */
-/* Two options: */
-/* 1 - soft: - (good results +-5% for plush and mystery ESCs @ 2S and 3S, not good with SuperSimple ESC */
-/*      00. relies on your combo of battery type (Voltage, cpacity), ESC, ESC settings, motors, props and multiwii cycle time */
-/*      01. set POWERMETER soft. Uses PLEVELSCALE = 50, PLEVELDIV = PLEVELDIVSOFT = 10000 */
-/*      0. output is a value that linearily scales to power (mAh) */
-/*      1. get voltage reading right first */
-/*      2. start with freshly charged battery */
-/*      3. go fly your typical flight (routine and duration) */
-/*      4. at end connect to GUI or LCD and read the power value; write it down (example 4711)*/
-/*      5. charge battery, write down amount of energy needed (example 722 mAh) */
-/*      6. compute alarm value for desired power threshold (example 750 mAh : alarm = 4711 / 722 * 750) */
-/*      7. set alarm value in GUI or LCD */
-/*      8. enjoy your new battery alarm - possibly repeat steps 2 .. 7 */
-/*      9. if you want the numbers to represent your mAh value, you must change PLEVELDIV */
-/* 2 - hard: - (uses hardware sensor, after configuration gives reasonable results */
-/*      00. uses analog pin 2 to read voltage output from sensor. */
-/*      01. set POWERMETER hard. Uses PLEVELSCALE = 50 */
-/*      02. install low path filter for 25 Hz to sensor input */
-/*      1. compute PLEVELDIV for your sensor (see below for insturctions) */
-/*      2. set PLEVELDIVSOFT to 10000 ( to use LOG_VALUES for individual motor comparison) */
-/*      3. attach, set PSENSORNULL and  PINT2mA */
-/*      4. configure, compile, upload, set alarm value in GUI or LCD */
-/*      3. enjoy true readings of mAh consumed */
-/* set POWERMETER to "soft" (1) or "hard" (2) depending on sensor you want to utilize */
-//#define POWERMETER 1
-//#define POWERMETER 2
-/* the sum of all powermeters ranges from [0:60000 e4] theoretically. */
-/* the alarm level from eeprom is out of [0:255], so we multipy alarm level with PLEVELSCALE and with 1e4 before comparing */
-/* PLEVELSCALE is the step size you can use to set alarm */
-#define PLEVELSCALE 50		// if you change this value for other granularity, you must search for comments in code to change accordingly
-/* larger PLEVELDIV will get you smaller value for power (mAh equivalent) */
-#define PLEVELDIV 10000		// default for soft - if you lower PLEVELDIV, beware of overrun in uint32 pMeter
-#define PLEVELDIVSOFT PLEVELDIV	// for soft always equal to PLEVELDIV; for hard set to 10000
-//#define PLEVELDIV 1361L // to convert the sum into mAh divide by this value
-/* amploc 25A sensor has 37mV/A */
-/* arduino analog resolution is 4.9mV per unit; units from [0..1023] */
-/* sampling rate 20ms, approx 19977 micro seconds */
-/* PLEVELDIV = 37 / 4.9  * 10e6 / 19977  * 3600 / 1000  = 1361L */
-/* set to analogRead() value for zero current */
-#define PSENSORNULL 510		// for I=0A my sensor gives 1/2 Vss; that is approx 2.49Volt
-#define PINT2mA 13		// for telemtry display: one integer step on arduino analog translates to mA (example 4.9 / 37 * 100
-
-/* to log values like max loop time and others to come */
-/* logging values are visible via LCD config */
-//#define LOG_VALUES
-
-//****** end of advanced users settings *************
-
-//if you want to change to orientation of individual sensor
-//#define ACC_ORIENTATION(X, Y, Z)  {accADC[ROLL]  =  Y; accADC[PITCH]  = -X; accADC[YAW]  = Z;}
-//#define GYRO_ORIENTATION(X, Y, Z) {gyroADC[ROLL] = -Y; gyroADC[PITCH] =  X; gyroADC[YAW] = Z;}
-//#define MAG_ORIENTATION(X, Y, Z)  {magADC[ROLL]  = X; magADC[PITCH]  = Y; magADC[YAW]  = Z;}
-
-/**************************************/
-/****END OF CONFIGURABLE PARAMETERS****/
-/**************************************/
