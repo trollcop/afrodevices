@@ -9,9 +9,11 @@ static uint8_t rcChannel[8] = { ROLL,PITCH,THROTTLE,YAW,AUX1,AUX2,CAMPITCH,CAMRO
 volatile uint16_t rcValue[8] = { 1500, 1500, 1500, 1500, 1500, 1500, 1500, 1500 };      // interval [1000;2000]
 
 /* for single channel PWM input mode */
+#ifdef SERIAL_SUM_PPM
 static uint16_t riseValue = 0;
 static uint16_t fallValue = 0;
 static uint8_t captureState = 0;
+#endif
 static uint8_t usePPM = 1;
 
 // ROME brushed, PPM input
@@ -78,7 +80,8 @@ void configureReceiver(void)
         usePPM = 0;
 }
 
-#if defined(ROME) || defined(ROME_BRUSHED)
+#ifdef SERIAL_SUM_PPM
+#if (defined(ROME) || defined(ROME_BRUSHED))
  #define TIM_Channel             TIM2_CHANNEL_1
  #define TIM_GetITStatus         TIM2_GetITStatus
  #define TIM_CC_Channel          TIM2_IT_CC1
@@ -181,6 +184,8 @@ __near __interrupt void TIM3_CAP_COM_IRQHandler(void)
         chan++;
     }
 }
+
+#endif
 
 #if (defined(ROME) || defined(ROME_BRUSHED)) && !defined(SERIAL_SUM_PPM)
 uint16_t last[4] = { 0, };

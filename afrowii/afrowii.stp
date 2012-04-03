@@ -352,7 +352,7 @@ PathName=stm8s_stdperiph_driver\src\stm8s_uart2.c
 [Root.Source Files]
 ElemType=Folder
 PathName=Source Files
-Child=Root.Source Files.rc.c
+Child=Root.Source Files.output.c
 Next=Root.Include Files
 Config.0=Root.Source Files.Config.0
 Config.1=Root.Source Files.Config.1
@@ -422,6 +422,11 @@ String.3.0=
 String.4.0=
 String.5.0=
 String.6.0=2011,8,31,17,23,22
+
+[Root.Source Files.output.c]
+ElemType=File
+PathName=output.c
+Next=Root.Source Files.rc.c
 
 [Root.Source Files.rc.c]
 ElemType=File
