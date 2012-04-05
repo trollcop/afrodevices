@@ -71,7 +71,6 @@ int16_t magZero[3] = { 0, 0, 0 };
 // motor and servo functions
 // *************************
 int16_t axisPID[3];
-uint8_t mixerConfiguration = MULTITYPE_QUADX;
 extern int16_t servo[8];
 extern int16_t motor[8];
 

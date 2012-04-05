@@ -10,7 +10,6 @@ uint8_t useServo = 0;
 uint8_t numberMotor = 4;
 
 extern int16_t axisPID[3];
-extern uint8_t mixerConfiguration;
 extern int16_t rcCommand[4];
 extern int16_t angle[2];
 extern uint8_t armed;
@@ -22,10 +21,10 @@ void writeServos(void)
         return;
 
     // STM8 PWM is actually 0.5us precision, so we double it
-    if (mixerConfiguration == MULTITYPE_TRI || mixerConfiguration == MULTITYPE_BI) {
+    if (cfg.mixerConfiguration == MULTITYPE_TRI || cfg.mixerConfiguration == MULTITYPE_BI) {
         /* One servo on Motor #4 */
         pwmWrite(4, servo[4]);
-        if (mixerConfiguration == MULTITYPE_BI)
+        if (cfg.mixerConfiguration == MULTITYPE_BI)
             pwmWrite(5, servo[5]);
     } else {
         /* Two servos for camstab or FLYING_WING */
@@ -53,14 +52,14 @@ void writeAllMotors(int16_t mc)
 
 void initOutput(void)
 {
-    if (mixerConfiguration == MULTITYPE_BI || mixerConfiguration == MULTITYPE_TRI || mixerConfiguration == MULTITYPE_GIMBAL || mixerConfiguration == MULTITYPE_FLYING_WING)
+    if (cfg.mixerConfiguration == MULTITYPE_BI || cfg.mixerConfiguration == MULTITYPE_TRI || cfg.mixerConfiguration == MULTITYPE_GIMBAL || cfg.mixerConfiguration == MULTITYPE_FLYING_WING)
         useServo = 1;
 
 #if defined(SERVO_TILT) || defined(CAMTRIG)
     useServo = 1;
 #endif
 
-    switch (mixerConfiguration) {
+    switch (cfg.mixerConfiguration) {
         case MULTITYPE_GIMBAL:
             numberMotor = 0;
             break;
@@ -115,7 +114,7 @@ void mixTable()
         axisPID[YAW] = constrain(axisPID[YAW], -100 - abs(rcCommand[YAW]), +100 + abs(rcCommand[YAW]));
     }
 
-    switch (mixerConfiguration) {
+    switch (cfg.mixerConfiguration) {
         case MULTITYPE_BI:
             motor[0] = PIDMIX(+1, 0, 0);        //LEFT
             motor[1] = PIDMIX(-1, 0, 0);        //RIGHT        

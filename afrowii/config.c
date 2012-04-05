@@ -53,6 +53,7 @@ void checkFirstTime(void)
     if (test_val == checkNewConf)
         return;
 
+    cfg.version = checkNewConf;
     cfg.P8[ROLL] = 40;
     cfg.I8[ROLL] = 30;
     cfg.D8[ROLL] = 23;

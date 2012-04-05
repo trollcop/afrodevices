@@ -7,7 +7,7 @@
    This is the minimum value that allow motors to run at a idle speed  */
 //#define MINTHROTTLE 1300 // for Turnigy Plush ESCs 10A
 //#define MINTHROTTLE 1120 // for Super Simple ESCs 10A
-//#define MINTHROTTLE 1220
+// #define MINTHROTTLE 1180
 #define MINTHROTTLE 1120
 /* this is the value for the ESCs when they are not armed
    in some cases, this value must be lowered down to 900 for some specific ESCs */

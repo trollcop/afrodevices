@@ -8,5 +8,5 @@ Filename=afrowii.stp
 Dependencies=
 [Options]
 ActiveProject=afrowii
-ActiveConfig=Debug
+ActiveConfig=Release
 AddSortedElements=0
