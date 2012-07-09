@@ -36,14 +36,13 @@
 #define RATE_SCALING     0.005  // Stick to rate scaling (5 radians/sec)/(1000 RX PWM Steps) = 0.005
 #define ATTITUDE_SCALING 0.001  // Stick to att scaling (1 radian)/(1000 RX PWM Steps) = 0.001
 
-float attCmd[3];
+float   attCmd[3];
 
-float attPID[3];
+float   attPID[3];
 
-float axisPID[3];
-float rateCmd[3];
+float   axisPID[3];float rateCmd[3];
 
-float headingReference;
+float   headingReference;
 
 
 
@@ -53,39 +52,46 @@ float headingReference;
 
 void computeAxisCommands(float dt)
 {
-    if (flightMode == ATTITUDE) {
-        attCmd[ROLL] = rxCommand[ROLL] * ATTITUDE_SCALING;
+    if (flightMode == ATTITUDE)
+    {
+        attCmd[ROLL ] = rxCommand[ROLL ] * ATTITUDE_SCALING;
         attCmd[PITCH] = rxCommand[PITCH] * ATTITUDE_SCALING;
     }
 
-    if (flightMode >= ATTITUDE) {
-        attPID[ROLL] = updatePID(attCmd[ROLL], sensors.attitude200Hz[ROLL], dt, &systemConfig.PID[ROLL_ATT_PID]);
-        attPID[PITCH] = updatePID(attCmd[PITCH], -sensors.attitude200Hz[PITCH], dt, &systemConfig.PID[PITCH_ATT_PID]);
+    if (flightMode >= ATTITUDE)
+    {
+        attPID[ROLL]  = updatePID( attCmd[ROLL ],  sensors.attitude200Hz[ROLL ], dt, holdIntegrators, &systemConfig.PID[ROLL_ATT_PID ] );
+        attPID[PITCH] = updatePID( attCmd[PITCH], -sensors.attitude200Hz[PITCH], dt, holdIntegrators, &systemConfig.PID[PITCH_ATT_PID] );
     }
 
-    if (flightMode == RATE) {
-        rateCmd[ROLL] = rxCommand[ROLL] * RATE_SCALING;
+    if (flightMode == RATE)
+    {
+        rateCmd[ROLL ] = rxCommand[ROLL ] * RATE_SCALING;
         rateCmd[PITCH] = rxCommand[PITCH] * RATE_SCALING;
-    } else {
-        rateCmd[ROLL] = attPID[ROLL];
+    }
+    else
+    {
+        rateCmd[ROLL ] = attPID[ROLL ];
         rateCmd[PITCH] = attPID[PITCH];
     }
 
-    if (commandInDetent[YAW] == true)   // Heading Hold is ON
+    if ( (commandInDetent[YAW] == true) && (rxCommand[AUX2] > MIDCOMMAND) )  // Heading Hold is ON
     {
-        if (previousCommandInDetent[YAW] == false) {
-            setIntegralError(HEADING_PID, 0.0f);        // First pass in heading hold with new reference, zero integral PID error
+        if (previousCommandInDetent[YAW] == false)
+        {
+            setIntegralError(HEADING_PID, 0.0f);  // First pass in heading hold with new reference, zero integral PID error
         }
-        rateCmd[YAW] = updatePID(headingReference, sensors.attitude200Hz[YAW], dt, &systemConfig.PID[HEADING_PID]);
-    } else                      // Heading Hold is OFF
+        rateCmd[YAW] = updatePID( headingReference, sensors.attitude200Hz[YAW], dt, holdIntegrators, &systemConfig.PID[HEADING_PID] );
+    }
+    else  // Heading Hold is OFF
     {
         rateCmd[YAW] = rxCommand[YAW] * RATE_SCALING;
         headingReference = sensors.attitude200Hz[YAW];
     }
 
-    axisPID[ROLL] = updatePID(rateCmd[ROLL], sensors.gyro100Hz[ROLL], dt, &systemConfig.PID[ROLL_RATE_PID]);
-    axisPID[PITCH] = updatePID(rateCmd[PITCH], -sensors.gyro100Hz[PITCH], dt, &systemConfig.PID[PITCH_RATE_PID]);
-    axisPID[YAW] = updatePID(rateCmd[YAW], sensors.gyro100Hz[YAW], dt, &systemConfig.PID[YAW_RATE_PID]);
+    axisPID[ROLL ] = updatePID( rateCmd[ROLL ],  sensors.gyro100Hz[ROLL ], dt, holdIntegrators, &systemConfig.PID[ROLL_RATE_PID ] );
+    axisPID[PITCH] = updatePID( rateCmd[PITCH], -sensors.gyro100Hz[PITCH], dt, holdIntegrators, &systemConfig.PID[PITCH_RATE_PID] );
+    axisPID[YAW  ] = updatePID( rateCmd[YAW  ],  sensors.gyro100Hz[YAW  ], dt, holdIntegrators, &systemConfig.PID[YAW_RATE_PID  ] );
 }
 
 ///////////////////////////////////////////////////////////////////////////////

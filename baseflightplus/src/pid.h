@@ -35,14 +35,16 @@
 
 // PID Variables
 typedef struct PIDdata {
-    float P, I, D;
-    float iTerm;
-    float windupGuard;
-    float lastState;
-    float dTerm1;
-    float dTerm2;
-    uint8_t type;
+  float   P, I, D;
+  float   iTerm;
+  float   windupGuard;
+  float   lastState;
+  float   dTerm1;
+  float   dTerm2;
+  uint8_t type;
 } PIDdata_t;
+
+extern uint8_t holdIntegrators;
 
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -50,7 +52,7 @@ void initPID(void);
 
 ///////////////////////////////////////////////////////////////////////////////
 
-float updatePID(float command, float state, float deltaT, struct PIDdata *PIDparameters);
+float updatePID(float command, float state, float deltaT, uint8_t iHold, struct PIDdata *PIDparameters);
 
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -61,3 +63,6 @@ void setIntegralError(uint8_t IDPid, float value);
 void zeroIntegralError(void);
 
 ///////////////////////////////////////////////////////////////////////////////
+
+
+

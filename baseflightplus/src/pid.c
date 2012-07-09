@@ -35,6 +35,8 @@
 
 PIDdata_t PID[NUMBER_OF_PIDS];
 
+uint8_t holdIntegrators = true;
+
 #define F_CUT 20.0f
 float rc;
 
@@ -44,18 +46,19 @@ void initPID(void)
 {
     uint8_t index;
 
-    rc = 1.0f / (TWO_PI * F_CUT);
+    rc = 1.0f / ( TWO_PI * F_CUT );
 
-    for (index = 0; index < NUMBER_OF_PIDS; index++) {
-        PID[index].lastState = 0.0f;    // Not true for heading.....
-        PID[index].dTerm1 = 0.0f;
-        PID[index].dTerm2 = 0.0f;
-    }
+    for (index = 0; index < NUMBER_OF_PIDS; index++)
+    {
+		PID[index].lastState = 0.0f;  // Not true for heading.....
+		PID[index].dTerm1    = 0.0f;
+		PID[index].dTerm2    = 0.0f;
+	}
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 
-float updatePID(float command, float state, float deltaT, struct PIDdata *PIDparameters)
+float updatePID(float command, float state, float deltaT, uint8_t iHold, struct PIDdata *PIDparameters)
 {
     float error;
     float dTerm;
@@ -66,8 +69,11 @@ float updatePID(float command, float state, float deltaT, struct PIDdata *PIDpar
     if (PIDparameters->type == 1)
         error = standardRadianFormat(error);
 
-    PIDparameters->iTerm += error * deltaT;
-    PIDparameters->iTerm = constrain(PIDparameters->iTerm, -PIDparameters->windupGuard, PIDparameters->windupGuard);
+    if ( iHold == false )
+    {
+    	PIDparameters->iTerm += error * deltaT;
+    	PIDparameters->iTerm = constrain(PIDparameters->iTerm, -PIDparameters->windupGuard, PIDparameters->windupGuard);
+    }
 
     dTerm = (state - PIDparameters->lastState) / deltaT;
     // Discrete low pass filter, cuts out the
@@ -77,14 +83,14 @@ float updatePID(float command, float state, float deltaT, struct PIDdata *PIDpar
 
     PIDparameters->lastState = state;
 
-    dSum = dTerm + PIDparameters->dTerm1 + PIDparameters->dTerm2;
+    dSum =  dTerm + PIDparameters->dTerm1 + PIDparameters->dTerm2;
     PIDparameters->dTerm2 = PIDparameters->dTerm1;
     PIDparameters->dTerm1 = dTerm;
 
     if (PIDparameters->type == 1)
-        return (standardRadianFormat(PIDparameters->P * error) + (PIDparameters->I * (PIDparameters->iTerm)) - (PIDparameters->D * dSum));
+        return(standardRadianFormat(PIDparameters->P * error) + (PIDparameters->I * (PIDparameters->iTerm)) - (PIDparameters->D * dSum));
     else
-        return (PIDparameters->P * error) + (PIDparameters->I * (PIDparameters->iTerm)) - (PIDparameters->D * dSum);
+        return(PIDparameters->P * error) + (PIDparameters->I * (PIDparameters->iTerm)) - (PIDparameters->D * dSum);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -100,9 +106,13 @@ void zeroIntegralError(void)
 {
     uint8_t index;
 
-    for (index = 0; index < NUMBER_OF_PIDS; index++) {
+    for (index = 0; index < NUMBER_OF_PIDS; index++)
+    {
         setIntegralError(index, 0.0);
     }
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+
+
+

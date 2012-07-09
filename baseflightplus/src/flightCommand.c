@@ -35,10 +35,10 @@
 // Process Pilot Commands Defines and Variables
 ///////////////////////////////////////////////////////////////////////////////
 
-float rxCommand[8] = { 0.0f, 0.0f, 0.0f, 2000.0f, 2000.0f, 2000.0f, 2000.0f, 2000.0f };
+float    rxCommand[8] = { 0.0f, 0.0f, 0.0f, 2000.0f, 2000.0f, 2000.0f, 2000.0f, 2000.0f };
 
-uint8_t commandInDetent[3] = { true, true, true };
-uint8_t previousCommandInDetent[3] = { true, true, true };
+uint8_t  commandInDetent[3]         = { true, true, true };
+uint8_t  previousCommandInDetent[3] = { true, true, true };
 
 ///////////////////////////////////////////////////////////////////////////////
 // Flight Mode Defines and Variables
@@ -50,7 +50,7 @@ uint8_t flightMode = RATE;
 // Arm State Variables
 ///////////////////////////////////////////////////////////////////////////////
 
-uint8_t armed = false;
+uint8_t armed       = false;
 uint8_t armingTimer = 0;
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -61,74 +61,108 @@ void processFlightCommands(void)
 {
     uint8_t channel;
 
-    if (rcActive == true) {
-        // Read receiver commands
+    if ( rcActive == true )
+    {
+		// Read receiver commands
         for (channel = 0; channel < 8; channel++)
-            rxCommand[channel] = (float) pwmRead(systemConfig.rcMap[channel]);
+            rxCommand[channel] = (float)pwmRead(systemConfig.rcMap[channel]);
 
-        rxCommand[ROLL] -= systemConfig.midCommand;     // Roll Range    -1000:1000
-        rxCommand[PITCH] -= systemConfig.midCommand;    // Pitch Range   -1000:1000
-        rxCommand[YAW] -= systemConfig.midCommand;      // Yaw Range     -1000:1000
+        rxCommand[ROLL]  -= systemConfig.midCommand;                  // Roll Range    -1000:1000
+        rxCommand[PITCH] -= systemConfig.midCommand;                  // Pitch Range   -1000:1000
+        rxCommand[YAW]   -= systemConfig.midCommand;                  // Yaw Range     -1000:1000
 
-        rxCommand[THROTTLE] -= systemConfig.midCommand - MIDCOMMAND;    // Throttle Range 2000:4000
-        rxCommand[AUX1] -= systemConfig.midCommand - MIDCOMMAND;        // Aux1 Range     2000:4000
-        rxCommand[AUX2] -= systemConfig.midCommand - MIDCOMMAND;        // Aux2 Range     2000:4000
-        rxCommand[AUX3] -= systemConfig.midCommand - MIDCOMMAND;        // Aux3 Range     2000:4000
-        rxCommand[AUX4] -= systemConfig.midCommand - MIDCOMMAND;        // Aux4 Range     2000:4000
+        rxCommand[THROTTLE] -= systemConfig.midCommand - MIDCOMMAND;  // Throttle Range 2000:4000
+        rxCommand[AUX1]     -= systemConfig.midCommand - MIDCOMMAND;  // Aux1 Range     2000:4000
+        rxCommand[AUX2]     -= systemConfig.midCommand - MIDCOMMAND;  // Aux2 Range     2000:4000
+        rxCommand[AUX3]     -= systemConfig.midCommand - MIDCOMMAND;  // Aux3 Range     2000:4000
+        rxCommand[AUX4]     -= systemConfig.midCommand - MIDCOMMAND;  // Aux4 Range     2000:4000
     }
+
     // Set past command in detent values
     for (channel = 0; channel < 3; channel++)
-        previousCommandInDetent[channel] = commandInDetent[channel];
+    	previousCommandInDetent[channel] = commandInDetent[channel];
 
     // Apply deadbands and set detent discretes'
-    for (channel = 0; channel < 3; channel++) {
-        if ((rxCommand[channel] <= DEADBAND) && (rxCommand[channel] >= -DEADBAND)) {
+    for (channel = 0; channel < 3; channel++)
+    {
+    	if ((rxCommand[channel] <= DEADBAND) && (rxCommand[channel] >= -DEADBAND))
+        {
             rxCommand[channel] = 0;
-            commandInDetent[channel] = true;
-        } else {
-            commandInDetent[channel] = false;
-            if (rxCommand[channel] > 0) {
-                rxCommand[channel] = (rxCommand[channel] - DEADBAND) * DEADBAND_SLOPE;
-            } else {
-                rxCommand[channel] = (rxCommand[channel] + DEADBAND) * DEADBAND_SLOPE;
-            }
+  	        commandInDetent[channel] = true;
+  	    }
+        else
+  	    {
+  	        commandInDetent[channel] = false;
+  	        if (rxCommand[channel] > 0)
+  	        {
+  		        rxCommand[channel] = (rxCommand[channel] - DEADBAND) * DEADBAND_SLOPE;
+  	        }
+  	        else
+  	        {
+  	            rxCommand[channel] = (rxCommand[channel] + DEADBAND) * DEADBAND_SLOPE;
+  	        }
         }
     }
 
     ///////////////////////////////////
 
     // Check for low throttle
-    if (rxCommand[THROTTLE] < systemConfig.minCheck) {
-        // Check for disarm command ( low throttle, left yaw ), will disarm immediately
-        if ((rxCommand[YAW] < (systemConfig.minCheck - MIDCOMMAND)) & (armed == true)) {
-            armed = false;
-            // Zero PID integrators when disarmed
-            zeroIntegralError();
-        }
-        // Check for gyro bias command ( low throttle, left yaw, aft pitch, right roll )
-        if ((rxCommand[YAW] < (systemConfig.minCheck - MIDCOMMAND)) & (rxCommand[ROLL] > (systemConfig.maxCheck - MIDCOMMAND)) & (rxCommand[PITCH] < (systemConfig.minCheck - MIDCOMMAND))) {
-            computeGyroRTBias();
-            pulseMotors(3);
-        }
-        // Check for arm command ( low throttle, right yaw), must be present for 1 sec before arming
-        if ((rxCommand[YAW] > (systemConfig.maxCheck - MIDCOMMAND)) & (armed == false)) {
-            armingTimer++;
+    if ( rxCommand[THROTTLE] < systemConfig.minCheck )
+    {
+		// Check for disarm command ( low throttle, left yaw ), will disarm immediately
+		if ( (rxCommand[YAW] < (systemConfig.minCheck - MIDCOMMAND)) & (armed == true) )
+		{
+			armed = false;
+			// Zero PID integrators when disarmed
+			zeroIntegralError();
+		}
 
-            if (armingTimer > 50) {
-                zeroIntegralError();
-                armed = true;
-                armingTimer = 0;
-            }
-        } else {
-            armingTimer = 0;
-        }
-    }
+		// Check for gyro bias command ( low throttle, left yaw, aft pitch, right roll )
+		if ( (rxCommand[YAW  ] < (systemConfig.minCheck - MIDCOMMAND)) &
+		     (rxCommand[ROLL ] > (systemConfig.maxCheck - MIDCOMMAND)) &
+		     (rxCommand[PITCH] < (systemConfig.minCheck - MIDCOMMAND)) )
+		{
+			computeGyroRTBias();
+			pulseMotors(3);
+		}
+
+		// Check for arm command ( low throttle, right yaw), must be present for 1 sec before arming
+		if ( (rxCommand[YAW] > (systemConfig.maxCheck - MIDCOMMAND) ) & (armed == false) )
+		{
+			armingTimer++;
+
+			if ( armingTimer > 50 )
+			{
+				zeroIntegralError();
+				armed = true;
+				armingTimer = 0;
+			}
+		}
+		else
+		{
+			armingTimer = 0;
+		}
+	}
+
+	// Check for armed true and throttle command > minThrottle
+    if ( (armed == true) && (rxCommand[THROTTLE] > systemConfig.minThrottle) )
+    	holdIntegrators = false;
+    else
+    	holdIntegrators = true;
+
     // Check AUX1 for rate or attitude mode
-    if (rxCommand[AUX1] > MIDCOMMAND) {
-        flightMode = ATTITUDE;
-    } else {
-        flightMode = RATE;
-    }
+	if ( rxCommand[AUX1] > MIDCOMMAND )
+	{
+		flightMode = ATTITUDE;
+	}
+	else
+	{
+		flightMode = RATE;
+	}
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+
+
+
+
