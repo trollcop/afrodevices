@@ -1,7 +1,7 @@
 /*
   June 2012
 
-  BaseFlightPlus Rev -
+  BaseFligh tPlus Rev -
 
   An Open Source STM32 Based Multicopter
 
@@ -142,7 +142,7 @@ void readSerialPID(unsigned char PIDid)
   pid->D           = readFloatSerial();
   pid->windupGuard = readFloatSerial();
   pid->iTerm       = 0.0f;
-  pid->lastState   = 0.0f;
+  pid->lastError   = 0.0f;
   pid->dTerm1      = 0.0f;
   pid->dTerm2      = 0.0f;
 }

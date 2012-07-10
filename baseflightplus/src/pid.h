@@ -38,7 +38,7 @@ typedef struct PIDdata {
   float   P, I, D;
   float   iTerm;
   float   windupGuard;
-  float   lastState;
+  float   lastError;
   float   dTerm1;
   float   dTerm2;
   uint8_t type;

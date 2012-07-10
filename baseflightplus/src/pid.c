@@ -50,7 +50,7 @@ void initPID(void)
 
     for (index = 0; index < NUMBER_OF_PIDS; index++)
     {
-		PID[index].lastState = 0.0f;  // Not true for heading.....
+		PID[index].lastError = 0.0f;
 		PID[index].dTerm1    = 0.0f;
 		PID[index].dTerm2    = 0.0f;
 	}
@@ -75,22 +75,21 @@ float updatePID(float command, float state, float deltaT, uint8_t iHold, struct 
     	PIDparameters->iTerm = constrain(PIDparameters->iTerm, -PIDparameters->windupGuard, PIDparameters->windupGuard);
     }
 
-    dTerm = (state - PIDparameters->lastState) / deltaT;
+    dTerm = (error - PIDparameters->lastError) / deltaT;
     // Discrete low pass filter, cuts out the
     // high frequency noise that can drive controller crazy
-    dTerm = PIDparameters->lastState + (deltaT / (rc + deltaT)) * (dTerm - PIDparameters->lastState);
+    dTerm = PIDparameters->lastError + (deltaT / (rc + deltaT)) * (dTerm - PIDparameters->lastError);
 
-
-    PIDparameters->lastState = state;
+    PIDparameters->lastError = error;
 
     dSum =  dTerm + PIDparameters->dTerm1 + PIDparameters->dTerm2;
     PIDparameters->dTerm2 = PIDparameters->dTerm1;
     PIDparameters->dTerm1 = dTerm;
 
     if (PIDparameters->type == 1)
-        return(standardRadianFormat(PIDparameters->P * error) + (PIDparameters->I * (PIDparameters->iTerm)) - (PIDparameters->D * dSum));
+        return(standardRadianFormat(PIDparameters->P * error) + (PIDparameters->I * (PIDparameters->iTerm)) + (PIDparameters->D * dSum));
     else
-        return(PIDparameters->P * error) + (PIDparameters->I * (PIDparameters->iTerm)) - (PIDparameters->D * dSum);
+        return(PIDparameters->P * error) + (PIDparameters->I * (PIDparameters->iTerm)) + (PIDparameters->D * dSum);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
