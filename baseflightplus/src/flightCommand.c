@@ -115,6 +115,7 @@ void processFlightCommands(void)
 			armed = false;
 			// Zero PID integrators when disarmed
 			zeroIntegralError();
+			zeroLastError();
 		}
 
 		// Check for gyro bias command ( low throttle, left yaw, aft pitch, right roll )

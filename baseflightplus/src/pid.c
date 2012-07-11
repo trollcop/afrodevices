@@ -107,11 +107,22 @@ void zeroIntegralError(void)
 
     for (index = 0; index < NUMBER_OF_PIDS; index++)
     {
-        setIntegralError(index, 0.0);
+        setIntegralError(index, 0.0f);
     }
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 
+void zeroLastError(void)
+{
+    uint8_t index;
+
+    for (index = 0; index < NUMBER_OF_PIDS; index++)
+    {
+    	PID[index].lastError = 0.0f;
+    }
+}
+
+///////////////////////////////////////////////////////////////////////////////
 
 
