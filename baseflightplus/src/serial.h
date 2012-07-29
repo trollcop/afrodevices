@@ -33,7 +33,12 @@
 
 ///////////////////////////////////////////////////////////////////////////////
 
-extern uint8_t highSpeedTelemEnabled;
+extern uint8_t highSpeedAccelTelemEnabled;
+extern uint8_t highSpeedGyroTelemEnabled;
+extern uint8_t highSpeedRollRateTelemEnabled;
+extern uint8_t highSpeedPitchRateTelemEnabled;
+extern uint8_t highSpeedYawRateTelemEnabled;
+extern uint8_t highSpeedAttitudeTelemEnabled;
 
 ///////////////////////////////////////////////////////////////////////////////
 // Serial Communication

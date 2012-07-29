@@ -248,19 +248,51 @@ int main(void)
             writeMotors();
 
             // High Speed Telemetry Test Code Begin
-            if ( highSpeedTelemEnabled == true )
+            if ( highSpeedAccelTelemEnabled == true )
             {
             	// 100 Hz Accels
-            	//ftoa(sensors.accel100Hz[XAXIS], numberString); uartPrint(numberString); uartPrint(",");
-            	//ftoa(sensors.accel100Hz[YAXIS], numberString); uartPrint(numberString); uartPrint(",");
-            	//ftoa(sensors.accel100Hz[ZAXIS], numberString); uartPrint(numberString); uartPrint("\n");
+            	ftoa(sensors.accel100Hz[XAXIS], numberString); uartPrint(numberString); uartPrint(",");
+            	ftoa(sensors.accel100Hz[YAXIS], numberString); uartPrint(numberString); uartPrint(",");
+            	ftoa(sensors.accel100Hz[ZAXIS], numberString); uartPrint(numberString); uartPrint("\n");
+            }
 
+            if ( highSpeedGyroTelemEnabled == true )
+            {
+            	// 100 Hz Gyros
+            	ftoa(sensors.gyro100Hz[ROLL ], numberString); uartPrint(numberString); uartPrint(",");
+            	ftoa(sensors.gyro100Hz[PITCH], numberString); uartPrint(numberString); uartPrint(",");
+            	ftoa(sensors.gyro100Hz[YAW  ], numberString); uartPrint(numberString); uartPrint("\n");
+            }
+
+            if ( highSpeedRollRateTelemEnabled == true )
+            {
+            	// Roll Rate, Roll Rate Command
+            	ftoa(sensors.gyro100Hz[ROLL], numberString); uartPrint(numberString); uartPrint(",");
+            	ftoa(rxCommand[ROLL],         numberString); uartPrint(numberString); uartPrint("\n");
+            }
+
+            if ( highSpeedPitchRateTelemEnabled == true )
+            {
+            	// Pitch Rate, Pitch Rate Command
+            	ftoa(sensors.gyro100Hz[PITCH], numberString); uartPrint(numberString); uartPrint(",");
+            	ftoa(rxCommand[PITCH],         numberString); uartPrint(numberString); uartPrint("\n");
+            }
+
+            if ( highSpeedYawRateTelemEnabled == true )
+            {
             	// Yaw Rate, Yaw Rate Command
             	ftoa(sensors.gyro100Hz[YAW], numberString); uartPrint(numberString); uartPrint(",");
             	ftoa(rxCommand[YAW],         numberString); uartPrint(numberString); uartPrint("\n");
             }
-            // High Speed Telemetry Test Code End
 
+            if ( highSpeedAttitudeTelemEnabled == true )
+            {
+            	// 200 Hz Attitudes
+            	ftoa(sensors.attitude200Hz[ROLL ], numberString); uartPrint(numberString); uartPrint(",");
+            	ftoa(sensors.attitude200Hz[PITCH], numberString); uartPrint(numberString); uartPrint(",");
+            	ftoa(sensors.attitude200Hz[YAW  ], numberString); uartPrint(numberString); uartPrint("\n");
+            }
+            // High Speed Telemetry Test Code End
             executionTime100Hz = micros() - currentTime;
         }
 

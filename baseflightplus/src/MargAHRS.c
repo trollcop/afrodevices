@@ -141,7 +141,8 @@ void MargAHRSupdate(float gx, float gy, float gz, float ax, float ay, float az, 
 
     //-------------------------------------------
 
-    if ((MargAHRSinitialized == false) & (newMagData == true)) {
+    if ((MargAHRSinitialized == false) && (newMagData == true))
+    {
         MargAHRSinit(ax, ay, az, mx, my, mz);
 
         MargAHRSinitialized = true;
@@ -153,7 +154,7 @@ void MargAHRSupdate(float gx, float gy, float gz, float ax, float ay, float az, 
 
         norm = sqrt(ax * ax + ay * ay + az * az);
 
-        if ((abs(norm - 9.8065) < sensorConfig.accelCutoff) & (norm != 0.0f)) {
+        if ((abs(norm - 9.8065) < sensorConfig.accelCutoff) && (norm != 0.0f)) {
             ax = ax / norm;
             ay = ay / norm;
             az = az / norm;
@@ -175,7 +176,7 @@ void MargAHRSupdate(float gx, float gy, float gz, float ax, float ay, float az, 
 
         norm = sqrt(mx * mx + my * my + mz * mz);
 
-        if ((newMagData == true) & (norm != 0.0f)) {
+        if ((newMagData == true) && (norm != 0.0f)) {
             mx = mx / norm;
             my = my / norm;
             mz = mz / norm;

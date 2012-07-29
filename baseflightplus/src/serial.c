@@ -35,7 +35,12 @@
 
 static volatile uint8_t queryType;
 
-uint8_t highSpeedTelemEnabled = false;
+uint8_t highSpeedAccelTelemEnabled     = false;
+uint8_t highSpeedGyroTelemEnabled      = false;
+uint8_t highSpeedRollRateTelemEnabled  = false;
+uint8_t highSpeedPitchRateTelemEnabled = false;
+uint8_t highSpeedYawRateTelemEnabled   = false;
+uint8_t highSpeedAttitudeTelemEnabled  = false;
 
 ///////////////////////////////////////////////////////////////////////////////
 // Read Character String from Serial Comm
@@ -95,7 +100,7 @@ float readFloatSerial(void)
 
     data[index] = '\0';
 
-    return atof(data);
+    return stringToFloat(data);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -660,14 +665,76 @@ void serialCom(void)
 
         ///////////////////////////////
 
-        case 'z': // Toggle high speed telemetry on/off
-        	if ( highSpeedTelemEnabled == false )
-                highSpeedTelemEnabled = true;
-        	else
-        		highSpeedTelemEnabled = false;
+        case '1': // Toggle high speed accel telemetry on/off
+        	if ( highSpeedAccelTelemEnabled == false )
+                highSpeedAccelTelemEnabled = true;
+           	else
+           		highSpeedAccelTelemEnabled = false;
 
         	queryType = 'x';
-        	break;
+            break;
+
+        ///////////////////////////////
+
+        case '2': // Toggle high speed gyro telemetry on/off
+           	if ( highSpeedGyroTelemEnabled == false )
+                highSpeedGyroTelemEnabled = true;
+           	else
+           		highSpeedGyroTelemEnabled = false;
+
+           	queryType = 'x';
+           	break;
+
+        ///////////////////////////////
+
+        case '3': // Toggle high speed roll rate telemetry on/off
+           	if ( highSpeedRollRateTelemEnabled == false )
+                highSpeedRollRateTelemEnabled = true;
+           	else
+           		highSpeedRollRateTelemEnabled = false;
+
+           	queryType = 'x';
+            break;
+
+        ///////////////////////////////
+
+        case '4': // Toggle high speed pitch rate telemetry on/off
+          	if ( highSpeedPitchRateTelemEnabled == false )
+                highSpeedPitchRateTelemEnabled = true;
+           	else
+          		highSpeedPitchRateTelemEnabled = false;
+
+           	queryType = 'x';
+           	break;
+
+        ///////////////////////////////
+
+        case '5': // Toggle high speed yaw rate telemetry on/off
+           	if ( highSpeedYawRateTelemEnabled == false )
+                highSpeedYawRateTelemEnabled = true;
+           	else
+           		highSpeedYawRateTelemEnabled = false;
+
+           	queryType = 'x';
+           	break;
+
+        ///////////////////////////////
+
+        case '6': // Toggle high speed attitude telemetry on/off
+          	if ( highSpeedAttitudeTelemEnabled == false )
+                highSpeedAttitudeTelemEnabled = true;
+           	else
+           		highSpeedAttitudeTelemEnabled = false;
+
+           	queryType = 'x';
+           	break;
+
+        ///////////////////////////////
+
+        ///////////////////////////////////////////////////////////////////////
+        ///////////////////////////////////////////////////////////////////////
+        ///////////////////////////////////////////////////////////////////////
+        ///////////////////////////////////////////////////////////////////////
 
         ///////////////////////////////
 
@@ -964,7 +1031,7 @@ void serialCom(void)
 
         ///////////////////////////////
 
-        case '^': // Read RX Input Type
+        case '!': // Read RX Input Type
             systemConfig.useSerialPWMflag = (uint8_t)readFloatSerial();
             uartPrint( "\nReceiver PWM Input Type Received....\n");
 
@@ -973,7 +1040,7 @@ void serialCom(void)
 
         ///////////////////////////////
 
-        case '&': // Write EEPROM System Parameters
+        case '@': // Write EEPROM System Parameters
             uartPrint( "\nWriting EEPROM System Parameters....\n" );
             writeSystemParams();
             systemReset(false);

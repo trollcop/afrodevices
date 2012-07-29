@@ -114,11 +114,18 @@ void SysTick_Handler(void)
     sysTickUptime++;
 
 #if defined(USE_MADGWICK_AHRS) | defined(USE_MARG_AHRS)
-    if ((systemReady == true) & (accelCalibrating == false) & (gyroCalibrating == false) & (magCalibrating == false))
+    if ((systemReady == true) &&
+    	(accelCalibrating == false) &&
+    	(gyroCalibrating == false) &&
+    	(magCalibrating == false))
 #endif
 
 #if defined(USE_CHR6DM_AHRS)
-        if ((systemReady == true) & (accelCalibrating == false) & (gyroCalibrating == false) & (magCalibrating == false) & (ahrsCalibrating == false))
+    if ((systemReady == true) &&
+      	(accelCalibrating == false) &&
+       	(gyroCalibrating == false) &&
+       	(magCalibrating == false) &&
+       	(ahrsCalibrating == false))
 #endif
 
         {

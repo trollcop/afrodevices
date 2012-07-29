@@ -110,7 +110,7 @@ void processFlightCommands(void)
     if ( rxCommand[THROTTLE] < systemConfig.minCheck )
     {
 		// Check for disarm command ( low throttle, left yaw ), will disarm immediately
-		if ( (rxCommand[YAW] < (systemConfig.minCheck - MIDCOMMAND)) & (armed == true) )
+		if ( (rxCommand[YAW] < (systemConfig.minCheck - MIDCOMMAND)) && (armed == true) )
 		{
 			armed = false;
 			// Zero PID integrators when disarmed
@@ -119,8 +119,8 @@ void processFlightCommands(void)
 		}
 
 		// Check for gyro bias command ( low throttle, left yaw, aft pitch, right roll )
-		if ( (rxCommand[YAW  ] < (systemConfig.minCheck - MIDCOMMAND)) &
-		     (rxCommand[ROLL ] > (systemConfig.maxCheck - MIDCOMMAND)) &
+		if ( (rxCommand[YAW  ] < (systemConfig.minCheck - MIDCOMMAND)) &&
+		     (rxCommand[ROLL ] > (systemConfig.maxCheck - MIDCOMMAND)) &&
 		     (rxCommand[PITCH] < (systemConfig.minCheck - MIDCOMMAND)) )
 		{
 			computeGyroRTBias();
@@ -128,7 +128,7 @@ void processFlightCommands(void)
 		}
 
 		// Check for arm command ( low throttle, right yaw), must be present for 1 sec before arming
-		if ( (rxCommand[YAW] > (systemConfig.maxCheck - MIDCOMMAND) ) & (armed == false) )
+		if ( (rxCommand[YAW] > (systemConfig.maxCheck - MIDCOMMAND) ) && (armed == false) )
 		{
 			armingTimer++;
 

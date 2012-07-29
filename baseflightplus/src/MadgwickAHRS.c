@@ -121,11 +121,13 @@ void MadgwickAHRSupdate(float gx, float gy, float gz, float ax, float ay, float 
     ///////////////////////////////////
 
     // Initialize AHRS on first pass with valid mag data
-    if ((MadgwickAHRSinitialized == false) && (newMagData == true)) {
+    if ((MadgwickAHRSinitialized == false) && (newMagData == true))
+    {
         MadgwickAHRSinit(ax, ay, az, mx, my, mz);
 
         MadgwickAHRSinitialized = true;
     }
+
     ///////////////////////////////////
 
     if (MadgwickAHRSinitialized == true) {
@@ -134,10 +136,12 @@ void MadgwickAHRSupdate(float gx, float gy, float gz, float ax, float ay, float 
         // Use IMU algorithm if magnetometer measurement invalid (avoids NaN in magnetometer normalisation) or
         // mag data has not been updated
 
-        if (((mx == 0.0f) && (my == 0.0f) && (mz == 0.0f)) || (newMagData == false)) {
+        if (((mx == 0.0f) && (my == 0.0f) && (mz == 0.0f)) || (newMagData == false))
+        {
             MadgwickAHRSupdateIMU(gx, gy, gz, ax, ay, az, accelCutoff, dt);
             return;
         }
+
         ///////////////////////////////
 
         // Rate of change of quaternion from gyroscope
@@ -149,7 +153,8 @@ void MadgwickAHRSupdate(float gx, float gy, float gz, float ax, float ay, float 
         accelSquareSum = ax * ax + ay * ay + az * az;
 
         // Compute feedback only if accelerometer abs(vector) less than cutoff value (also avoids NaN in accelerometer normalisation)
-        if (fabs(sqrt(accelSquareSum) - 9.8065) < accelCutoff) {
+        if (fabs(sqrt(accelSquareSum) - 9.8065) < accelCutoff)
+        {
             // Normalise accelerometer measurement
             recipNorm = invSqrt(accelSquareSum);
 

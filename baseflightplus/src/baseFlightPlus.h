@@ -41,7 +41,7 @@
 
 #define USE_CHR6DM_AHRS
 
-#if !defined(USE_MADGWICK_AHRS) & !defined(USE_MARG_AHRS) & !defined(USE_CHR6DM_AHRS)
+#if !defined(USE_MADGWICK_AHRS) && !defined(USE_MARG_AHRS) && !defined(USE_CHR6DM_AHRS)
 #error Define AHRS!!!
 #endif
 
